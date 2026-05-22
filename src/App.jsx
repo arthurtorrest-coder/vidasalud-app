@@ -4,6 +4,7 @@ import ProtectedRoute  from './components/layout/ProtectedRoute'
 import AppShell        from './components/layout/AppShell'
 import Login           from './screens/Auth/Login'
 import Register        from './screens/Auth/Register'
+import NuevaContrasena from './screens/Auth/NuevaContrasena'
 import Home            from './pages/Home'
 import Booking         from './pages/Booking'
 import Payment         from './pages/Payment'
@@ -23,8 +24,9 @@ export default function App() {
       <Routes>
 
         {/* Rutas públicas — sin AppShell */}
-        <Route path="/login"    element={<Login />}    />
-        <Route path="/registro" element={<Register />} />
+        <Route path="/login"            element={<Login />}            />
+        <Route path="/registro"         element={<Register />}         />
+        <Route path="/nueva-contrasena" element={<NuevaContrasena />}  />
 
         {/* Rutas protegidas — redirigen a /login si no hay sesión */}
         <Route element={<ProtectedRoute />}>

@@ -201,6 +201,28 @@ CREATE POLICY "appointments_insert_patient"
   ON public.appointments FOR INSERT
   WITH CHECK (auth.uid() = patient_id);
 
+-- médico puede actualizar sus propias citas (status, notes_doctor)
+CREATE POLICY "appointments_update_doctor"
+  ON public.appointments FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.doctors
+      WHERE id = appointments.doctor_id AND id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.doctors
+      WHERE id = appointments.doctor_id AND id = auth.uid()
+    )
+  );
+
+-- paciente puede cancelar sus propias citas
+CREATE POLICY "appointments_update_patient"
+  ON public.appointments FOR UPDATE
+  USING (auth.uid() = patient_id)
+  WITH CHECK (auth.uid() = patient_id);
+
 -- payments: solo el paciente dueño de la cita
 CREATE POLICY "payments_select_own"
   ON public.payments FOR SELECT

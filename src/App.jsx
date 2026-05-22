@@ -5,6 +5,8 @@ import AppShell        from './components/layout/AppShell'
 import Login           from './screens/Auth/Login'
 import Register        from './screens/Auth/Register'
 import NuevaContrasena from './screens/Auth/NuevaContrasena'
+import DoctorRoute     from './components/layout/DoctorRoute'
+import PanelMedico     from './screens/Doctor/PanelMedico'
 import Home            from './pages/Home'
 import Booking         from './pages/Booking'
 import Payment         from './pages/Payment'
@@ -30,6 +32,12 @@ export default function App() {
 
         {/* Rutas protegidas — redirigen a /login si no hay sesión */}
         <Route element={<ProtectedRoute />}>
+
+          {/* Solo médicos */}
+          <Route element={<DoctorRoute />}>
+            <Route path="/medico/panel" element={<PanelMedico />} />
+          </Route>
+
           <Route element={<AppShell />}>
             <Route path="/"                    element={<Home />}     />
             <Route path="/booking/:doctorId"   element={<Booking />}  />

@@ -1,0 +1,602 @@
+import { useState, useEffect, useRef, useMemo } from 'react'
+import toast, { Toaster } from 'react-hot-toast'
+import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
+
+// ─── Paleta ──────────────────────────────────────────────────
+const C = {
+  green900: '#064E3B', green800: '#065F46', green700: '#047857',
+  green600: '#059669', green500: '#10B981', green200: '#A7F3D0',
+  green100: '#D1FAE5', green50:  '#ECFDF5',
+  amber:    '#F59E0B', amberBg:  '#FFFBEB', amberText: '#B45309',
+  blue600:  '#2563EB', blueBg:   '#EFF6FF', blueText:  '#1D4ED8',
+  red600:   '#DC2626', redBg:    '#FEF2F2',
+  gray900:  '#111827', gray700:  '#374151', gray500:   '#6B7280',
+  gray400:  '#9CA3AF', gray300:  '#D1D5DB', gray200:   '#E5E7EB',
+  gray100:  '#F3F4F6', gray50:   '#F9FAFB', white:     '#FFFFFF',
+}
+
+// ─── Helpers ─────────────────────────────────────────────────
+function fmtHora(iso) {
+  return new Date(iso).toLocaleTimeString('es-PE', {
+    timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit',
+  })
+}
+
+function fmtFechaLarga() {
+  return new Date().toLocaleDateString('es-PE', {
+    timeZone: 'America/Lima', weekday: 'long', day: 'numeric', month: 'long',
+  }).replace(/^\w/, c => c.toUpperCase())
+}
+
+function getInitials(name = '') {
+  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
+}
+
+function parseSoap(raw) {
+  try { const p = JSON.parse(raw); if (p?.s !== undefined) return p } catch {}
+  return null
+}
+
+// ─── Badge de estado ─────────────────────────────────────────
+const STATUS_CFG = {
+  pending:   { label: 'Pend. pago',   bg: C.amberBg, color: C.amberText },
+  paid:      { label: 'Confirmada',   bg: C.green50,  color: C.green700  },
+  active:    { label: 'En consulta',  bg: C.blueBg,   color: C.blueText  },
+  done:      { label: 'Completada',   bg: C.gray100,  color: C.gray500   },
+  cancelled: { label: 'Cancelada',    bg: C.redBg,    color: C.red600    },
+}
+
+function Badge({ status }) {
+  const cfg = STATUS_CFG[status] ?? STATUS_CFG.done
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+      background: cfg.bg, color: cfg.color, whiteSpace: 'nowrap', flexShrink: 0,
+    }}>
+      {cfg.label}
+    </span>
+  )
+}
+
+// ─── Avatar del paciente ──────────────────────────────────────
+function Avatar({ name, size = 44 }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: C.white, fontWeight: 700, fontSize: size * 0.32,
+    }}>
+      {getInitials(name)}
+    </div>
+  )
+}
+
+// ─── Skeleton de carga ────────────────────────────────────────
+function SkeletonCard() {
+  const bar = (w, h) => (
+    <div style={{ height: h, width: w, background: C.gray200, borderRadius: 6 }} />
+  )
+  return (
+    <div style={{ background: C.white, border: `1.5px solid ${C.gray200}`, borderRadius: 16, padding: 16, display: 'flex', gap: 12 }}>
+      <div style={{ width: 44, height: 44, borderRadius: '50%', background: C.gray200, flexShrink: 0 }} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {bar('55%', 13)}
+        {bar('38%', 11)}
+        {bar('70%', 11)}
+      </div>
+    </div>
+  )
+}
+
+// ─── Formulario SOAP ─────────────────────────────────────────
+const SOAP_FIELDS = [
+  {
+    key: 'S', field: 's',
+    label: 'S — Subjetivo',
+    hint: 'Lo que refiere el paciente: síntomas, duración, intensidad.',
+    placeholder: 'Ej: Paciente masculino de 42 años refiere cefalea pulsátil de 3 días de evolución, 7/10 de intensidad…',
+    required: true,
+  },
+  {
+    key: 'O', field: 'o',
+    label: 'O — Objetivo',
+    hint: 'Hallazgos del examen físico y signos vitales.',
+    placeholder: 'Ej: PA 130/85 mmHg, FC 78 lpm, afebril, consciente y orientado…',
+    required: false,
+  },
+  {
+    key: 'A', field: 'a',
+    label: 'A — Análisis',
+    hint: 'Diagnóstico o impresión diagnóstica (CIE-10 si aplica).',
+    placeholder: 'Ej: Cefalea tensional (G44.2). Descartar HTA secundaria.',
+    required: false,
+  },
+  {
+    key: 'P', field: 'p',
+    label: 'P — Plan',
+    hint: 'Tratamiento, medicamentos, dosis, indicaciones y seguimiento.',
+    placeholder: 'Ej: Ibuprofeno 400 mg c/8h por 3 días. Reposo relativo. Control en 7 días si no mejora.',
+    required: false,
+  },
+]
+
+function SoapForm({ soap, onChange, onFinish, saving }) {
+  const [focused, setFocused] = useState(null)
+  const formRef = useRef(null)
+
+  useEffect(() => {
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  return (
+    <div
+      ref={formRef}
+      style={{
+        marginTop: 12, borderTop: `2px dashed ${C.green200}`,
+        paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 16 }}>📝</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: C.green800 }}>
+          Nota SOAP
+        </span>
+        <span style={{ fontSize: 11, color: C.gray500 }}>· campo S obligatorio</span>
+      </div>
+
+      {SOAP_FIELDS.map(({ key, field, label, hint, placeholder, required }) => (
+        <div key={key}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
+            <label style={{ fontSize: 12, fontWeight: 800, color: C.green700 }}>
+              {label}
+              {required && <span style={{ color: C.red600 }}> *</span>}
+            </label>
+            <span style={{ fontSize: 11, color: C.gray400 }}>{hint}</span>
+          </div>
+          <textarea
+            value={soap[field]}
+            onChange={e => onChange(field, e.target.value)}
+            onFocus={() => setFocused(field)}
+            onBlur={() => setFocused(null)}
+            placeholder={placeholder}
+            rows={3}
+            style={{
+              width: '100%', padding: '10px 12px',
+              border: `1.5px solid ${focused === field ? C.green500 : C.gray300}`,
+              borderRadius: 10, fontSize: 13, color: C.gray900,
+              background: C.white, outline: 'none', resize: 'vertical',
+              fontFamily: 'inherit', lineHeight: 1.5,
+              boxShadow: focused === field ? '0 0 0 3px rgba(16,185,129,0.1)' : 'none',
+              transition: 'border-color 0.15s, box-shadow 0.15s',
+            }}
+          />
+        </div>
+      ))}
+
+      <button
+        onClick={onFinish}
+        disabled={saving}
+        style={{
+          width: '100%', padding: '14px 0',
+          background: saving
+            ? C.green100
+            : `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
+          color: saving ? C.green700 : C.white,
+          border: 'none', borderRadius: 12,
+          fontSize: 14, fontWeight: 800,
+          cursor: saving ? 'not-allowed' : 'pointer',
+          boxShadow: saving ? 'none' : '0 4px 14px rgba(5,150,105,0.3)',
+          transition: 'all 0.15s', fontFamily: 'inherit',
+        }}
+      >
+        {saving ? 'Guardando nota…' : '✅ Terminar consulta'}
+      </button>
+    </div>
+  )
+}
+
+// ─── Tarjeta de cita ──────────────────────────────────────────
+function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving }) {
+  const patient   = appt.patient
+  const name      = patient?.full_name ?? 'Paciente'
+  const canStart  = appt.status === 'paid' && !hasAnyActive
+  const blocked   = appt.status === 'paid' && hasAnyActive && !isActive
+
+  return (
+    <div style={{
+      background: C.white,
+      border: `2px solid ${isActive ? C.green500 : C.gray200}`,
+      borderRadius: 16, padding: 16,
+      boxShadow: isActive ? '0 4px 20px rgba(16,185,129,0.15)' : 'none',
+      transition: 'all 0.2s',
+    }}>
+      {/* Fila principal */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        {/* Hora */}
+        <div style={{
+          flexShrink: 0, width: 52, textAlign: 'center',
+          background: isActive ? C.green50 : C.gray100,
+          borderRadius: 10, padding: '6px 0',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: isActive ? C.green800 : C.gray700 }}>
+            {fmtHora(appt.scheduled_at)}
+          </div>
+          <div style={{ fontSize: 10, color: C.gray500, marginTop: 1 }}>
+            {appt.duration_minutes} min
+          </div>
+        </div>
+
+        {/* Paciente */}
+        <Avatar name={name} size={44} />
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: C.gray900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {name}
+          </div>
+          {patient?.dni && (
+            <div style={{ fontSize: 11, color: C.gray500, marginTop: 1 }}>
+              DNI {patient.dni}
+            </div>
+          )}
+        </div>
+
+        <Badge status={appt.status} />
+      </div>
+
+      {/* Motivo de consulta */}
+      {appt.chief_complaint && (
+        <div style={{
+          marginTop: 10, background: C.gray50, borderRadius: 10,
+          padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'flex-start',
+        }}>
+          <span style={{ fontSize: 14, flexShrink: 0 }}>💬</span>
+          <span style={{ fontSize: 12, color: C.gray700, lineHeight: 1.5 }}>
+            {appt.chief_complaint}
+          </span>
+        </div>
+      )}
+
+      {/* Nota SOAP ya guardada (cita completada) */}
+      {appt.status === 'done' && parseSoap(appt.notes_doctor) && (() => {
+        const s = parseSoap(appt.notes_doctor)
+        return (
+          <details style={{ marginTop: 10 }}>
+            <summary style={{ fontSize: 12, fontWeight: 600, color: C.green700, cursor: 'pointer' }}>
+              Ver nota SOAP guardada
+            </summary>
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {SOAP_FIELDS.map(({ key, field, label }) => s[field] ? (
+                <div key={key} style={{ fontSize: 12 }}>
+                  <span style={{ fontWeight: 700, color: C.green800 }}>{label}:</span>{' '}
+                  <span style={{ color: C.gray700 }}>{s[field]}</span>
+                </div>
+              ) : null)}
+            </div>
+          </details>
+        )
+      })()}
+
+      {/* Botón "Iniciar consulta" */}
+      {canStart && (
+        <button
+          onClick={() => onStart(appt)}
+          disabled={starting}
+          style={{
+            marginTop: 12, width: '100%', padding: '12px 0',
+            background: starting
+              ? C.green100
+              : `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+            color: starting ? C.green700 : C.white,
+            border: 'none', borderRadius: 12,
+            fontSize: 14, fontWeight: 700,
+            cursor: starting ? 'not-allowed' : 'pointer',
+            transition: 'all 0.15s', fontFamily: 'inherit',
+          }}
+        >
+          {starting ? 'Iniciando…' : '▶ Iniciar consulta'}
+        </button>
+      )}
+
+      {blocked && (
+        <div style={{ marginTop: 10, fontSize: 12, color: C.amberText, textAlign: 'center', fontWeight: 600 }}>
+          ⏳ Hay una consulta en curso — termínala primero
+        </div>
+      )}
+
+      {/* Formulario SOAP (solo cuando está activa) */}
+      {isActive && (
+        <SoapForm
+          soap={soap}
+          onChange={onSoapChange}
+          onFinish={onFinish}
+          saving={saving}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Estado vacío ─────────────────────────────────────────────
+function EmptyState() {
+  return (
+    <div style={{ textAlign: 'center', padding: '48px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      <span style={{ fontSize: 52 }}>🗓️</span>
+      <div style={{ fontSize: 16, fontWeight: 700, color: C.gray700 }}>Sin citas para hoy</div>
+      <p style={{ fontSize: 13, color: C.gray500, margin: 0, lineHeight: 1.6 }}>
+        No tienes consultas programadas para el día de hoy.
+        Las nuevas reservas aparecerán aquí automáticamente.
+      </p>
+    </div>
+  )
+}
+
+// ─── Panel principal ──────────────────────────────────────────
+export default function PanelMedico() {
+  const { user, profile } = useAuthStore()
+
+  const [appointments, setAppointments] = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [doctorInfo,   setDoctorInfo]   = useState(null)
+  const [soap,         setSoap]         = useState({ s: '', o: '', a: '', p: '' })
+  const [saving,       setSaving]       = useState(false)
+  const [startingId,   setStartingId]   = useState(null)
+
+  const activeAppt  = useMemo(() => appointments.find(a => a.status === 'active') ?? null, [appointments])
+  const hasAnyActive = activeAppt !== null
+
+  // Pre-cargar nota SOAP si la cita activa ya tiene una parcialmente guardada
+  useEffect(() => {
+    if (!activeAppt) return
+    const prev = parseSoap(activeAppt.notes_doctor)
+    if (prev) setSoap(prev)
+    else setSoap({ s: '', o: '', a: '', p: '' })
+  }, [activeAppt?.id])
+
+  useEffect(() => {
+    if (!user) return
+    fetchData()
+
+    // Suscripción en tiempo real a cambios en las citas del médico
+    const channel = supabase
+      .channel(`panel-medico-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'appointments', filter: `doctor_id=eq.${user.id}` },
+        (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            setAppointments(prev =>
+              prev.map(a => a.id === payload.new.id ? { ...a, ...payload.new } : a)
+            )
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [user])
+
+  async function fetchData() {
+    setLoading(true)
+    const now   = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString()
+    const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
+
+    const [apptRes, docRes] = await Promise.all([
+      supabase
+        .from('appointments')
+        .select(`
+          id, status, scheduled_at, chief_complaint, notes_doctor, duration_minutes,
+          patient:profiles!patient_id ( full_name, phone, dni )
+        `)
+        .eq('doctor_id', user.id)
+        .gte('scheduled_at', start)
+        .lte('scheduled_at', end)
+        .order('scheduled_at', { ascending: true }),
+      supabase
+        .from('doctors')
+        .select('specialty, cmp_code')
+        .eq('id', user.id)
+        .single(),
+    ])
+
+    if (apptRes.data)  setAppointments(apptRes.data)
+    if (apptRes.error) toast.error('Error al cargar las citas')
+    if (docRes.data)   setDoctorInfo(docRes.data)
+    setLoading(false)
+  }
+
+  async function handleStart(appt) {
+    setStartingId(appt.id)
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: 'active' })
+      .eq('id', appt.id)
+
+    if (error) {
+      toast.error('No se pudo iniciar la consulta')
+    } else {
+      setAppointments(prev =>
+        prev.map(a => a.id === appt.id ? { ...a, status: 'active' } : a)
+      )
+      setSoap({ s: '', o: '', a: '', p: '' })
+      toast.success(`Consulta iniciada con ${appt.patient?.full_name ?? 'el paciente'}`)
+    }
+    setStartingId(null)
+  }
+
+  async function handleFinish() {
+    if (!activeAppt) return
+    if (!soap.s.trim()) {
+      toast.error('El campo Subjetivo (S) es obligatorio antes de terminar')
+      return
+    }
+
+    setSaving(true)
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: 'done', notes_doctor: JSON.stringify(soap) })
+      .eq('id', activeAppt.id)
+
+    if (error) {
+      toast.error('No se pudo guardar la nota SOAP')
+    } else {
+      setAppointments(prev =>
+        prev.map(a =>
+          a.id === activeAppt.id
+            ? { ...a, status: 'done', notes_doctor: JSON.stringify(soap) }
+            : a
+        )
+      )
+      setSoap({ s: '', o: '', a: '', p: '' })
+      toast.success('Consulta completada · Nota SOAP guardada', { duration: 4000 })
+    }
+    setSaving(false)
+  }
+
+  function handleSoapChange(field, value) {
+    setSoap(prev => ({ ...prev, [field]: value }))
+  }
+
+  // ── Estadísticas del día ──────────────────────────────────
+  const stats = useMemo(() => ({
+    total:      appointments.length,
+    pendientes: appointments.filter(a => ['pending', 'paid'].includes(a.status)).length,
+    completadas:appointments.filter(a => a.status === 'done').length,
+  }), [appointments])
+
+  const doctorName = profile?.full_name ?? 'Doctor'
+  const cmp        = doctorInfo?.cmp_code ?? ''
+  const specialty  = doctorInfo?.specialty ?? ''
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: ${C.gray100}; font-family: 'DM Sans', system-ui, sans-serif; }
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        ::-webkit-scrollbar { width: 0; }
+      `}</style>
+
+      <Toaster
+        position="bottom-center"
+        toastOptions={{ style: { fontFamily: 'inherit', fontSize: 13, maxWidth: 340 } }}
+      />
+
+      <div style={{ display: 'flex', justifyContent: 'center', minHeight: '100vh', padding: '20px 0', background: C.gray100 }}>
+        <div style={{
+          width: 390, background: C.white, borderRadius: 32, overflow: 'hidden',
+          border: `1.5px solid ${C.gray300}`, display: 'flex', flexDirection: 'column',
+          maxHeight: 780,
+        }}>
+
+          {/* ── Status bar ─────────────────────────────────── */}
+          <div style={{
+            background: C.green800, color: C.white, padding: '10px 20px 8px',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>
+              {new Date().toLocaleTimeString('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit' })}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.3 }}>VIDASALUD · Médico</span>
+            <span style={{ fontSize: 12 }}>▲ ● ■</span>
+          </div>
+
+          {/* ── Header del médico ───────────────────────────── */}
+          <div style={{
+            background: `linear-gradient(160deg, ${C.green800} 0%, ${C.green600} 100%)`,
+            padding: '20px 20px 24px', flexShrink: 0,
+          }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginBottom: 2 }}>
+              {fmtFechaLarga()}
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: C.white, lineHeight: 1.2 }}>
+              Dr. {doctorName.split(' ')[0]} 👋
+            </div>
+            {(specialty || cmp) && (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
+                {specialty}{specialty && cmp && ' · '}{cmp}
+              </div>
+            )}
+
+            {/* Stats */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              {[
+                { n: stats.total,       label: 'Citas hoy'    },
+                { n: stats.pendientes,  label: 'Pendientes'   },
+                { n: stats.completadas, label: 'Completadas'  },
+              ].map((s, i) => (
+                <div key={i} style={{
+                  flex: 1, background: 'rgba(255,255,255,0.15)',
+                  borderRadius: 10, padding: '8px 10px', textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: C.white }}>{s.n}</div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Cuerpo scrollable ───────────────────────────── */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* Título sección */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h2 style={{ fontSize: 14, fontWeight: 800, color: C.gray900 }}>
+                Citas de hoy
+              </h2>
+              {!loading && (
+                <button
+                  onClick={fetchData}
+                  style={{ background: 'none', border: 'none', fontSize: 13, color: C.green700, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  ↻ Actualizar
+                </button>
+              )}
+            </div>
+
+            {/* Estado: cargando */}
+            {loading && [1, 2, 3].map(i => <SkeletonCard key={i} />)}
+
+            {/* Estado: sin citas */}
+            {!loading && appointments.length === 0 && <EmptyState />}
+
+            {/* Lista de citas */}
+            {!loading && appointments.map(appt => (
+              <AppointmentCard
+                key={appt.id}
+                appt={appt}
+                isActive={appt.id === activeAppt?.id}
+                hasAnyActive={hasAnyActive}
+                onStart={handleStart}
+                starting={startingId === appt.id}
+                soap={soap}
+                onSoapChange={handleSoapChange}
+                onFinish={handleFinish}
+                saving={saving}
+              />
+            ))}
+
+            {/* Sello regulatorio */}
+            {!loading && (
+              <div style={{
+                marginTop: 4, background: C.green50, border: `1px solid ${C.green100}`,
+                borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10,
+              }}>
+                <span style={{ fontSize: 20, flexShrink: 0 }}>🛡️</span>
+                <span style={{ fontSize: 11, color: C.green700, lineHeight: 1.6 }}>
+                  Las notas SOAP quedan registradas bajo tu CMP en cumplimiento de la Ley 30421.
+                </span>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+    </>
+  )
+}

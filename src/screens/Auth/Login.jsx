@@ -57,14 +57,34 @@ function inputStyle(hasError) {
 export default function Login() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const [loading, setLoading] = useState(false)
-  const [showPass, setShowPass] = useState(false)
+  const [loading,       setLoading]       = useState(false)
+  const [showPass,      setShowPass]      = useState(false)
+  const [resetSent,     setResetSent]     = useState(false)
+  const [resetLoading,  setResetLoading]  = useState(false)
 
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, getValues, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
   })
 
   if (user) return <Navigate to="/" replace />
+
+  async function handleForgotPassword() {
+    const email = getValues('email')?.trim()
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Escribe tu correo arriba antes de continuar')
+      return
+    }
+    setResetLoading(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/nueva-contrasena`,
+    })
+    setResetLoading(false)
+    if (error) {
+      toast.error('No se pudo enviar el correo. Inténtalo de nuevo.')
+    } else {
+      setResetSent(true)
+    }
+  }
 
   async function onSubmit({ email, password }) {
     setLoading(true)
@@ -186,6 +206,41 @@ export default function Login() {
               >
                 {loading ? 'Ingresando…' : 'Iniciar sesión'}
               </button>
+
+              {/* Olvidé mi contraseña */}
+              {resetSent ? (
+                <div style={{
+                  marginTop: 12, padding: '12px 16px',
+                  background: C.green50, border: `1px solid ${C.green200}`,
+                  borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start',
+                }}>
+                  <span style={{ fontSize: 20, flexShrink: 0 }}>📧</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.green800 }}>
+                      Correo enviado
+                    </div>
+                    <div style={{ fontSize: 12, color: C.green700, marginTop: 2, lineHeight: 1.5 }}>
+                      Revisa tu bandeja de entrada y sigue el enlace para crear una nueva contraseña.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={resetLoading}
+                  style={{
+                    marginTop: 4, background: 'none', border: 'none',
+                    color: resetLoading ? C.gray500 : C.green700,
+                    fontSize: 13, fontWeight: 600, cursor: resetLoading ? 'not-allowed' : 'pointer',
+                    textDecoration: 'underline', textDecorationStyle: 'dotted',
+                    fontFamily: 'inherit', padding: '4px 0', alignSelf: 'center',
+                    width: '100%', textAlign: 'center',
+                  }}
+                >
+                  {resetLoading ? 'Enviando correo…' : '¿Olvidaste tu contraseña?'}
+                </button>
+              )}
             </form>
 
             {/* Separador */}

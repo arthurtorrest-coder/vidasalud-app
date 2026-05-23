@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import toast, { Toaster } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
+import VideoRoom from '../../components/VideoRoom'
 
 // ─── Paleta ──────────────────────────────────────────────────
 const C = {
@@ -198,7 +199,7 @@ function SoapForm({ soap, onChange, onFinish, saving }) {
 }
 
 // ─── Tarjeta de cita ──────────────────────────────────────────
-function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving }) {
+function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving, onOpenVideo }) {
   const patient   = appt.patient
   const name      = patient?.full_name ?? 'Paciente'
   const canStart  = appt.status === 'paid' && !hasAnyActive
@@ -305,6 +306,24 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
         </div>
       )}
 
+      {/* Botón de videollamada (cita activa con sala creada) */}
+      {isActive && appt.video_url && (
+        <button
+          onClick={() => onOpenVideo(appt.video_url)}
+          style={{
+            marginTop: 12, width: '100%', padding: '12px 0',
+            background: `linear-gradient(135deg, #1D4ED8, #2563EB)`,
+            color: C.white, border: 'none', borderRadius: 12,
+            fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
+            transition: 'all 0.15s',
+          }}
+        >
+          📹 Abrir videollamada
+        </button>
+      )}
+
       {/* Formulario SOAP (solo cuando está activa) */}
       {isActive && (
         <SoapForm
@@ -342,6 +361,7 @@ export default function PanelMedico() {
   const [soap,         setSoap]         = useState({ s: '', o: '', a: '', p: '' })
   const [saving,       setSaving]       = useState(false)
   const [startingId,   setStartingId]   = useState(null)
+  const [videoUrl,     setVideoUrl]     = useState(null)   // URL activa de videollamada
 
   const activeAppt  = useMemo(() => appointments.find(a => a.status === 'active') ?? null, [appointments])
   const hasAnyActive = activeAppt !== null
@@ -387,7 +407,7 @@ export default function PanelMedico() {
       supabase
         .from('appointments')
         .select(`
-          id, status, scheduled_at, chief_complaint, notes_doctor, duration_minutes,
+          id, status, scheduled_at, chief_complaint, notes_doctor, duration_minutes, video_url,
           patient:profiles!patient_id ( full_name, phone, dni )
         `)
         .eq('doctor_id', user.id)
@@ -409,19 +429,39 @@ export default function PanelMedico() {
 
   async function handleStart(appt) {
     setStartingId(appt.id)
+
+    // Si la sala ya fue creada antes (ej. recarga de página), reutilizar la URL
+    let roomUrl = appt.video_url ?? null
+
+    if (!roomUrl) {
+      toast.loading('Creando sala de video…', { id: 'room-creation' })
+      const { data, error: fnError } = await supabase.functions.invoke('create-daily-room', {
+        body: { appointmentId: appt.id },
+      })
+      toast.dismiss('room-creation')
+
+      if (fnError || !data?.url) {
+        toast.error('No se pudo crear la sala de video. Verifica que la Edge Function esté desplegada.')
+        setStartingId(null)
+        return
+      }
+      roomUrl = data.url
+    }
+
     const { error } = await supabase
       .from('appointments')
-      .update({ status: 'active' })
+      .update({ status: 'active', video_url: roomUrl })
       .eq('id', appt.id)
 
     if (error) {
       toast.error('No se pudo iniciar la consulta')
     } else {
       setAppointments(prev =>
-        prev.map(a => a.id === appt.id ? { ...a, status: 'active' } : a)
+        prev.map(a => a.id === appt.id ? { ...a, status: 'active', video_url: roomUrl } : a)
       )
       setSoap({ s: '', o: '', a: '', p: '' })
-      toast.success(`Consulta iniciada con ${appt.patient?.full_name ?? 'el paciente'}`)
+      setVideoUrl(roomUrl)
+      toast.success(`Consulta iniciada · Sala de video lista`)
     }
     setStartingId(null)
   }
@@ -486,6 +526,11 @@ export default function PanelMedico() {
         position="bottom-center"
         toastOptions={{ style: { fontFamily: 'inherit', fontSize: 13, maxWidth: 340 } }}
       />
+
+      {/* Overlay de videollamada */}
+      {videoUrl && (
+        <VideoRoom url={videoUrl} onLeave={() => setVideoUrl(null)} />
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'center', minHeight: '100vh', padding: '20px 0', background: C.gray100 }}>
         <div style={{
@@ -578,6 +623,7 @@ export default function PanelMedico() {
                 onSoapChange={handleSoapChange}
                 onFinish={handleFinish}
                 saving={saving}
+                onOpenVideo={setVideoUrl}
               />
             ))}
 

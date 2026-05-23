@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import toast, { Toaster } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
+import VideoRoom from '../../components/VideoRoom'
 
 const C = {
   green800: '#065F46',
@@ -105,12 +106,19 @@ function StatusBadge({ status }) {
   )
 }
 
-function AppointmentCard({ appt, onCancel }) {
+function AppointmentCard({ appt, onCancel, onJoin }) {
   const doc       = appt.doctor
   const canCancel = ['pending','paid'].includes(appt.status) && isFuture(appt.scheduled_at)
+  const canJoin   = appt.status === 'active' && !!appt.video_url
 
   return (
-    <div style={{ background: C.white, border: `1.5px solid ${C.gray200}`, borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{
+      background: C.white,
+      border: `1.5px solid ${canJoin ? '#3B82F6' : C.gray200}`,
+      borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
+      boxShadow: canJoin ? '0 4px 20px rgba(59,130,246,0.12)' : 'none',
+      transition: 'all 0.2s',
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <Avatar doc={doc} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -149,6 +157,24 @@ function AppointmentCard({ appt, onCancel }) {
           </button>
         )}
       </div>
+
+      {/* Botón "Unirse a la consulta" — visible cuando el médico ya inició */}
+      {canJoin && (
+        <button
+          onClick={() => onJoin(appt.video_url)}
+          style={{
+            width: '100%', padding: '14px 0',
+            background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
+            color: C.white, border: 'none', borderRadius: 12,
+            fontSize: 14, fontWeight: 800, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
+            animation: 'pulse-btn 2s infinite',
+          }}
+        >
+          📹 Unirse a la consulta
+        </button>
+      )}
     </div>
   )
 }
@@ -251,13 +277,14 @@ function CancelModal({ appt, loading, onConfirm, onClose }) {
 // ─── Página principal ─────────────────────────────────────────
 
 export default function Citas() {
-  const { user }                  = useAuthStore()
-  const navigate                  = useNavigate()
-  const [appts,      setAppts]    = useState([])
-  const [loading,    setLoading]  = useState(true)
-  const [activeTab,  setActiveTab]= useState('proximas')
-  const [toCancel,   setToCancel] = useState(null)
+  const { user }                    = useAuthStore()
+  const navigate                    = useNavigate()
+  const [appts,      setAppts]      = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [activeTab,  setActiveTab]  = useState('proximas')
+  const [toCancel,   setToCancel]   = useState(null)
   const [cancelling, setCancelling] = useState(false)
+  const [videoUrl,   setVideoUrl]   = useState(null)   // URL de sala abierta
 
   const fetchAppts = useCallback(async () => {
     if (!user) return
@@ -273,6 +300,26 @@ export default function Citas() {
   }, [user])
 
   useEffect(() => { fetchAppts() }, [fetchAppts])
+
+  // Suscripción realtime: actualiza status y video_url sin refetch completo
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel(`citas-paciente-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'appointments', filter: `patient_id=eq.${user.id}` },
+        (payload) => {
+          setAppts(prev => prev.map(a =>
+            a.id === payload.new.id
+              ? { ...a, status: payload.new.status, video_url: payload.new.video_url }
+              : a
+          ))
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [user])
 
   const cats   = categorize(appts)
   const counts = { proximas: cats.proximas.length, pasadas: cats.pasadas.length, canceladas: cats.canceladas.length }
@@ -297,7 +344,17 @@ export default function Citas() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <style>{`
+        @keyframes pulse-btn {
+          0%,100% { box-shadow: 0 4px 14px rgba(37,99,235,0.3); }
+          50%      { box-shadow: 0 4px 24px rgba(37,99,235,0.55); }
+        }
+      `}</style>
       <Toaster position="top-center" />
+
+      {videoUrl && (
+        <VideoRoom url={videoUrl} onLeave={() => setVideoUrl(null)} />
+      )}
 
       <div style={{ padding: '20px 20px 0', flexShrink: 0 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: C.gray900, margin: 0 }}>Mis citas</h1>
@@ -346,7 +403,7 @@ export default function Citas() {
         )}
 
         {!loading && shown.map(a => (
-          <AppointmentCard key={a.id} appt={a} onCancel={setToCancel} />
+          <AppointmentCard key={a.id} appt={a} onCancel={setToCancel} onJoin={setVideoUrl} />
         ))}
       </div>
 

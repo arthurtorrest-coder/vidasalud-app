@@ -399,17 +399,20 @@ export default function PanelMedico() {
 
   async function fetchData() {
     setLoading(true)
-    const now   = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString()
-    const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
+
+    // Rango del día en Lima (UTC-5), independiente del timezone del navegador/OS
+    const nowUtc    = new Date()
+    const limaToday = new Date(nowUtc.getTime() - 5 * 3600 * 1000)
+    const y = limaToday.getUTCFullYear()
+    const mo = limaToday.getUTCMonth()
+    const d = limaToday.getUTCDate()
+    const start = new Date(Date.UTC(y, mo, d,     5, 0,  0)).toISOString()  // 00:00 Lima = 05:00 UTC
+    const end   = new Date(Date.UTC(y, mo, d + 1, 4, 59, 59)).toISOString() // 23:59:59 Lima = 04:59:59 UTC
 
     const [apptRes, docRes] = await Promise.all([
       supabase
         .from('appointments')
-        .select(`
-          id, status, scheduled_at, chief_complaint, notes_doctor, duration_minutes, video_url,
-          patient:profiles!patient_id ( full_name, phone, dni )
-        `)
+        .select(`*, patient:profiles!patient_id ( full_name, phone, dni )`)
         .eq('doctor_id', user.id)
         .gte('scheduled_at', start)
         .lte('scheduled_at', end)
@@ -421,8 +424,11 @@ export default function PanelMedico() {
         .single(),
     ])
 
+    if (apptRes.error) {
+      console.error('[PanelMedico] Error al cargar citas:', apptRes.error)
+      toast.error('Error al cargar las citas: ' + apptRes.error.message)
+    }
     if (apptRes.data)  setAppointments(apptRes.data)
-    if (apptRes.error) toast.error('Error al cargar las citas')
     if (docRes.data)   setDoctorInfo(docRes.data)
     setLoading(false)
   }

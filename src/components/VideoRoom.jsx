@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 const C = {
   green800: '#065F46', green600: '#059669',
@@ -10,16 +11,19 @@ export default function VideoRoom({ url, onLeave }) {
   const [loaded, setLoaded] = useState(false)
   const iframeRef = useRef(null)
 
-  // Limpiar al desmontar (por si el componente padre quita el overlay abruptamente)
   useEffect(() => {
+    // Bloquear scroll del body mientras la videollamada está abierta
+    document.body.style.overflow = 'hidden'
     return () => {
+      document.body.style.overflow = ''
+      // Limpiar src para que el navegador libere cámara/micrófono
       if (iframeRef.current) iframeRef.current.src = ''
     }
   }, [])
 
-  console.log('[VideoRoom] render — url:', url)
-
-  return (
+  // Portal a document.body — escapa de cualquier transform/overflow del árbol padre
+  // (AppShell tiene animation con transform que atrapa position:fixed en móvil)
+  return createPortal(
     <>
       <style>{`
         @keyframes vs-spin  { to { transform: rotate(360deg) } }
@@ -27,7 +31,7 @@ export default function VideoRoom({ url, onLeave }) {
       `}</style>
 
       <div style={{
-        position: 'fixed', inset: 0, zIndex: 2000,
+        position: 'fixed', inset: 0, zIndex: 9999,
         background: '#0a0a0a',
         display: 'flex', flexDirection: 'column',
         fontFamily: "'DM Sans', system-ui, sans-serif",
@@ -74,7 +78,7 @@ export default function VideoRoom({ url, onLeave }) {
         {/* ── Área de video ───────────────────────────────────── */}
         <div style={{ flex: 1, position: 'relative', background: '#111' }}>
 
-          {/* Spinner mientras carga el iframe de Daily.co */}
+          {/* Spinner mientras carga Daily.co */}
           {!loaded && (
             <div style={{
               position: 'absolute', inset: 0, zIndex: 10,
@@ -98,27 +102,24 @@ export default function VideoRoom({ url, onLeave }) {
             </div>
           )}
 
-          {/* Iframe de Daily.co — la UI de videollamada completa */}
           <iframe
             ref={iframeRef}
             src={url}
-            allow="microphone; camera; display-capture; fullscreen; autoplay; clipboard-write"
-            onLoad={() => {
-              console.log('[VideoRoom] iframe loaded ✓')
-              setLoaded(true)
-            }}
+            allow="camera; microphone; display-capture; fullscreen; autoplay; clipboard-write"
+            allowFullScreen
+            onLoad={() => setLoaded(true)}
             style={{
               position: 'absolute', inset: 0,
               width: '100%', height: '100%',
               border: 'none',
-              // Mantener invisible hasta que cargue para evitar flash en blanco
               opacity: loaded ? 1 : 0,
-              transition: 'opacity 0.3s ease',
+              transition: 'opacity 0.25s ease',
             }}
           />
         </div>
 
       </div>
-    </>
+    </>,
+    document.body
   )
 }

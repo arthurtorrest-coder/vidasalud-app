@@ -104,7 +104,7 @@ export default function VideoRoom({ url, onLeave }) {
 
           <iframe
             ref={iframeRef}
-            src={url}
+            src={url.includes('?') ? `${url}&lang=es` : `${url}?lang=es`}
             allow="camera; microphone; display-capture; fullscreen; autoplay; clipboard-write"
             allowFullScreen
             onLoad={() => setLoaded(true)}

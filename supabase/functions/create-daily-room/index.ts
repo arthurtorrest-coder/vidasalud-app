@@ -1,3 +1,4 @@
+// @ts-nocheck — archivo Deno, ignorar errores del TS server de Node/VS Code
 // Supabase Edge Function — crea una sala Daily.co para una cita
 // Secreto requerido: DAILY_API_KEY  (nunca usar VITE_, eso expone la clave en el browser)
 // Desplegar: supabase functions deploy create-daily-room
@@ -58,16 +59,20 @@ async function createRoom(name: string, expiresAt: number) {
 }
 
 serve(async (req) => {
-  // Preflight CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS })
   }
 
-  // Verificar que la petición viene de un usuario autenticado
   const authHeader = req.headers.get('Authorization')
-  if (!authHeader) return json({ error: 'No autorizado' }, 401)
+  if (!authHeader) {
+    console.error('[create-daily-room] No Authorization header')
+    return json({ error: 'No autorizado' }, 401)
+  }
 
-  if (!DAILY_API_KEY) return json({ error: 'DAILY_API_KEY no configurado en los secretos' }, 500)
+  if (!DAILY_API_KEY) {
+    console.error('[create-daily-room] DAILY_API_KEY not set')
+    return json({ error: 'DAILY_API_KEY no configurado en los secretos' }, 500)
+  }
 
   let appointmentId: string
   try {
@@ -75,10 +80,12 @@ serve(async (req) => {
     appointmentId = body.appointmentId
     if (!appointmentId) throw new Error('appointmentId requerido')
   } catch (e) {
+    console.error('[create-daily-room] Bad request:', (e as Error).message)
     return json({ error: (e as Error).message }, 400)
   }
 
-  // Verificar que la cita le pertenece al médico autenticado
+  console.log('[create-daily-room] appointmentId:', appointmentId)
+
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_ANON_KEY')!,
@@ -90,30 +97,34 @@ serve(async (req) => {
     .eq('id', appointmentId)
     .single()
 
+  console.log('[create-daily-room] appointment query — data:', appt, '| error:', apptErr)
+
   if (apptErr || !appt) return json({ error: 'Cita no encontrada' }, 404)
 
-  // Si la sala ya fue creada antes, devolver la URL existente
-  if (appt.video_url) {
-    return json({ url: appt.video_url, reused: true })
-  }
-
+  // No reutilizar video_url cacheado: la sala puede haber expirado.
+  // Siempre intentar crear; si ya existe en Daily.co la obtenemos por nombre.
   const roomName  = roomNameFromId(appointmentId)
   const expiresAt = Math.floor(Date.now() / 1000) + ROOM_EXPIRY_SEC
+  console.log('[create-daily-room] creating room:', roomName, '| expires:', new Date(expiresAt * 1000).toISOString())
 
-  // Intentar crear; si ya existe en Daily, reutilizarla
   const { ok, data: room } = await createRoom(roomName, expiresAt)
+  console.log('[create-daily-room] createRoom ok:', ok, '| response:', room)
 
   let roomUrl: string
   if (ok) {
     roomUrl = room.url
   } else if (room?.error === 'invalid-request-error') {
-    // La sala ya existía en Daily.co (idempotente)
+    // La sala ya existía en Daily.co — obtenerla por nombre
+    console.log('[create-daily-room] room already exists, fetching existing…')
     const existing = await getRoomByName(roomName)
+    console.log('[create-daily-room] existing room:', existing)
     if (!existing?.url) return json({ error: 'No se pudo obtener la sala existente' }, 500)
     roomUrl = existing.url
   } else {
+    console.error('[create-daily-room] Daily.co error:', room)
     return json({ error: room?.info ?? 'Error al crear la sala en Daily.co' }, 502)
   }
 
+  console.log('[create-daily-room] returning url:', roomUrl)
   return json({ url: roomUrl, roomName, reused: false })
 })

@@ -8,9 +8,8 @@ const C = {
   white:    '#FFFFFF',
 }
 
-// Destruye el frame de forma segura sin lanzar si ya fue destruido
 function safeDestroy(frame) {
-  try { frame?.destroy() } catch (_) { /* ignorar */ }
+  try { frame?.destroy() } catch (_) {}
 }
 
 export default function VideoRoom({ url, onLeave }) {
@@ -22,12 +21,18 @@ export default function VideoRoom({ url, onLeave }) {
   useEffect(() => {
     if (!wrapRef.current || !url) return
 
+    // isActive: false once React cleanup runs — prevents onLeave() on cleanup-triggered left-meeting
+    // hasJoined: true only after joined-meeting — prevents onLeave() when an error ejects us
+    let isActive  = true
+    let hasJoined = false
+
+    console.log('[VideoRoom] mount — url:', url)
+
     const frame = DailyIframe.createFrame(wrapRef.current, {
-      showLeaveButton:      false,   // usamos nuestro propio botón
+      showLeaveButton:      false,
       showFullscreenButton: true,
       iframeStyle: {
-        position: 'absolute',
-        top: 0, left: 0,
+        position: 'absolute', top: 0, left: 0,
         width: '100%', height: '100%',
         border: 'none',
       },
@@ -35,24 +40,58 @@ export default function VideoRoom({ url, onLeave }) {
     frameRef.current = frame
 
     frame
-      .on('joined-meeting', () => setStatus('joined'))
-      .on('left-meeting',   () => { safeDestroy(frame); frameRef.current = null; onLeave?.() })
-      .on('error',          ({ errorMsg: msg }) => { setStatus('error'); setErrMsg(msg ?? 'Error de conexión') })
+      .on('joined-meeting', () => {
+        console.log('[VideoRoom] joined-meeting ✓')
+        hasJoined = true
+        if (isActive) setStatus('joined')
+      })
+      .on('left-meeting', () => {
+        console.log('[VideoRoom] left-meeting — isActive:', isActive, '| hasJoined:', hasJoined)
+        safeDestroy(frame)
+        frameRef.current = null
+        // Call onLeave only when we were actually in a live call (not on error or cleanup)
+        if (isActive && hasJoined) onLeave?.()
+      })
+      .on('error', ({ errorMsg: msg }) => {
+        console.error('[VideoRoom] error event:', msg)
+        if (isActive) {
+          setStatus('error')
+          setErrMsg(msg ?? 'Error de conexión')
+        }
+      })
 
-    frame.join({ url }).catch(err => {
-      setStatus('error')
-      setErrMsg(err?.message ?? 'No se pudo conectar a la sala')
-    })
+    console.log('[VideoRoom] calling frame.join()')
+    frame.join({ url })
+      .then(() => console.log('[VideoRoom] join() promise resolved'))
+      .catch(err => {
+        console.error('[VideoRoom] join() rejected:', err?.message ?? err)
+        if (isActive) {
+          setStatus('error')
+          setErrMsg(err?.message ?? 'No se pudo conectar a la sala')
+        }
+      })
 
-    return () => { safeDestroy(frameRef.current); frameRef.current = null }
+    return () => {
+      console.log('[VideoRoom] cleanup — destroying frame (isActive → false)')
+      isActive = false
+      safeDestroy(frameRef.current)
+      frameRef.current = null
+    }
   }, [url]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleLeave() {
     const frame = frameRef.current
+    // frame is null when: error ejected us (left-meeting already ran) or cleanup already ran
     if (!frame) { onLeave?.(); return }
+    console.log('[VideoRoom] handleLeave — calling frame.leave()')
     frame.leave()
-      .catch(() => {})
-      .finally(() => { safeDestroy(frame); frameRef.current = null; onLeave?.() })
+      .catch(() => {
+        // leave() failed — destroy manually and close
+        safeDestroy(frame)
+        frameRef.current = null
+        onLeave?.()
+      })
+    // Success: left-meeting will fire with isActive=true, hasJoined=true → onLeave() called there
   }
 
   return (

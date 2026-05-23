@@ -463,30 +463,34 @@ export default function PanelMedico() {
   }
 
   async function handleStart(appt) {
+    console.log('[handleStart] appt.id:', appt.id, '| existing video_url:', appt.video_url)
     setStartingId(appt.id)
 
-    // Si la sala ya fue creada antes (ej. recarga de página), reutilizar la URL
-    let roomUrl = appt.video_url ?? null
+    // Siempre llamar a la Edge Function — ella gestiona idempotencia y renovación de sala
+    toast.loading('Creando sala de video…', { id: 'room-creation' })
+    console.log('[handleStart] invoking create-daily-room…')
+    const { data, error: fnError } = await supabase.functions.invoke('create-daily-room', {
+      body: { appointmentId: appt.id },
+    })
+    toast.dismiss('room-creation')
+    console.log('[handleStart] function response — data:', data, '| error:', fnError)
 
-    if (!roomUrl) {
-      toast.loading('Creando sala de video…', { id: 'room-creation' })
-      const { data, error: fnError } = await supabase.functions.invoke('create-daily-room', {
-        body: { appointmentId: appt.id },
-      })
-      toast.dismiss('room-creation')
-
-      if (fnError || !data?.url) {
-        toast.error('No se pudo crear la sala de video. Verifica que la Edge Function esté desplegada.')
-        setStartingId(null)
-        return
-      }
-      roomUrl = data.url
+    if (fnError || !data?.url) {
+      console.error('[handleStart] Edge Function failed:', fnError ?? 'no url in response')
+      toast.error('No se pudo crear la sala de video. Verifica que la Edge Function esté desplegada.')
+      setStartingId(null)
+      return
     }
+    const roomUrl = data.url
+
+    console.log('[handleStart] roomUrl to use:', roomUrl)
 
     const { error } = await supabase
       .from('appointments')
       .update({ status: 'active', video_url: roomUrl })
       .eq('id', appt.id)
+
+    console.log('[handleStart] DB update error:', error)
 
     if (error) {
       toast.error('No se pudo iniciar la consulta')
@@ -495,8 +499,9 @@ export default function PanelMedico() {
         prev.map(a => a.id === appt.id ? { ...a, status: 'active', video_url: roomUrl } : a)
       )
       setSoap({ s: '', o: '', a: '', p: '' })
+      console.log('[handleStart] calling setVideoUrl with:', roomUrl)
       setVideoUrl(roomUrl)
-      toast.success(`Consulta iniciada · Sala de video lista`)
+      toast.success('Consulta iniciada · Sala de video lista')
     }
     setStartingId(null)
   }

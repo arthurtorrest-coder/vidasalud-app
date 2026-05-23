@@ -39,6 +39,37 @@ function parseSoap(raw) {
   return null
 }
 
+function getLimaToday() {
+  const d = new Date(Date.now() - 5 * 3600 * 1000)
+  return [
+    d.getUTCFullYear(),
+    String(d.getUTCMonth() + 1).padStart(2, '0'),
+    String(d.getUTCDate()).padStart(2, '0'),
+  ].join('-')
+}
+
+function dateStrShift(dateStr, days) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d + days, 12))
+  return [
+    dt.getUTCFullYear(),
+    String(dt.getUTCMonth() + 1).padStart(2, '0'),
+    String(dt.getUTCDate()).padStart(2, '0'),
+  ].join('-')
+}
+
+function dateSelectorLabel(dateStr) {
+  const today = getLimaToday()
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, mo - 1, d, 12))
+  const dayMonth = dt.toLocaleDateString('es-PE', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+  if (dateStr === today)                   return { top: 'Hoy',    bot: dayMonth }
+  if (dateStr === dateStrShift(today,  1)) return { top: 'Mañana', bot: dayMonth }
+  if (dateStr === dateStrShift(today, -1)) return { top: 'Ayer',   bot: dayMonth }
+  const dow = dt.toLocaleDateString('es-PE', { weekday: 'long', timeZone: 'UTC' })
+  return { top: dow.charAt(0).toUpperCase() + dow.slice(1), bot: dayMonth }
+}
+
 // ─── Badge de estado ─────────────────────────────────────────
 const STATUS_CFG = {
   pending:   { label: 'Pend. pago',   bg: C.amberBg, color: C.amberText },
@@ -342,9 +373,9 @@ function EmptyState() {
   return (
     <div style={{ textAlign: 'center', padding: '48px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       <span style={{ fontSize: 52 }}>🗓️</span>
-      <div style={{ fontSize: 16, fontWeight: 700, color: C.gray700 }}>Sin citas para hoy</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: C.gray700 }}>Sin citas para este día</div>
       <p style={{ fontSize: 13, color: C.gray500, margin: 0, lineHeight: 1.6 }}>
-        No tienes consultas programadas para el día de hoy.
+        No hay consultas programadas para la fecha seleccionada.
         Las nuevas reservas aparecerán aquí automáticamente.
       </p>
     </div>
@@ -361,7 +392,8 @@ export default function PanelMedico() {
   const [soap,         setSoap]         = useState({ s: '', o: '', a: '', p: '' })
   const [saving,       setSaving]       = useState(false)
   const [startingId,   setStartingId]   = useState(null)
-  const [videoUrl,     setVideoUrl]     = useState(null)   // URL activa de videollamada
+  const [videoUrl,     setVideoUrl]     = useState(null)
+  const [selectedDate, setSelectedDate] = useState(getLimaToday)
 
   const activeAppt  = useMemo(() => appointments.find(a => a.status === 'active') ?? null, [appointments])
   const hasAnyActive = activeAppt !== null
@@ -377,8 +409,10 @@ export default function PanelMedico() {
   useEffect(() => {
     if (!user) return
     fetchData()
+  }, [user, selectedDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Suscripción en tiempo real a cambios en las citas del médico
+  useEffect(() => {
+    if (!user) return
     const channel = supabase
       .channel(`panel-medico-${user.id}`)
       .on(
@@ -393,21 +427,16 @@ export default function PanelMedico() {
         }
       )
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [user])
 
   async function fetchData() {
     setLoading(true)
 
-    // Rango del día en Lima (UTC-5), independiente del timezone del navegador/OS
-    const nowUtc    = new Date()
-    const limaToday = new Date(nowUtc.getTime() - 5 * 3600 * 1000)
-    const y = limaToday.getUTCFullYear()
-    const mo = limaToday.getUTCMonth()
-    const d = limaToday.getUTCDate()
-    const start = new Date(Date.UTC(y, mo, d,     5, 0,  0)).toISOString()  // 00:00 Lima = 05:00 UTC
-    const end   = new Date(Date.UTC(y, mo, d + 1, 4, 59, 59)).toISOString() // 23:59:59 Lima = 04:59:59 UTC
+    // Rango del día seleccionado en hora Lima (UTC-5)
+    const [y, mo, d] = selectedDate.split('-').map(Number)
+    const start = new Date(Date.UTC(y, mo - 1, d,     5, 0,  0)).toISOString()  // 00:00 Lima = 05:00 UTC
+    const end   = new Date(Date.UTC(y, mo - 1, d + 1, 4, 59, 59)).toISOString() // 23:59:59 Lima = 04:59:59 UTC
 
     const [apptRes, docRes] = await Promise.all([
       supabase
@@ -577,7 +606,7 @@ export default function PanelMedico() {
             {/* Stats */}
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               {[
-                { n: stats.total,       label: 'Citas hoy'    },
+                { n: stats.total,       label: 'Citas'        },
                 { n: stats.pendientes,  label: 'Pendientes'   },
                 { n: stats.completadas, label: 'Completadas'  },
               ].map((s, i) => (
@@ -595,20 +624,67 @@ export default function PanelMedico() {
           {/* ── Cuerpo scrollable ───────────────────────────── */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-            {/* Título sección */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ fontSize: 14, fontWeight: 800, color: C.gray900 }}>
-                Citas de hoy
-              </h2>
-              {!loading && (
-                <button
-                  onClick={fetchData}
-                  style={{ background: 'none', border: 'none', fontSize: 13, color: C.green700, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-                >
-                  ↻ Actualizar
-                </button>
-              )}
-            </div>
+            {/* ── Selector de fecha ──────────────────────────── */}
+            {(() => {
+              const { top, bot } = dateSelectorLabel(selectedDate)
+              const isToday = selectedDate === getLimaToday()
+              const btnStyle = {
+                width: 34, height: 34, borderRadius: 10,
+                border: `1.5px solid ${C.gray200}`, background: C.white,
+                fontSize: 13, cursor: 'pointer', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: C.gray700,
+              }
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button style={btnStyle} onClick={() => setSelectedDate(p => dateStrShift(p, -1))}>◀</button>
+
+                  <label style={{ flex: 1, position: 'relative', cursor: 'pointer' }}>
+                    <div style={{
+                      textAlign: 'center', background: C.gray50,
+                      border: `1.5px solid ${C.gray200}`, borderRadius: 10, padding: '6px 8px',
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: C.gray900 }}>{top}</div>
+                      <div style={{ fontSize: 11, color: C.gray500, marginTop: 1 }}>{bot}</div>
+                    </div>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={e => setSelectedDate(e.target.value)}
+                      style={{
+                        position: 'absolute', inset: 0, opacity: 0,
+                        width: '100%', height: '100%', cursor: 'pointer',
+                      }}
+                    />
+                  </label>
+
+                  <button style={btnStyle} onClick={() => setSelectedDate(p => dateStrShift(p, 1))}>▶</button>
+
+                  {!isToday && (
+                    <button
+                      onClick={() => setSelectedDate(getLimaToday())}
+                      style={{
+                        padding: '6px 10px', borderRadius: 10, border: 'none',
+                        background: C.green100, color: C.green800,
+                        fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                        flexShrink: 0, fontFamily: 'inherit',
+                      }}
+                    >Hoy</button>
+                  )}
+
+                  <button
+                    onClick={fetchData}
+                    disabled={loading}
+                    style={{
+                      background: 'none', border: 'none', fontSize: 17,
+                      color: loading ? C.gray300 : C.green700,
+                      cursor: loading ? 'default' : 'pointer', flexShrink: 0, lineHeight: 1,
+                    }}
+                    title="Actualizar"
+                  >↻</button>
+                </div>
+              )
+            })()}
 
             {/* Estado: cargando */}
             {loading && [1, 2, 3].map(i => <SkeletonCard key={i} />)}

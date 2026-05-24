@@ -2,9 +2,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Cell,
+  Tooltip, ResponsiveContainer,
 } from 'recharts'
-import toast, { Toaster } from 'react-hot-toast'
+import { Toaster } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 
@@ -74,9 +74,9 @@ function buildWeekChart(appts) {
       return t >= day && t < next
     }).length
     return {
-      dia:    i === 6 ? 'Hoy' : DAYS[day.getDay()],
-      citas:  count,
-      isHoy:  i === 6,
+      dia:   i === 6 ? 'Hoy' : DAYS[day.getDay()],
+      citas: count,
+      fill:  i === 6 ? '#059669' : '#A7F3D0',
     }
   })
 }
@@ -226,13 +226,14 @@ export default function PanelAdmin() {
     setLoading(true)
     const { start, end, weekStart } = getLimaRange()
 
-    const [apptRes, weekRes, docRes, profRes, payRes] = await Promise.all([
+    const [apptRes, weekRes, docRes, payRes] = await Promise.all([
+      // Bug fix: doctor_id → doctors (not profiles) — no existe FK appointments→profiles via doctor_id
       supabase
         .from('appointments')
         .select(`
           id, scheduled_at, status, duration_minutes,
           patient:profiles!patient_id ( full_name ),
-          doctor:profiles!doctor_id   ( full_name )
+          doctor:doctors!doctor_id    ( nombres, apellidos )
         `)
         .gte('scheduled_at', start)
         .lte('scheduled_at', end)
@@ -244,37 +245,41 @@ export default function PanelAdmin() {
         .gte('scheduled_at', weekStart)
         .lte('scheduled_at', end),
 
+      // Bug fix: columnas reales de doctors_seed.sql (nombres/apellidos/especialidad/cmp)
       supabase
         .from('doctors')
-        .select('id, specialty, cmp_code, rating, total_reviews, activo, precio')
+        .select('id, nombres, apellidos, especialidad, cmp, precio, rating, total_reviews, activo')
         .order('rating', { ascending: false }),
 
-      supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('role', 'doctor'),
-
+      // Bug fix: columna real es 'amount' (schema.sql), no 'monto'
       supabase
         .from('payments')
-        .select('monto')
+        .select('amount, monto')
         .gte('created_at', start)
         .lte('created_at', end),
     ])
 
-    if (apptRes.error)  console.warn('[PanelAdmin] appointments:', apptRes.error.message)
-    if (weekRes.error)  console.warn('[PanelAdmin] weekAppts:', weekRes.error.message)
-    if (docRes.error)   console.warn('[PanelAdmin] doctors:', docRes.error.message)
+    if (apptRes.error) console.warn('[PanelAdmin] appointments:', apptRes.error.message)
+    if (weekRes.error) console.warn('[PanelAdmin] weekAppts:',  weekRes.error.message)
+    if (docRes.error)  console.warn('[PanelAdmin] doctors:',    docRes.error.message)
+    if (payRes.error)  console.warn('[PanelAdmin] payments:',   payRes.error.message)
 
     setTodayAppts(apptRes.data ?? [])
     setWeekAppts(weekRes.data ?? [])
 
-    // Merge doctor rows with profile names
-    const profMap = Object.fromEntries((profRes.data ?? []).map(p => [p.id, p.full_name]))
-    setDoctors((docRes.data ?? []).map(d => ({ ...d, full_name: profMap[d.id] ?? 'Médico' })))
+    // Nombre completo desde la propia tabla doctors (nombres + apellidos)
+    setDoctors((docRes.data ?? []).map(d => ({
+      ...d,
+      full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
+    })))
 
-    // Income: try payments table (monto in céntimos), fallback to 0
+    // Income: soporta 'amount' (schema.sql, en céntimos) y 'monto' (legacy, en soles)
     if (!payRes.error && payRes.data?.length) {
-      setIncome(payRes.data.reduce((s, p) => s + (Number(p.monto) || 0), 0) / 100)
+      setIncome(payRes.data.reduce((s, p) => {
+        const val = p.amount ?? p.monto ?? 0
+        // amount está en céntimos; monto en soles enteros
+        return s + (p.amount != null ? Number(val) / 100 : Number(val))
+      }, 0))
     } else {
       setIncome(0)
     }
@@ -457,7 +462,11 @@ export default function PanelAdmin() {
                       <tr key={a.id}>
                         <TD muted>{fmtHora(a.scheduled_at)}</TD>
                         <TD>{a.patient?.full_name ?? 'Paciente'}</TD>
-                        <TD muted>{a.doctor?.full_name ?? '—'}</TD>
+                        <TD muted>
+                          {a.doctor
+                            ? [a.doctor.nombres, a.doctor.apellidos].filter(Boolean).join(' ') || '—'
+                            : '—'}
+                        </TD>
                         <TD><StatusBadge status={a.status} /></TD>
                         <TD right muted>{a.duration_minutes ?? 20} min</TD>
                       </tr>
@@ -504,14 +513,7 @@ export default function PanelAdmin() {
                       axisLine={false} tickLine={false}
                     />
                     <Tooltip content={<ChartTooltip />} cursor={{ fill: C.green50 }} />
-                    <Bar dataKey="citas" radius={[6, 6, 0, 0]}>
-                      {chartData.map((entry, i) => (
-                        <Cell
-                          key={i}
-                          fill={entry.isHoy ? C.green600 : C.green200}
-                        />
-                      ))}
-                    </Bar>
+                    <Bar dataKey="citas" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -519,14 +521,15 @@ export default function PanelAdmin() {
 
             {/* Legend */}
             <div style={{ display: 'flex', gap: 16, marginTop: 12, justifyContent: 'center' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: C.gray500 }}>
-                <span style={{ width: 10, height: 10, borderRadius: 2, background: C.green600, display: 'inline-block' }} />
-                Hoy
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: C.gray500 }}>
-                <span style={{ width: 10, height: 10, borderRadius: 2, background: C.green200, display: 'inline-block' }} />
-                Días anteriores
-              </span>
+              {[
+                { color: C.green600, label: 'Hoy' },
+                { color: C.green200, label: 'Días anteriores' },
+              ].map(({ color, label }) => (
+                <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: C.gray500 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: 'inline-block' }} />
+                  {label}
+                </span>
+              ))}
             </div>
           </div>
         </div>
@@ -564,7 +567,7 @@ export default function PanelAdmin() {
                 <EmptyRow cols={7} msg="No hay médicos registrados" />
               ) : (
                 doctors.map((doc, i) => {
-                  const isCPsP   = doc.cmp_code?.startsWith('CPsP')
+                  const isCPsP   = doc.cmp?.startsWith('CPsP')
                   const isActive = doc.activo !== false
                   return (
                     <tr key={doc.id ?? i}>
@@ -585,8 +588,8 @@ export default function PanelAdmin() {
                           </div>
                         </div>
                       </TD>
-                      <TD muted>{doc.specialty ?? '—'}</TD>
-                      <TD muted>{doc.cmp_code ?? '—'}</TD>
+                      <TD muted>{doc.especialidad ?? '—'}</TD>
+                      <TD muted>{doc.cmp ?? '—'}</TD>
                       <TD right><StarRating rating={doc.rating ?? 0} /></TD>
                       <TD right muted>{(doc.total_reviews ?? 0).toLocaleString('es-PE')}</TD>
                       <TD right>

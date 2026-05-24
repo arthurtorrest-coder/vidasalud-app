@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
+import TriajeBot from '../../components/TriajeBot'
 
 const C = {
   green900: '#064E3B',
@@ -297,6 +298,7 @@ export default function Home() {
   const [doctors,      setDoctors]      = useState([])
   const [loadingDocs,  setLoadingDocs]  = useState(true)
   const [errorDocs,    setErrorDocs]    = useState(null)
+  const [showTriaje,   setShowTriaje]   = useState(false)
 
   useEffect(() => {
     supabase
@@ -327,6 +329,17 @@ export default function Home() {
 
   return (
     <>
+      {showTriaje && (
+        <TriajeBot
+          onClose={() => setShowTriaje(false)}
+          onSelectSpecialty={(spec) => {
+            setSelectedSpec(spec)
+            setSearch('')
+            setShowTriaje(false)
+          }}
+        />
+      )}
+
       <PromoStrip />
 
       {/* Hero */}
@@ -377,6 +390,38 @@ export default function Home() {
       </div>
 
       <SearchBar value={search} onChange={setSearch} />
+
+      {/* Asistente de triaje IA */}
+      <button
+        onClick={() => setShowTriaje(true)}
+        style={{
+          margin: '12px 20px 0',
+          width: 'calc(100% - 40px)',
+          padding: '13px 16px',
+          background: `linear-gradient(135deg, ${C.green900}, ${C.green700})`,
+          border: 'none', borderRadius: 14, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 12,
+          boxShadow: '0 4px 16px rgba(5,150,105,0.28)',
+          fontFamily: 'inherit',
+          WebkitTapHighlightColor: 'transparent',
+        }}
+      >
+        <span style={{
+          width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+          background: 'rgba(255,255,255,0.18)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 20,
+        }}>🤖</span>
+        <div style={{ textAlign: 'left', flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.white }}>
+            ¿Qué médico necesito?
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
+            Describe tus síntomas · La IA te orienta en segundos
+          </div>
+        </div>
+        <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 18, flexShrink: 0 }}>›</span>
+      </button>
 
       <SectionHeader title="Acciones rápidas" />
       <QuickActions />

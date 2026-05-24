@@ -389,6 +389,75 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Banner de acceso a panel propio — solo para admin / doctor */}
+      {profile?.role === 'admin' && (
+        <button
+          onClick={() => navigate('/admin/panel')}
+          style={{
+            margin: '16px 20px 0',
+            width: 'calc(100% - 40px)',
+            padding: '14px 18px',
+            background: `linear-gradient(135deg, ${C.green900}, ${C.green800})`,
+            border: `1.5px solid ${C.green700}`,
+            borderRadius: 14, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 12,
+            boxShadow: '0 4px 20px rgba(6,79,60,0.35)',
+            fontFamily: 'inherit',
+            WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          <span style={{
+            width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+            background: 'rgba(255,255,255,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22,
+          }}>⚙️</span>
+          <div style={{ textAlign: 'left', flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.white }}>
+              Panel de administrador
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>
+              Gestiona citas, médicos e ingresos
+            </div>
+          </div>
+          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 20, flexShrink: 0 }}>›</span>
+        </button>
+      )}
+
+      {profile?.role === 'doctor' && (
+        <button
+          onClick={() => navigate('/medico/panel')}
+          style={{
+            margin: '16px 20px 0',
+            width: 'calc(100% - 40px)',
+            padding: '14px 18px',
+            background: `linear-gradient(135deg, ${C.green900}, ${C.green800})`,
+            border: `1.5px solid ${C.green700}`,
+            borderRadius: 14, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 12,
+            boxShadow: '0 4px 20px rgba(6,79,60,0.35)',
+            fontFamily: 'inherit',
+            WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          <span style={{
+            width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+            background: 'rgba(255,255,255,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22,
+          }}>🩺</span>
+          <div style={{ textAlign: 'left', flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.white }}>
+              Ir a mi panel médico
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>
+              Ver tus citas y consultas pendientes
+            </div>
+          </div>
+          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 20, flexShrink: 0 }}>›</span>
+        </button>
+      )}
+
       <SearchBar value={search} onChange={setSearch} />
 
       {/* Asistente de triaje IA */}

@@ -1,11 +1,10 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 
 const C = { green600: '#059669', green100: '#D1FAE5', gray100: '#F3F4F6', white: '#FFFFFF' }
 
 export default function ProtectedRoute() {
-  const { user, profile, loading } = useAuthStore()
-  const { pathname } = useLocation()
+  const { user, loading } = useAuthStore()
 
   if (loading) {
     return (
@@ -32,13 +31,6 @@ export default function ProtectedRoute() {
   }
 
   if (!user) return <Navigate to="/login" replace />
-
-  if (profile?.role === 'admin' && !pathname.startsWith('/admin')) {
-    return <Navigate to="/admin/panel" replace />
-  }
-  if (profile?.role === 'doctor' && !pathname.startsWith('/medico')) {
-    return <Navigate to="/medico/panel" replace />
-  }
 
   return <Outlet />
 }

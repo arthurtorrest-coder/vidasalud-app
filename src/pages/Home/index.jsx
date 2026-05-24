@@ -38,20 +38,29 @@ const STATUS_COLORS = {
   later: { dot: C.gray500,  label: C.gray500,  bg: C.gray100 },
 }
 
-// Transforma fila de Supabase al shape que usa la UI
+// Transforma fila de Supabase al shape que usa la UI.
+// Soporta doctors_seed.sql (nombres/apellidos/especialidad/cmp)
+// y schema.sql legacy (specialty/cmp_code, id=profile uuid).
 function formatDoc(row) {
-  const isCPsP     = row.cmp.startsWith('CPsP')
-  const esFemenino = row.nombres.trimEnd().endsWith('a')
+  const nombres    = row.nombres   ?? row.full_name ?? '?'
+  const apellidos  = row.apellidos ?? ''
+  const spec       = row.especialidad ?? row.specialty ?? ''
+  const cmp        = row.cmp       ?? row.cmp_code   ?? ''
+  const precio     = row.precio    ?? (row.consultation_fee ? Math.round(row.consultation_fee / 100) : 0)
+  const isCPsP     = cmp.startsWith('CPsP')
+  const esFemenino = nombres.trimEnd().endsWith('a')
   const titulo     = isCPsP ? 'Psic.' : esFemenino ? 'Dra.' : 'Dr.'
+  const primerNombre   = nombres[0]?.toUpperCase()   ?? '?'
+  const primerApellido = apellidos[0]?.toUpperCase() ?? '?'
   return {
     id:          row.id,
-    initials:    row.nombres[0].toUpperCase() + row.apellidos[0].toUpperCase(),
-    name:        `${titulo} ${row.nombres} ${row.apellidos}`,
-    spec:        row.especialidad,
-    cmp:         row.cmp,
-    rating:      Number(row.rating),
-    reviews:     row.total_reviews,
-    price:       row.precio,
+    initials:    primerNombre + primerApellido,
+    name:        `${titulo} ${nombres} ${apellidos}`.trim(),
+    spec,
+    cmp,
+    rating:      Number(row.rating ?? 0),
+    reviews:     row.total_reviews ?? row.review_count ?? 0,
+    price:       precio,
     fotoUrl:     row.foto_url ?? null,
     status:      'now',
     statusLabel: 'Disponible ahora',
@@ -304,13 +313,14 @@ export default function Home() {
     supabase
       .from('doctors')
       .select('*')
-      .eq('activo', true)
       .order('rating', { ascending: false })
       .then(({ data, error }) => {
         if (error) {
-          setErrorDocs('No se pudo cargar la lista de médicos.')
+          console.error('[Home] doctors:', error.message)
+          setErrorDocs(`No se pudo cargar la lista de médicos. (${error.message})`)
         } else {
-          setDoctors((data ?? []).map(formatDoc))
+          const activos = (data ?? []).filter(d => d.activo !== false)
+          setDoctors(activos.map(formatDoc))
         }
         setLoadingDocs(false)
       })

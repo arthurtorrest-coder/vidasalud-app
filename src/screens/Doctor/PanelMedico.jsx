@@ -3,6 +3,7 @@ import toast, { Toaster } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import VideoRoom from '../../components/VideoRoom'
+import RecetaForm from '../../components/RecetaForm'
 
 // ─── Paleta ──────────────────────────────────────────────────
 const C = {
@@ -394,6 +395,7 @@ export default function PanelMedico() {
   const [startingId,   setStartingId]   = useState(null)
   const [videoUrl,     setVideoUrl]     = useState(null)
   const [selectedDate, setSelectedDate] = useState(getLimaToday)
+  const [recetaData,   setRecetaData]   = useState(null)
 
   const activeAppt  = useMemo(() => appointments.find(a => a.status === 'active') ?? null, [appointments])
   const hasAnyActive = activeAppt !== null
@@ -514,6 +516,10 @@ export default function PanelMedico() {
     }
 
     setSaving(true)
+    // Capture before state updates (activeAppt becomes null after status→done)
+    const apptSnapshot = activeAppt
+    const soapSnapshot = { ...soap }
+
     const { error } = await supabase
       .from('appointments')
       .update({ status: 'done', notes_doctor: JSON.stringify(soap) })
@@ -531,6 +537,7 @@ export default function PanelMedico() {
       )
       setSoap({ s: '', o: '', a: '', p: '' })
       toast.success('Consulta completada · Nota SOAP guardada', { duration: 4000 })
+      setRecetaData({ appointment: apptSnapshot, soap: soapSnapshot })
     }
     setSaving(false)
   }
@@ -570,6 +577,18 @@ export default function PanelMedico() {
       {/* Overlay de videollamada */}
       {videoUrl && (
         <VideoRoom url={videoUrl} onLeave={() => setVideoUrl(null)} />
+      )}
+
+      {/* Formulario de receta electrónica */}
+      {recetaData && (
+        <RecetaForm
+          appointment={recetaData.appointment}
+          doctorInfo={doctorInfo}
+          doctorName={doctorName}
+          soap={recetaData.soap}
+          onClose={() => setRecetaData(null)}
+          onSuccess={() => setRecetaData(null)}
+        />
       )}
 
       <div style={{ display: 'flex', justifyContent: 'center', minHeight: '100vh', padding: '20px 0', background: C.gray100 }}>

@@ -6,7 +6,9 @@ import Login           from './screens/Auth/Login'
 import Register        from './screens/Auth/Register'
 import NuevaContrasena from './screens/Auth/NuevaContrasena'
 import DoctorRoute     from './components/layout/DoctorRoute'
+import AdminRoute      from './components/layout/AdminRoute'
 import PanelMedico     from './screens/Doctor/PanelMedico'
+import PanelAdmin      from './screens/Admin/PanelAdmin'
 import Home            from './pages/Home'
 import Booking         from './pages/Booking'
 import Payment         from './pages/Payment'
@@ -36,6 +38,11 @@ export default function App() {
           {/* Solo médicos */}
           <Route element={<DoctorRoute />}>
             <Route path="/medico/panel" element={<PanelMedico />} />
+          </Route>
+
+          {/* Solo admins */}
+          <Route element={<AdminRoute />}>
+            <Route path="/admin/panel" element={<PanelAdmin />} />
           </Route>
 
           <Route element={<AppShell />}>

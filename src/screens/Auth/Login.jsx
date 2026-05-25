@@ -66,7 +66,7 @@ export default function Login() {
     resolver: zodResolver(schema),
   })
 
-  if (user) return <Navigate to="/" replace />
+  if (user) return <Navigate to="/inicio" replace />
 
   async function handleForgotPassword() {
     const email = getValues('email')?.trim()
@@ -93,7 +93,7 @@ export default function Login() {
     if (error) {
       toast.error('Correo o contraseña incorrectos')
     } else {
-      navigate('/', { replace: true })
+      navigate('/inicio', { replace: true })
     }
   }
 

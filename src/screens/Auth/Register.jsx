@@ -92,7 +92,7 @@ export default function Register() {
     resolver: zodResolver(schema),
   })
 
-  if (user) return <Navigate to="/" replace />
+  if (user) return <Navigate to="/inicio" replace />
 
   async function onSubmit({ nombre, apellidos, dni, telefono, email, password }) {
     setLoading(true)
@@ -126,7 +126,7 @@ export default function Register() {
         dni,
       })
       toast.success(`¡Bienvenido/a, ${nombre}! 🎉`)
-      navigate('/', { replace: true })
+      navigate('/inicio', { replace: true })
     } else {
       setLoading(false)
       toast.success('Revisa tu correo para confirmar tu cuenta', { duration: 6000 })

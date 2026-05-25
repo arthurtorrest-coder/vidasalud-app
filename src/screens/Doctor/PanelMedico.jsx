@@ -464,19 +464,23 @@ export default function PanelMedico() {
     if (apptRes.data) setAppointments(apptRes.data)
 
     // Buscar por id primero (schema.sql: doctors.id = auth uuid)
+    console.log('[PanelMedico] docRes por id:', { data: docRes.data, error: docRes.error?.message })
     let info = docRes.data
     if (!info) {
       // Fallback: doctors registrados con RegisterMedico tienen profile_id = auth uuid
-      const { data } = await supabase
+      const { data, error: fbErr } = await supabase
         .from('doctors')
         .select('id, activo, especialidad, cmp, profile_id')
         .eq('profile_id', user.id)
         .maybeSingle()
+      console.log('[PanelMedico] docRes por profile_id:', { data, error: fbErr?.message })
       info = data
     }
     if (info) {
+      console.log('[PanelMedico] doctor encontrado — id:', info.id, '| activo:', info.activo)
       setDoctorInfo(info)
       setDisponible(info.activo ?? false)
+      console.log('[PanelMedico] disponible inicial →', info.activo ?? false)
     } else {
       console.warn('[PanelMedico] No se encontró fila en doctors para este usuario')
       setDisponible(false)
@@ -569,12 +573,15 @@ export default function PanelMedico() {
   async function handleToggle() {
     if (toggling || !doctorInfo?.id) return
     const next = !disponible
+    console.log('[handleToggle] doctorId:', doctorInfo.id, '| activo →', next)
     setDisponible(next)
     setToggling(true)
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('doctors')
       .update({ activo: next })
       .eq('id', doctorInfo.id)
+      .select('id, activo')
+    console.log('[handleToggle] respuesta Supabase — data:', data, '| error:', error?.message)
     setToggling(false)
     if (error) {
       setDisponible(!next)

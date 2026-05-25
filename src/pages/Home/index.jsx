@@ -309,7 +309,7 @@ export default function Home() {
   const [errorDocs,    setErrorDocs]    = useState(null)
   const [showTriaje,   setShowTriaje]   = useState(false)
 
-  useEffect(() => {
+  function fetchDoctors() {
     supabase
       .from('doctors')
       .select('*')
@@ -324,7 +324,23 @@ export default function Home() {
         }
         setLoadingDocs(false)
       })
-  }, [])
+  }
+
+  useEffect(() => {
+    fetchDoctors()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('home-doctors-availability')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'doctors' },
+        () => { fetchDoctors() }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBook = (doc) => {
     navigate(`/booking/${doc.id}`)

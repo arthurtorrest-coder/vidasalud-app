@@ -5,6 +5,7 @@ import ProtectedRoute  from './components/layout/ProtectedRoute'
 import AppShell        from './components/layout/AppShell'
 import Login           from './screens/Auth/Login'
 import Register        from './screens/Auth/Register'
+import RegisterMedico  from './screens/Auth/RegisterMedico'
 import NuevaContrasena from './screens/Auth/NuevaContrasena'
 import DoctorRoute     from './components/layout/DoctorRoute'
 import AdminRoute      from './components/layout/AdminRoute'
@@ -58,7 +59,8 @@ export default function App() {
 
         {/* Rutas públicas — sin AppShell */}
         <Route path="/login"            element={<Login />}            />
-        <Route path="/registro"         element={<Register />}         />
+        <Route path="/registro"          element={<Register />}         />
+        <Route path="/registro-medico"  element={<RegisterMedico />}   />
         <Route path="/nueva-contrasena" element={<NuevaContrasena />}  />
 
         {/* Rutas protegidas — redirigen a /login si no hay sesión */}

@@ -319,7 +319,7 @@ export default function Home() {
           console.error('[Home] doctors:', error.message)
           setErrorDocs(`No se pudo cargar la lista de médicos. (${error.message})`)
         } else {
-          const activos = (data ?? []).filter(d => d.activo !== false)
+          const activos = (data ?? []).filter(d => d.activo !== false && d.aprobado !== false)
           setDoctors(activos.map(formatDoc))
         }
         setLoadingDocs(false)

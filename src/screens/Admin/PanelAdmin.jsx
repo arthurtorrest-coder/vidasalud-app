@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { Toaster } from 'react-hot-toast'
+import { Toaster, toast } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 
@@ -206,12 +206,13 @@ export default function PanelAdmin() {
   const navigate     = useNavigate()
   const adminName    = profile?.full_name ?? 'Administrador'
 
-  const [todayAppts, setTodayAppts] = useState([])
-  const [weekAppts,  setWeekAppts]  = useState([])
-  const [doctors,    setDoctors]    = useState([])
-  const [income,     setIncome]     = useState(null)
-  const [loading,    setLoading]    = useState(true)
-  const [lastRefresh, setLastRefresh] = useState(null)
+  const [todayAppts,     setTodayAppts]     = useState([])
+  const [weekAppts,      setWeekAppts]      = useState([])
+  const [doctors,        setDoctors]        = useState([])
+  const [pendingDoctors, setPendingDoctors] = useState([])
+  const [income,         setIncome]         = useState(null)
+  const [loading,        setLoading]        = useState(true)
+  const [lastRefresh,    setLastRefresh]     = useState(null)
 
   const stats = useMemo(() => ({
     total:       todayAppts.length,
@@ -226,8 +227,7 @@ export default function PanelAdmin() {
     setLoading(true)
     const { start, end, weekStart } = getLimaRange()
 
-    const [apptRes, weekRes, docRes, payRes] = await Promise.all([
-      // Bug fix: doctor_id → doctors (not profiles) — no existe FK appointments→profiles via doctor_id
+    const [apptRes, weekRes, docRes, payRes, pendingRes] = await Promise.all([
       supabase
         .from('appointments')
         .select(`
@@ -245,30 +245,39 @@ export default function PanelAdmin() {
         .gte('scheduled_at', weekStart)
         .lte('scheduled_at', end),
 
-      // Bug fix: columnas reales de doctors_seed.sql (nombres/apellidos/especialidad/cmp)
       supabase
         .from('doctors')
-        .select('id, nombres, apellidos, especialidad, cmp, precio, rating, total_reviews, activo')
+        .select('id, nombres, apellidos, especialidad, cmp, precio, rating, total_reviews, activo, aprobado')
+        .eq('aprobado', true)
         .order('rating', { ascending: false }),
 
-      // Bug fix: columna real es 'amount' (schema.sql), no 'monto'
       supabase
         .from('payments')
         .select('amount, monto')
         .gte('created_at', start)
         .lte('created_at', end),
+
+      supabase
+        .from('doctors')
+        .select('id, nombres, apellidos, especialidad, cmp, anos_experiencia, bio, precio, profile_id, created_at')
+        .eq('aprobado', false)
+        .order('created_at', { ascending: true }),
     ])
 
-    if (apptRes.error) console.warn('[PanelAdmin] appointments:', apptRes.error.message)
-    if (weekRes.error) console.warn('[PanelAdmin] weekAppts:',  weekRes.error.message)
-    if (docRes.error)  console.warn('[PanelAdmin] doctors:',    docRes.error.message)
-    if (payRes.error)  console.warn('[PanelAdmin] payments:',   payRes.error.message)
+    if (apptRes.error)   console.warn('[PanelAdmin] appointments:', apptRes.error.message)
+    if (weekRes.error)   console.warn('[PanelAdmin] weekAppts:',  weekRes.error.message)
+    if (docRes.error)    console.warn('[PanelAdmin] doctors:',    docRes.error.message)
+    if (payRes.error)    console.warn('[PanelAdmin] payments:',   payRes.error.message)
+    if (pendingRes.error) console.warn('[PanelAdmin] pending:',  pendingRes.error.message)
 
     setTodayAppts(apptRes.data ?? [])
     setWeekAppts(weekRes.data ?? [])
 
-    // Nombre completo desde la propia tabla doctors (nombres + apellidos)
     setDoctors((docRes.data ?? []).map(d => ({
+      ...d,
+      full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
+    })))
+    setPendingDoctors((pendingRes.data ?? []).map(d => ({
       ...d,
       full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
     })))
@@ -293,6 +302,31 @@ export default function PanelAdmin() {
   async function handleLogout() {
     await supabase.auth.signOut()
     navigate('/login')
+  }
+
+  async function handleApprove(doc) {
+    const { error: docErr } = await supabase
+      .from('doctors')
+      .update({ aprobado: true, activo: true })
+      .eq('id', doc.id)
+    if (docErr) { toast.error('Error al aprobar médico'); return }
+    if (doc.profile_id) {
+      await supabase.from('profiles').update({ role: 'doctor' }).eq('id', doc.profile_id)
+    }
+    setPendingDoctors(prev => prev.filter(d => d.id !== doc.id))
+    setDoctors(prev => [...prev, { ...doc, aprobado: true, activo: true, full_name: doc.full_name }])
+    toast.success(`${doc.full_name} aprobado/a y activo/a`)
+  }
+
+  async function handleReject(doc) {
+    if (!window.confirm(`¿Rechazar la solicitud de ${doc.full_name}? Se eliminará su registro.`)) return
+    if (doc.profile_id) {
+      await supabase.auth.admin?.deleteUser(doc.profile_id).catch(() => null)
+      await supabase.from('profiles').delete().eq('id', doc.profile_id)
+    }
+    await supabase.from('doctors').delete().eq('id', doc.id)
+    setPendingDoctors(prev => prev.filter(d => d.id !== doc.id))
+    toast.success(`Solicitud de ${doc.full_name} rechazada`)
   }
 
   // ── Skeleton ──────────────────────────────────────────────
@@ -533,6 +567,121 @@ export default function PanelAdmin() {
             </div>
           </div>
         </div>
+
+        {/* ── Médicos pendientes de aprobación ── */}
+        {(loading || pendingDoctors.length > 0) && (
+          <div style={{
+            background: C.white, borderRadius: 16,
+            border: `1.5px solid #FDE68A`,
+            padding: 20, marginBottom: 24,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>⏳</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: C.gray900 }}>
+                  Médicos pendientes de aprobación
+                </span>
+                {!loading && (
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                    background: C.amberBg, color: C.amberText,
+                  }}>
+                    {pendingDoctors.length}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[1, 2].map(i => (
+                  <div key={i} style={{
+                    border: `1px solid ${C.gray200}`, borderRadius: 12, padding: 16,
+                    display: 'flex', alignItems: 'center', gap: 16,
+                  }}>
+                    <div style={{ width: 44, height: 44, borderRadius: '50%', background: C.gray200 }} />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {skeletonBar('40%', 14)}
+                      {skeletonBar('60%', 11)}
+                    </div>
+                    <div style={{ width: 80, height: 32, background: C.gray200, borderRadius: 8 }} />
+                    <div style={{ width: 80, height: 32, background: C.gray200, borderRadius: 8 }} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {pendingDoctors.map(doc => {
+                  const isCPsP = doc.cmp?.startsWith('CPsP')
+                  return (
+                    <div key={doc.id} style={{
+                      border: `1px solid #FDE68A`,
+                      background: C.amberBg,
+                      borderRadius: 12, padding: '14px 16px',
+                      display: 'flex', alignItems: 'flex-start', gap: 14,
+                    }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                        background: `linear-gradient(135deg, ${C.amber}, #D97706)`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: C.white, fontWeight: 800, fontSize: 16,
+                      }}>
+                        {(doc.full_name ?? '?').charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: C.gray900 }}>
+                          {isCPsP ? 'Psic.' : 'Dr(a).'} {doc.full_name}
+                        </div>
+                        <div style={{ fontSize: 12, color: C.amberText, marginTop: 2 }}>
+                          {doc.especialidad ?? '—'} · {doc.cmp ?? '—'}
+                          {doc.anos_experiencia ? ` · ${doc.anos_experiencia} años exp.` : ''}
+                          {doc.precio ? ` · S/. ${doc.precio}` : ''}
+                        </div>
+                        {doc.bio && (
+                          <div style={{
+                            fontSize: 12, color: C.gray500, marginTop: 6,
+                            lineHeight: 1.5, fontStyle: 'italic',
+                          }}>
+                            "{doc.bio}"
+                          </div>
+                        )}
+                        <div style={{ fontSize: 11, color: C.gray400, marginTop: 4 }}>
+                          Solicitado: {new Date(doc.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                        <button
+                          onClick={() => handleApprove(doc)}
+                          style={{
+                            padding: '7px 14px', borderRadius: 8, border: 'none',
+                            background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
+                            color: C.white, fontSize: 12, fontWeight: 700,
+                            cursor: 'pointer', fontFamily: 'inherit',
+                          }}
+                        >
+                          ✓ Aprobar
+                        </button>
+                        <button
+                          onClick={() => handleReject(doc)}
+                          style={{
+                            padding: '7px 14px', borderRadius: 8,
+                            border: `1px solid ${C.red600}`,
+                            background: C.white, color: C.red600,
+                            fontSize: 12, fontWeight: 700,
+                            cursor: 'pointer', fontFamily: 'inherit',
+                          }}
+                        >
+                          ✗ Rechazar
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Médicos registrados ── */}
         <div style={{

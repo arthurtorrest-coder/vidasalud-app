@@ -463,9 +463,10 @@ export default function PanelMedico() {
     }
     if (apptRes.data) setAppointments(apptRes.data)
 
-    // Fallback: doctors registered via RegisterMedico use profile_id, not id
+    // Buscar por id primero (schema.sql: doctors.id = auth uuid)
     let info = docRes.data
-    if (!info && !docRes.error) {
+    if (!info) {
+      // Fallback: doctors registrados con RegisterMedico tienen profile_id = auth uuid
       const { data } = await supabase
         .from('doctors')
         .select('id, activo, especialidad, cmp, specialty, cmp_code')
@@ -476,6 +477,9 @@ export default function PanelMedico() {
     if (info) {
       setDoctorInfo(info)
       setDisponible(info.activo ?? false)
+    } else {
+      console.warn('[PanelMedico] No se encontró fila en doctors para este usuario')
+      setDisponible(false)
     }
     setLoading(false)
   }

@@ -390,6 +390,8 @@ export default function PanelMedico() {
   const [appointments, setAppointments] = useState([])
   const [loading,      setLoading]      = useState(true)
   const [doctorInfo,   setDoctorInfo]   = useState(null)
+  const [disponible,   setDisponible]   = useState(null)
+  const [toggling,     setToggling]     = useState(false)
   const [soap,         setSoap]         = useState({ s: '', o: '', a: '', p: '' })
   const [saving,       setSaving]       = useState(false)
   const [startingId,   setStartingId]   = useState(null)
@@ -450,17 +452,31 @@ export default function PanelMedico() {
         .order('scheduled_at', { ascending: true }),
       supabase
         .from('doctors')
-        .select('specialty, cmp_code')
+        .select('id, activo, especialidad, cmp, specialty, cmp_code')
         .eq('id', user.id)
-        .single(),
+        .maybeSingle(),
     ])
 
     if (apptRes.error) {
       console.error('[PanelMedico] Error al cargar citas:', apptRes.error)
       toast.error('Error al cargar las citas: ' + apptRes.error.message)
     }
-    if (apptRes.data)  setAppointments(apptRes.data)
-    if (docRes.data)   setDoctorInfo(docRes.data)
+    if (apptRes.data) setAppointments(apptRes.data)
+
+    // Fallback: doctors registered via RegisterMedico use profile_id, not id
+    let info = docRes.data
+    if (!info && !docRes.error) {
+      const { data } = await supabase
+        .from('doctors')
+        .select('id, activo, especialidad, cmp, specialty, cmp_code')
+        .eq('profile_id', user.id)
+        .maybeSingle()
+      info = data
+    }
+    if (info) {
+      setDoctorInfo(info)
+      setDisponible(info.activo ?? false)
+    }
     setLoading(false)
   }
 
@@ -546,6 +562,24 @@ export default function PanelMedico() {
     setSoap(prev => ({ ...prev, [field]: value }))
   }
 
+  async function handleToggle() {
+    if (toggling || !doctorInfo?.id) return
+    const next = !disponible
+    setDisponible(next)
+    setToggling(true)
+    const { error } = await supabase
+      .from('doctors')
+      .update({ activo: next })
+      .eq('id', doctorInfo.id)
+    setToggling(false)
+    if (error) {
+      setDisponible(!next)
+      toast.error('No se pudo actualizar la disponibilidad')
+    } else {
+      toast.success(next ? 'Ahora estás disponible para nuevas citas' : 'Ya no apareces en la lista de médicos')
+    }
+  }
+
   // ── Estadísticas del día ──────────────────────────────────
   const stats = useMemo(() => ({
     total:      appointments.length,
@@ -554,8 +588,8 @@ export default function PanelMedico() {
   }), [appointments])
 
   const doctorName = profile?.full_name ?? 'Doctor'
-  const cmp        = doctorInfo?.cmp_code ?? ''
-  const specialty  = doctorInfo?.specialty ?? ''
+  const cmp        = doctorInfo?.cmp        ?? doctorInfo?.cmp_code  ?? ''
+  const specialty  = doctorInfo?.especialidad ?? doctorInfo?.specialty ?? ''
 
   return (
     <>
@@ -566,6 +600,11 @@ export default function PanelMedico() {
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse-dot {
+          0%   { box-shadow: 0 0 0 0 rgba(52,211,153,0.7); }
+          70%  { box-shadow: 0 0 0 7px rgba(52,211,153,0); }
+          100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+        }
         ::-webkit-scrollbar { width: 0; }
       `}</style>
 
@@ -642,6 +681,68 @@ export default function PanelMedico() {
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>{s.label}</div>
                 </div>
               ))}
+            </div>
+
+            {/* Toggle de disponibilidad */}
+            <div
+              onClick={handleToggle}
+              style={{
+                marginTop: 14,
+                background: disponible
+                  ? 'rgba(52,211,153,0.18)'
+                  : 'rgba(0,0,0,0.18)',
+                border: `1.5px solid ${disponible ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.12)'}`,
+                borderRadius: 14,
+                padding: '11px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: (toggling || disponible === null) ? 'not-allowed' : 'pointer',
+                opacity: toggling ? 0.7 : 1,
+                transition: 'background 0.25s, border-color 0.25s, opacity 0.15s',
+                userSelect: 'none',
+              }}
+            >
+              {/* Lado izquierdo: indicador + texto */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 12, height: 12, borderRadius: '50%', flexShrink: 0,
+                  background: disponible ? C.green400 : 'rgba(255,255,255,0.3)',
+                  animation: disponible ? 'pulse-dot 1.6s ease-in-out infinite' : 'none',
+                }} />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: C.white, lineHeight: 1 }}>
+                    {disponible === null
+                      ? 'Cargando…'
+                      : disponible
+                        ? 'Disponible'
+                        : 'No disponible'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 3 }}>
+                    {disponible
+                      ? 'Los pacientes pueden reservarte'
+                      : 'No apareces en la lista'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Lado derecho: switch */}
+              <div style={{
+                width: 52, height: 28, borderRadius: 14, flexShrink: 0,
+                background: disponible ? C.green400 : 'rgba(255,255,255,0.2)',
+                position: 'relative',
+                transition: 'background 0.25s',
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  top: 3,
+                  left: disponible ? 27 : 3,
+                  width: 22, height: 22, borderRadius: '50%',
+                  background: C.white,
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                  transition: 'left 0.22s cubic-bezier(.4,0,.2,1)',
+                }} />
+              </div>
             </div>
           </div>
 

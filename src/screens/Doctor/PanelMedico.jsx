@@ -452,7 +452,7 @@ export default function PanelMedico() {
         .order('scheduled_at', { ascending: true }),
       supabase
         .from('doctors')
-        .select('id, activo, especialidad, cmp, specialty, cmp_code')
+        .select('id, activo, especialidad, cmp, profile_id')
         .eq('id', user.id)
         .maybeSingle(),
     ])
@@ -469,7 +469,7 @@ export default function PanelMedico() {
       // Fallback: doctors registrados con RegisterMedico tienen profile_id = auth uuid
       const { data } = await supabase
         .from('doctors')
-        .select('id, activo, especialidad, cmp, specialty, cmp_code')
+        .select('id, activo, especialidad, cmp, profile_id')
         .eq('profile_id', user.id)
         .maybeSingle()
       info = data
@@ -711,7 +711,7 @@ export default function PanelMedico() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
                   width: 12, height: 12, borderRadius: '50%', flexShrink: 0,
-                  background: disponible ? C.green400 : 'rgba(255,255,255,0.3)',
+                  background: disponible ? C.green500 : 'rgba(255,255,255,0.3)',
                   animation: disponible ? 'pulse-dot 1.6s ease-in-out infinite' : 'none',
                 }} />
                 <div>
@@ -733,7 +733,7 @@ export default function PanelMedico() {
               {/* Lado derecho: switch */}
               <div style={{
                 width: 52, height: 28, borderRadius: 14, flexShrink: 0,
-                background: disponible ? C.green400 : 'rgba(255,255,255,0.2)',
+                background: disponible ? C.green500 : 'rgba(255,255,255,0.2)',
                 position: 'relative',
                 transition: 'background 0.25s',
               }}>

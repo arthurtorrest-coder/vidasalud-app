@@ -563,7 +563,7 @@ export default function Payment() {
         appointment={appointment}
         doctor={doctor}
         onVerCitas={() => navigate('/citas')}
-        onInicio={() => navigate('/')}
+        onInicio={() => navigate('/inicio')}
       />
     )
   }

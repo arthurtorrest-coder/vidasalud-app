@@ -399,7 +399,7 @@ export default function Citas() {
         {loading && <><CardSkeleton /><CardSkeleton /><CardSkeleton /></>}
 
         {!loading && shown.length === 0 && (
-          <EmptyState tab={activeTab} onCTA={() => navigate('/')} />
+          <EmptyState tab={activeTab} onCTA={() => navigate('/inicio')} />
         )}
 
         {!loading && shown.map(a => (

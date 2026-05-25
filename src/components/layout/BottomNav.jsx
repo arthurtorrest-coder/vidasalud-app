@@ -42,14 +42,14 @@ const ICONS = {
 }
 
 const ITEMS = [
-  { path: '/',          icon: ICONS.home,      label: 'Inicio',    roots: ['/', '/booking', '/pago'] },
+  { path: '/inicio',    icon: ICONS.home,      label: 'Inicio',    roots: ['/inicio', '/booking', '/pago'] },
   { path: '/citas',     icon: ICONS.calendar,  label: 'Citas',     roots: ['/citas'] },
   { path: '/historial', icon: ICONS.clipboard, label: 'Historial', roots: ['/historial'] },
   { path: '/perfil',    icon: ICONS.user,      label: 'Perfil',    roots: ['/perfil'] },
 ]
 
 function isActive(roots, pathname) {
-  return roots.some(r => r === '/' ? pathname === '/' : pathname === r || pathname.startsWith(r + '/'))
+  return roots.some(r => pathname === r || pathname.startsWith(r + '/'))
 }
 
 export default function BottomNav() {

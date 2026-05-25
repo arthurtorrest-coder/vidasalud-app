@@ -24,7 +24,7 @@ export default function DoctorRoute() {
         <p style={{ fontSize: 13, color: C.gray500, margin: 0 }}>
           Esta sección es exclusiva para médicos de VIDASALUD.
         </p>
-        <Navigate to="/" replace />
+        <Navigate to="/inicio" replace />
       </div>
     )
   }

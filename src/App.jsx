@@ -13,7 +13,7 @@ import Home            from './pages/Home'
 import Booking         from './pages/Booking'
 import Payment         from './pages/Payment'
 import Citas           from './pages/Citas'
-import Historial       from './pages/Historial'
+import Historial       from './screens/Historial'
 import Perfil          from './pages/Perfil'
 
 function AuthInit() {

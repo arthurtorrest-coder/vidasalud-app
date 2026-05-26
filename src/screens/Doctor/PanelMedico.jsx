@@ -387,17 +387,19 @@ function EmptyState() {
 export default function PanelMedico() {
   const { user, profile } = useAuthStore()
 
-  const [appointments, setAppointments] = useState([])
-  const [loading,      setLoading]      = useState(true)
-  const [doctorInfo,   setDoctorInfo]   = useState(null)
-  const [disponible,   setDisponible]   = useState(null)
-  const [toggling,     setToggling]     = useState(false)
-  const [soap,         setSoap]         = useState({ s: '', o: '', a: '', p: '' })
-  const [saving,       setSaving]       = useState(false)
-  const [startingId,   setStartingId]   = useState(null)
-  const [videoUrl,     setVideoUrl]     = useState(null)
-  const [selectedDate, setSelectedDate] = useState(getLimaToday)
-  const [recetaData,   setRecetaData]   = useState(null)
+  const [appointments,   setAppointments]   = useState([])
+  const [loading,        setLoading]        = useState(true)
+  const [doctorInfo,     setDoctorInfo]     = useState(null)
+  const [disponible,     setDisponible]     = useState(null)
+  const [toggling,       setToggling]       = useState(false)
+  const [fotoUrl,        setFotoUrl]        = useState(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [soap,           setSoap]           = useState({ s: '', o: '', a: '', p: '' })
+  const [saving,         setSaving]         = useState(false)
+  const [startingId,     setStartingId]     = useState(null)
+  const [videoUrl,       setVideoUrl]       = useState(null)
+  const [selectedDate,   setSelectedDate]   = useState(getLimaToday)
+  const [recetaData,     setRecetaData]     = useState(null)
 
   const activeAppt  = useMemo(() => appointments.find(a => a.status === 'active') ?? null, [appointments])
   const hasAnyActive = activeAppt !== null
@@ -480,6 +482,7 @@ export default function PanelMedico() {
       console.log('[PanelMedico] doctor encontrado — id:', info.id, '| activo:', info.activo)
       setDoctorInfo(info)
       setDisponible(info.activo ?? false)
+      setFotoUrl(info.foto_url ?? null)
       console.log('[PanelMedico] disponible inicial →', info.activo ?? false)
     } else {
       console.warn('[PanelMedico] No se encontró fila en doctors para este usuario')
@@ -568,6 +571,59 @@ export default function PanelMedico() {
 
   function handleSoapChange(field, value) {
     setSoap(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function handlePhotoChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''                          // reset para poder subir la misma imagen de nuevo
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecciona un archivo de imagen (JPG, PNG, WebP)')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('La imagen no puede superar 2 MB')
+      return
+    }
+    if (!doctorInfo?.id) {
+      toast.error('No se pudo identificar tu perfil de médico')
+      return
+    }
+
+    setUploadingPhoto(true)
+    const ext  = file.name.split('.').pop().toLowerCase()
+    const path = `${doctorInfo.id}/profile.${ext}`
+
+    const { error: uploadErr } = await supabase.storage
+      .from('doctors')
+      .upload(path, file, { upsert: true, contentType: file.type })
+
+    if (uploadErr) {
+      setUploadingPhoto(false)
+      toast.error('No se pudo subir la foto: ' + uploadErr.message)
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('doctors').getPublicUrl(path)
+    // Forzar cache-bust para que el navegador cargue la nueva imagen
+    const urlConTimestamp = `${publicUrl}?t=${Date.now()}`
+
+    const { error: updateErr } = await supabase
+      .from('doctors')
+      .update({ foto_url: urlConTimestamp })
+      .eq('id', doctorInfo.id)
+
+    setUploadingPhoto(false)
+
+    if (updateErr) {
+      toast.error('Foto subida pero no se pudo guardar la URL: ' + updateErr.message)
+      return
+    }
+
+    setFotoUrl(urlConTimestamp)
+    setDoctorInfo(prev => ({ ...prev, foto_url: urlConTimestamp }))
+    toast.success('Foto de perfil actualizada')
   }
 
   async function handleToggle() {
@@ -759,6 +815,79 @@ export default function PanelMedico() {
 
           {/* ── Cuerpo scrollable ───────────────────────────── */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* ── Mi perfil: foto ────────────────────────────── */}
+            <div style={{
+              background: C.white, border: `1.5px solid ${C.gray200}`,
+              borderRadius: 16, padding: '12px 14px',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              {/* Avatar con overlay de carga */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                {fotoUrl ? (
+                  <img
+                    src={fotoUrl}
+                    alt="foto perfil"
+                    style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{
+                    width: 56, height: 56, borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: C.white, fontWeight: 800, fontSize: 18,
+                  }}>
+                    {getInitials(doctorName)}
+                  </div>
+                )}
+                {uploadingPhoto && (
+                  <div style={{
+                    position: 'absolute', inset: 0, borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.45)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <div style={{
+                      width: 18, height: 18, borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.3)',
+                      borderTopColor: C.white,
+                      animation: 'spin 0.7s linear infinite',
+                    }} />
+                  </div>
+                )}
+              </div>
+
+              {/* Texto */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900 }}>
+                  Mi foto de perfil
+                </div>
+                <div style={{ fontSize: 11, color: C.gray500, marginTop: 2, lineHeight: 1.4 }}>
+                  {fotoUrl ? 'Visible para pacientes al reservar' : 'Aún no tienes foto · JPG o PNG, máx. 2 MB'}
+                </div>
+              </div>
+
+              {/* Botón upload */}
+              <label style={{ flexShrink: 0, cursor: uploadingPhoto ? 'not-allowed' : 'pointer' }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  disabled={uploadingPhoto}
+                  style={{ display: 'none' }}
+                />
+                <span style={{
+                  display: 'block',
+                  background: uploadingPhoto ? C.gray100 : C.green50,
+                  border: `1.5px solid ${uploadingPhoto ? C.gray200 : C.green200}`,
+                  color: uploadingPhoto ? C.gray400 : C.green700,
+                  borderRadius: 10, padding: '7px 13px',
+                  fontSize: 12, fontWeight: 700,
+                  transition: 'all 0.15s',
+                }}>
+                  {uploadingPhoto ? 'Subiendo…' : fotoUrl ? 'Cambiar' : 'Subir foto'}
+                </span>
+              </label>
+            </div>
 
             {/* ── Selector de fecha ──────────────────────────── */}
             {(() => {

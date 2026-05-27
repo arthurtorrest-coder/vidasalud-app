@@ -210,6 +210,7 @@ export default function PanelAdmin() {
   const [weekAppts,      setWeekAppts]      = useState([])
   const [doctors,        setDoctors]        = useState([])
   const [pendingDoctors, setPendingDoctors] = useState([])
+  const [pendingTarifas, setPendingTarifas] = useState([])
   const [income,         setIncome]         = useState(null)
   const [loading,        setLoading]        = useState(true)
   const [lastRefresh,    setLastRefresh]     = useState(null)
@@ -227,7 +228,7 @@ export default function PanelAdmin() {
     setLoading(true)
     const { start, end, weekStart } = getLimaRange()
 
-    const [apptRes, weekRes, docRes, payRes, pendingRes] = await Promise.all([
+    const [apptRes, weekRes, docRes, payRes, pendingRes, tarifasRes] = await Promise.all([
       supabase
         .from('appointments')
         .select(`
@@ -262,13 +263,20 @@ export default function PanelAdmin() {
         .select('id, nombres, apellidos, especialidad, cmp, anos_experiencia, bio, precio, profile_id, created_at')
         .eq('aprobado', false)
         .order('created_at', { ascending: true }),
+
+      supabase
+        .from('doctors')
+        .select('id, nombres, apellidos, especialidad, cmp, precio, precio_propuesto')
+        .eq('precio_pendiente_aprobacion', true)
+        .order('nombres', { ascending: true }),
     ])
 
-    if (apptRes.error)   console.warn('[PanelAdmin] appointments:', apptRes.error.message)
-    if (weekRes.error)   console.warn('[PanelAdmin] weekAppts:',  weekRes.error.message)
-    if (docRes.error)    console.warn('[PanelAdmin] doctors:',    docRes.error.message)
-    if (payRes.error)    console.warn('[PanelAdmin] payments:',   payRes.error.message)
-    if (pendingRes.error) console.warn('[PanelAdmin] pending:',  pendingRes.error.message)
+    if (apptRes.error)    console.warn('[PanelAdmin] appointments:', apptRes.error.message)
+    if (weekRes.error)    console.warn('[PanelAdmin] weekAppts:',   weekRes.error.message)
+    if (docRes.error)     console.warn('[PanelAdmin] doctors:',     docRes.error.message)
+    if (payRes.error)     console.warn('[PanelAdmin] payments:',    payRes.error.message)
+    if (pendingRes.error) console.warn('[PanelAdmin] pending:',     pendingRes.error.message)
+    if (tarifasRes.error) console.warn('[PanelAdmin] tarifas:',     tarifasRes.error.message)
 
     setTodayAppts(apptRes.data ?? [])
     setWeekAppts(weekRes.data ?? [])
@@ -278,6 +286,10 @@ export default function PanelAdmin() {
       full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
     })))
     setPendingDoctors((pendingRes.data ?? []).map(d => ({
+      ...d,
+      full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
+    })))
+    setPendingTarifas((tarifasRes.data ?? []).map(d => ({
       ...d,
       full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
     })))
@@ -327,6 +339,27 @@ export default function PanelAdmin() {
     await supabase.from('doctors').delete().eq('id', doc.id)
     setPendingDoctors(prev => prev.filter(d => d.id !== doc.id))
     toast.success(`Solicitud de ${doc.full_name} rechazada`)
+  }
+
+  async function handleApproveTarifa(doc) {
+    const { error } = await supabase
+      .from('doctors')
+      .update({ precio: doc.precio_propuesto, precio_propuesto: null, precio_pendiente_aprobacion: false })
+      .eq('id', doc.id)
+    if (error) { toast.error('Error al aprobar la tarifa'); return }
+    setPendingTarifas(prev => prev.filter(d => d.id !== doc.id))
+    setDoctors(prev => prev.map(d => d.id === doc.id ? { ...d, precio: doc.precio_propuesto } : d))
+    toast.success(`Tarifa de ${doc.full_name} actualizada a S/. ${doc.precio_propuesto}`)
+  }
+
+  async function handleRejectTarifa(doc) {
+    const { error } = await supabase
+      .from('doctors')
+      .update({ precio_propuesto: null, precio_pendiente_aprobacion: false })
+      .eq('id', doc.id)
+    if (error) { toast.error('Error al rechazar la tarifa'); return }
+    setPendingTarifas(prev => prev.filter(d => d.id !== doc.id))
+    toast.success(`Propuesta de tarifa de ${doc.full_name} rechazada`)
   }
 
   // ── Skeleton ──────────────────────────────────────────────
@@ -679,6 +712,128 @@ export default function PanelAdmin() {
                   )
                 })}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Tarifas pendientes de aprobación ── */}
+        {(loading || pendingTarifas.length > 0) && (
+          <div style={{
+            background: C.white, borderRadius: 16,
+            border: `1.5px solid ${C.blue600}`,
+            padding: 20, marginBottom: 24,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <span style={{ fontSize: 18 }}>💰</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: C.gray900 }}>
+                Tarifas pendientes de aprobación
+              </span>
+              {!loading && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                  background: C.blueBg, color: C.blueText,
+                }}>
+                  {pendingTarifas.length}
+                </span>
+              )}
+            </div>
+
+            {loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[1, 2].map(i => (
+                  <div key={i} style={{
+                    border: `1px solid ${C.gray200}`, borderRadius: 12, padding: 16,
+                    display: 'flex', alignItems: 'center', gap: 16,
+                  }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {skeletonBar('40%', 13)}
+                      {skeletonBar('60%', 11)}
+                    </div>
+                    <div style={{ width: 90, height: 32, background: C.gray200, borderRadius: 8 }} />
+                    <div style={{ width: 90, height: 32, background: C.gray200, borderRadius: 8 }} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <TH>Médico</TH>
+                    <TH>Especialidad</TH>
+                    <TH right>Tarifa actual</TH>
+                    <TH right>Tarifa propuesta</TH>
+                    <TH right>Acción</TH>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingTarifas.length === 0 ? (
+                    <EmptyRow cols={5} msg="Sin tarifas pendientes" />
+                  ) : (
+                    pendingTarifas.map(doc => (
+                      <tr key={doc.id}>
+                        <TD>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{
+                              width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                              background: `linear-gradient(135deg, ${C.blue600}, #1D4ED8)`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              color: C.white, fontWeight: 800, fontSize: 12,
+                            }}>
+                              {(doc.full_name ?? '?').charAt(0).toUpperCase()}
+                            </div>
+                            <span style={{ fontWeight: 700, fontSize: 13, color: C.gray900 }}>
+                              {doc.full_name}
+                            </span>
+                          </div>
+                        </TD>
+                        <TD muted>{doc.especialidad ?? '—'}</TD>
+                        <TD right>
+                          <span style={{ color: C.gray500, fontWeight: 600 }}>
+                            {doc.precio ? `S/. ${doc.precio}` : '—'}
+                          </span>
+                        </TD>
+                        <TD right>
+                          <span style={{
+                            fontWeight: 800, color: C.blue600,
+                            background: C.blueBg, padding: '3px 10px', borderRadius: 20,
+                            fontSize: 13,
+                          }}>
+                            S/. {doc.precio_propuesto}
+                          </span>
+                        </TD>
+                        <TD right>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button
+                              onClick={() => handleApproveTarifa(doc)}
+                              style={{
+                                padding: '6px 14px', borderRadius: 8, border: 'none',
+                                background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
+                                color: C.white, fontSize: 12, fontWeight: 700,
+                                cursor: 'pointer', fontFamily: 'inherit',
+                              }}
+                            >
+                              ✓ Aprobar
+                            </button>
+                            <button
+                              onClick={() => handleRejectTarifa(doc)}
+                              style={{
+                                padding: '6px 14px', borderRadius: 8,
+                                border: `1px solid ${C.red600}`,
+                                background: C.white, color: C.red600,
+                                fontSize: 12, fontWeight: 700,
+                                cursor: 'pointer', fontFamily: 'inherit',
+                              }}
+                            >
+                              ✗ Rechazar
+                            </button>
+                          </div>
+                        </TD>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             )}
           </div>
         )}

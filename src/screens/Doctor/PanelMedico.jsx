@@ -456,14 +456,14 @@ export default function PanelMedico() {
     let info = null
     const { data: byId } = await supabase
       .from('doctors')
-      .select('id, activo, especialidad, cmp, profile_id, foto_url, precio')
+      .select('id, activo, especialidad, cmp, profile_id, foto_url, precio, precio_propuesto, precio_pendiente_aprobacion')
       .eq('id', user.id)
       .maybeSingle()
     info = byId
     if (!info) {
       const { data: byProfile } = await supabase
         .from('doctors')
-        .select('id, activo, especialidad, cmp, profile_id, foto_url, precio')
+        .select('id, activo, especialidad, cmp, profile_id, foto_url, precio, precio_propuesto, precio_pendiente_aprobacion')
         .eq('profile_id', user.id)
         .maybeSingle()
       info = byProfile
@@ -658,14 +658,16 @@ export default function PanelMedico() {
     setSavingPrecio(true)
     const { error } = await supabase
       .from('doctors')
-      .update({ precio: val })
+      .update({ precio_propuesto: val, precio_pendiente_aprobacion: true })
       .eq('id', doctorInfo.id)
     setSavingPrecio(false)
     if (error) {
-      toast.error('No se pudo guardar la tarifa')
+      toast.error('No se pudo enviar la solicitud de cambio de tarifa')
     } else {
-      setDoctorInfo(prev => ({ ...prev, precio: val }))
-      toast.success('Tarifa actualizada · Visible para pacientes')
+      setDoctorInfo(prev => ({ ...prev, precio_propuesto: val, precio_pendiente_aprobacion: true }))
+      toast('Tu nueva tarifa está pendiente de aprobación por el administrador', {
+        icon: '⏳', duration: 5000,
+      })
     }
   }
 
@@ -940,6 +942,26 @@ export default function PanelMedico() {
               <div style={{ fontSize: 12, fontWeight: 800, color: C.gray700, marginBottom: 10 }}>
                 💰 Mi tarifa de consulta
               </div>
+
+              {/* Banner de aprobación pendiente */}
+              {doctorInfo?.precio_pendiente_aprobacion && (
+                <div style={{
+                  background: C.amberBg, border: `1px solid #FDE68A`,
+                  borderRadius: 8, padding: '8px 12px', marginBottom: 10,
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}>
+                  <span style={{ fontSize: 14, flexShrink: 0 }}>⏳</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.amberText }}>
+                      Propuesta de S/. {doctorInfo.precio_propuesto} pendiente de aprobación
+                    </div>
+                    <div style={{ fontSize: 11, color: C.amberText, marginTop: 1, opacity: 0.8 }}>
+                      Tarifa actual: S/. {doctorInfo.precio ?? '—'} · El admin revisará tu solicitud
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <div style={{ position: 'relative', flex: 1 }}>
                   <span style={{
@@ -974,12 +996,14 @@ export default function PanelMedico() {
                     flexShrink: 0, fontFamily: 'inherit', transition: 'all 0.15s',
                   }}
                 >
-                  {savingPrecio ? 'Guardando…' : 'Guardar'}
+                  {savingPrecio ? 'Enviando…' : 'Proponer'}
                 </button>
               </div>
-              <div style={{ fontSize: 11, color: C.gray400, marginTop: 6 }}>
-                Precio visible para pacientes al reservar cita
-              </div>
+              {!doctorInfo?.precio_pendiente_aprobacion && (
+                <div style={{ fontSize: 11, color: C.gray400, marginTop: 6 }}>
+                  Precio visible para pacientes al reservar cita
+                </div>
+              )}
             </div>
 
             {/* ── Selector de fecha ──────────────────────────── */}

@@ -130,7 +130,8 @@ function ConsultaCard({ appt, expandedId, onToggle }) {
   const isOpen   = expandedId === appt.id
   const soap     = parseSoap(appt.notes_doctor)
   const doc      = appt.doctor ?? {}
-  const presc    = appt.prescription
+  const raw      = appt.prescription
+  const presc    = Array.isArray(raw) ? (raw[0] ?? null) : raw
   const isCPsP   = (doc.cmp ?? '').startsWith('CPsP')
   const titulo   = isCPsP ? 'Psic.' : (doc.nombres ?? '').trimEnd().endsWith('a') ? 'Dra.' : 'Dr.'
   const nombreDoc = [doc.nombres, doc.apellidos].filter(Boolean).join(' ') || 'Médico'

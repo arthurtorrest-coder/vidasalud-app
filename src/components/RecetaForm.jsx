@@ -424,9 +424,11 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
       if (pdfUrl && appointment?.id) {
         const { error: dbErr } = await supabase.from('prescriptions').insert({
           appointment_id:    appointment.id,
+          doctor_id:         doctorInfo?.id,
+          patient_id:        appointment.patient_id,
           verification_code: verificationCode,
           diagnosis,
-          medications:       filled,
+          medicines:         filled,
           pdf_url:           pdfUrl,
         })
         if (dbErr) console.warn('[RecetaForm] DB insert failed:', dbErr.message)

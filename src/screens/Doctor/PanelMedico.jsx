@@ -281,10 +281,18 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
       {/* Motivo de consulta */}
       {appt.chief_complaint && (
         <div style={{
-          marginTop: 10, background: C.gray50, borderRadius: 10,
-          padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'flex-start',
+          marginTop: 10, background: C.green50,
+          border: `1px solid ${C.green100}`,
+          borderRadius: 10, padding: '10px 12px',
         }}>
-          <span style={{ fontSize: 14, flexShrink: 0 }}>💬</span>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5,
+          }}>
+            <span style={{ fontSize: 14, flexShrink: 0 }}>🩺</span>
+            <span style={{ fontSize: 11, fontWeight: 800, color: C.green800 }}>
+              Motivo de consulta
+            </span>
+          </div>
           <span style={{ fontSize: 12, color: C.gray700, lineHeight: 1.5 }}>
             {appt.chief_complaint}
           </span>

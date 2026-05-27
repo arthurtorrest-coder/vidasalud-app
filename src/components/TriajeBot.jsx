@@ -297,11 +297,22 @@ export default function TriajeBot({ onClose, onSelectSpecialty, onBookNow }) {
       .map(m => ({ role: m.role, content: m.text }))
 
     try {
-      const { data, error } = await supabase.functions.invoke('triage-ai', {
+      const { data: rawData, error } = await supabase.functions.invoke('triage-ai', {
         body: { messages: apiMessages, patientName: firstName },
       })
 
-      if (error || !data?.message) throw new Error(error?.message ?? 'Sin respuesta de la IA')
+      if (error) throw new Error(error.message ?? 'Sin respuesta de la IA')
+
+      // Edge Function fallback may return raw JSON string inside message field — unwrap it
+      let data = rawData
+      if (typeof rawData?.message === 'string' && rawData.message.trimStart().startsWith('{')) {
+        try {
+          const inner = JSON.parse(rawData.message)
+          if (typeof inner?.message === 'string') data = inner
+        } catch { /* not JSON, keep rawData */ }
+      }
+
+      if (!data?.message) throw new Error('Sin respuesta de la IA')
 
       if (data.emergency) setEmergency(true)
 

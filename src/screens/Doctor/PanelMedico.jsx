@@ -417,13 +417,14 @@ export default function PanelMedico() {
     fetchData()
   }, [user, selectedDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Realtime: se suscribe solo cuando ya tenemos el doctors.id real
   useEffect(() => {
-    if (!user) return
+    if (!doctorInfo?.id) return
     const channel = supabase
-      .channel(`panel-medico-${user.id}`)
+      .channel(`panel-medico-${doctorInfo.id}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'appointments', filter: `doctor_id=eq.${user.id}` },
+        { event: '*', schema: 'public', table: 'appointments', filter: `doctor_id=eq.${doctorInfo.id}` },
         (payload) => {
           if (payload.eventType === 'UPDATE') {
             setAppointments(prev =>
@@ -434,60 +435,59 @@ export default function PanelMedico() {
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [user])
+  }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchData() {
     setLoading(true)
 
-    // Rango del día seleccionado en hora Lima (UTC-5)
-    const [y, mo, d] = selectedDate.split('-').map(Number)
-    const start = new Date(Date.UTC(y, mo - 1, d,     5, 0,  0)).toISOString()  // 00:00 Lima = 05:00 UTC
-    const end   = new Date(Date.UTC(y, mo - 1, d + 1, 4, 59, 59)).toISOString() // 23:59:59 Lima = 04:59:59 UTC
-
-    const [apptRes, docRes] = await Promise.all([
-      supabase
-        .from('appointments')
-        .select(`*, patient:profiles!patient_id ( full_name, phone, dni )`)
-        .eq('doctor_id', user.id)
-        .gte('scheduled_at', start)
-        .lte('scheduled_at', end)
-        .order('scheduled_at', { ascending: true }),
-      supabase
-        .from('doctors')
-        .select('id, activo, especialidad, cmp, profile_id')
-        .eq('id', user.id)
-        .maybeSingle(),
-    ])
-
-    if (apptRes.error) {
-      console.error('[PanelMedico] Error al cargar citas:', apptRes.error)
-      toast.error('Error al cargar las citas: ' + apptRes.error.message)
-    }
-    if (apptRes.data) setAppointments(apptRes.data)
-
-    // Buscar por id primero (schema.sql: doctors.id = auth uuid)
-    console.log('[PanelMedico] docRes por id:', { data: docRes.data, error: docRes.error?.message })
-    let info = docRes.data
+    // Paso 1: resolver la fila del médico para obtener el doctors.id real
+    // (doctors.id ≠ user.id cuando el médico se registró con RegisterMedico)
+    let info = null
+    const { data: byId } = await supabase
+      .from('doctors')
+      .select('id, activo, especialidad, cmp, profile_id, foto_url')
+      .eq('id', user.id)
+      .maybeSingle()
+    info = byId
     if (!info) {
-      // Fallback: doctors registrados con RegisterMedico tienen profile_id = auth uuid
-      const { data, error: fbErr } = await supabase
+      const { data: byProfile } = await supabase
         .from('doctors')
-        .select('id, activo, especialidad, cmp, profile_id')
+        .select('id, activo, especialidad, cmp, profile_id, foto_url')
         .eq('profile_id', user.id)
         .maybeSingle()
-      console.log('[PanelMedico] docRes por profile_id:', { data, error: fbErr?.message })
-      info = data
+      info = byProfile
     }
-    if (info) {
-      console.log('[PanelMedico] doctor encontrado — id:', info.id, '| activo:', info.activo)
-      setDoctorInfo(info)
-      setDisponible(info.activo ?? false)
-      setFotoUrl(info.foto_url ?? null)
-      console.log('[PanelMedico] disponible inicial →', info.activo ?? false)
-    } else {
+
+    if (!info) {
       console.warn('[PanelMedico] No se encontró fila en doctors para este usuario')
       setDisponible(false)
+      setLoading(false)
+      return
     }
+
+    console.log('[PanelMedico] doctor encontrado — doctors.id:', info.id, '| activo:', info.activo)
+    setDoctorInfo(info)
+    setDisponible(info.activo ?? false)
+    setFotoUrl(info.foto_url ?? null)
+
+    // Paso 2: citas usando doctors.id (no user.id)
+    const [y, mo, d] = selectedDate.split('-').map(Number)
+    const start = new Date(Date.UTC(y, mo - 1, d,     5, 0,  0)).toISOString()
+    const end   = new Date(Date.UTC(y, mo - 1, d + 1, 4, 59, 59)).toISOString()
+
+    const { data: appts, error: apptErr } = await supabase
+      .from('appointments')
+      .select(`*, patient:profiles!patient_id ( full_name, phone, dni )`)
+      .eq('doctor_id', info.id)
+      .gte('scheduled_at', start)
+      .lte('scheduled_at', end)
+      .order('scheduled_at', { ascending: true })
+
+    if (apptErr) {
+      console.error('[PanelMedico] Error al cargar citas:', apptErr)
+      toast.error('Error al cargar las citas: ' + apptErr.message)
+    }
+    setAppointments(appts ?? [])
     setLoading(false)
   }
 

@@ -321,10 +321,8 @@ export default function TriajeBot({ onClose, onSelectSpecialty, onBookNow }) {
         const summary = data.summary ?? null
         setTriageSummary(summary)
         if (summary) sessionStorage.setItem('vidasalud_triaje', summary)
-      } else {
-        // Avanzar paso estimado según longitud de conversación
-        const userCount = updated.filter(m => m.role === 'user').length
-        setCurrentStep(Math.min(userCount + 1, 4))
+      } else if (data.step >= 1 && data.step <= 4) {
+        setCurrentStep(data.step)
       }
 
       setMessages(prev => [...prev, {

@@ -522,16 +522,26 @@ export default function PanelMedico() {
 
     // Siempre llamar a la Edge Function — ella gestiona idempotencia y renovación de sala
     toast.loading('Creando sala de video…', { id: 'room-creation' })
-    console.log('[handleStart] invoking create-daily-room…')
+    const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-daily-room`
+    console.log('[handleStart] invoking create-daily-room — URL:', fnUrl, '| appointmentId:', appt.id)
     const { data, error: fnError } = await supabase.functions.invoke('create-daily-room', {
       body: { appointmentId: appt.id },
     })
     toast.dismiss('room-creation')
-    console.log('[handleStart] function response — data:', data, '| error:', fnError)
+    console.log('[handleStart] raw response — data:', data, '| error:', fnError)
+    if (fnError) {
+      console.error('[handleStart] fnError.name:', fnError.name)
+      console.error('[handleStart] fnError.message:', fnError.message)
+      // FunctionsHttpError tiene .context con la Response original
+      if (fnError.context) {
+        fnError.context.text().then(t => console.error('[handleStart] fnError body:', t)).catch(() => {})
+      }
+    }
 
     if (fnError || !data?.url) {
-      console.error('[handleStart] Edge Function failed:', fnError ?? 'no url in response')
-      toast.error('No se pudo crear la sala de video. Verifica que la Edge Function esté desplegada.')
+      const msg = fnError?.message ?? 'La función no devolvió una URL de sala'
+      console.error('[handleStart] Edge Function failed:', msg)
+      toast.error(`No se pudo crear la sala: ${msg}`)
       setStartingId(null)
       return
     }

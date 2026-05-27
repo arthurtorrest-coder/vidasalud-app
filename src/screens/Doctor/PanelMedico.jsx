@@ -475,6 +475,13 @@ export default function PanelMedico() {
     const start = new Date(Date.UTC(y, mo - 1, d,     5, 0,  0)).toISOString()
     const end   = new Date(Date.UTC(y, mo - 1, d + 1, 4, 59, 59)).toISOString()
 
+    console.log('[PanelMedico] query citas —', {
+      doctor_id:     info.id,
+      selectedDate,
+      start,
+      end,
+    })
+
     const { data: appts, error: apptErr } = await supabase
       .from('appointments')
       .select(`*, patient:profiles!patient_id ( full_name, phone, dni )`)
@@ -482,6 +489,12 @@ export default function PanelMedico() {
       .gte('scheduled_at', start)
       .lte('scheduled_at', end)
       .order('scheduled_at', { ascending: true })
+
+    console.log('[PanelMedico] resultado citas —', {
+      count: appts?.length ?? 0,
+      rows:  appts?.map(a => ({ id: a.id, scheduled_at: a.scheduled_at, status: a.status })),
+      error: apptErr?.message ?? null,
+    })
 
     if (apptErr) {
       console.error('[PanelMedico] Error al cargar citas:', apptErr)

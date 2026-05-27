@@ -86,10 +86,11 @@ serve(async (req) => {
 
   console.log('[create-daily-room] appointmentId:', appointmentId)
 
+  // Service role bypasses RLS — necesario porque doctors.id ≠ auth.uid()
+  // en el esquema con doctors_seed.sql (doctors.id es UUID aleatorio, profile_id = auth.uid())
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } } },
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
   const { data: appt, error: apptErr } = await supabase
     .from('appointments')

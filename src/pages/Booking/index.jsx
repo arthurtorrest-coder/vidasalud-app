@@ -205,7 +205,11 @@ export default function Booking() {
   const [selectedTime,  setSelectedTime]  = useState(null)
   const [booked,        setBooked]        = useState(new Set())
   const [loadingSlots,  setLoadingSlots]  = useState(true)
-  const [motivo,        setMotivo]        = useState('')
+  const [motivo,        setMotivo]        = useState(() => {
+    const saved = sessionStorage.getItem('vidasalud_triaje')
+    if (saved) sessionStorage.removeItem('vidasalud_triaje')
+    return saved ?? ''
+  })
   const [submitting,    setSubmitting]    = useState(false)
 
   /* cargar datos del médico */

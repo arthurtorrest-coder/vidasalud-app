@@ -363,6 +363,18 @@ export default function Home() {
             setSearch('')
             setShowTriaje(false)
           }}
+          onBookNow={() => {
+            setShowTriaje(false)
+            const general = doctors.find(d =>
+              d.spec.toLowerCase().includes('general')
+            )
+            if (general) {
+              navigate(`/booking/${general.id}`)
+            } else {
+              setSelectedSpec('General')
+              setSearch('')
+            }
+          }}
         />
       )}
 

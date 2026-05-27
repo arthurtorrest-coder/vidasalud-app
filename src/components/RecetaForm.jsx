@@ -421,8 +421,9 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
       }
 
       // Save record in prescriptions table
+      console.log('[RecetaForm] pdfUrl:', pdfUrl, '| appointment.id:', appointment?.id)
       if (pdfUrl && appointment?.id) {
-        const { error: dbErr } = await supabase.from('prescriptions').insert({
+        const payload = {
           appointment_id:    appointment.id,
           doctor_id:         doctorInfo?.id,
           patient_id:        appointment.patient_id,
@@ -430,8 +431,15 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
           diagnosis,
           medicines:         filled,
           pdf_url:           pdfUrl,
-        })
-        if (dbErr) console.warn('[RecetaForm] DB insert failed:', dbErr.message)
+        }
+        console.log('[RecetaForm] insert payload:', JSON.stringify(payload, null, 2))
+        const { data: dbData, error: dbErr } = await supabase
+          .from('prescriptions')
+          .insert(payload)
+          .select()
+        console.log('[RecetaForm] insert result — data:', dbData, '| error:', dbErr?.message, '| code:', dbErr?.code, '| details:', dbErr?.details)
+      } else {
+        console.warn('[RecetaForm] insert skipped — pdfUrl:', pdfUrl, '| appointment?.id:', appointment?.id)
       }
 
       // Download locally

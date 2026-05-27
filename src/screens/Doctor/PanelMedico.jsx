@@ -438,6 +438,7 @@ export default function PanelMedico() {
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchData() {
+    console.log('[PanelMedico] fetchData START — selectedDate:', selectedDate, '| user.id:', user?.id)
     setLoading(true)
 
     // Paso 1: resolver la fila del médico para obtener el doctors.id real

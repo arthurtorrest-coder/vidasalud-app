@@ -402,6 +402,8 @@ export default function PanelMedico() {
   const [toggling,       setToggling]       = useState(false)
   const [fotoUrl,        setFotoUrl]        = useState(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [precio,         setPrecio]         = useState('')
+  const [savingPrecio,   setSavingPrecio]   = useState(false)
   const [soap,           setSoap]           = useState({ s: '', o: '', a: '', p: '' })
   const [saving,         setSaving]         = useState(false)
   const [startingId,     setStartingId]     = useState(null)
@@ -454,14 +456,14 @@ export default function PanelMedico() {
     let info = null
     const { data: byId } = await supabase
       .from('doctors')
-      .select('id, activo, especialidad, cmp, profile_id, foto_url')
+      .select('id, activo, especialidad, cmp, profile_id, foto_url, precio')
       .eq('id', user.id)
       .maybeSingle()
     info = byId
     if (!info) {
       const { data: byProfile } = await supabase
         .from('doctors')
-        .select('id, activo, especialidad, cmp, profile_id, foto_url')
+        .select('id, activo, especialidad, cmp, profile_id, foto_url, precio')
         .eq('profile_id', user.id)
         .maybeSingle()
       info = byProfile
@@ -478,6 +480,7 @@ export default function PanelMedico() {
     setDoctorInfo(info)
     setDisponible(info.activo ?? false)
     setFotoUrl(info.foto_url ?? null)
+    setPrecio(info.precio ?? '')
 
     // Paso 2: citas usando doctors.id (no user.id)
     const [y, mo, d] = selectedDate.split('-').map(Number)
@@ -646,6 +649,24 @@ export default function PanelMedico() {
     setFotoUrl(urlConTimestamp)
     setDoctorInfo(prev => ({ ...prev, foto_url: urlConTimestamp }))
     toast.success('Foto de perfil actualizada')
+  }
+
+  async function handleSavePrecio() {
+    const val = Number(precio)
+    if (!val || val < 10) { toast.error('Ingresa un precio válido (mínimo S/. 10)'); return }
+    if (!doctorInfo?.id) return
+    setSavingPrecio(true)
+    const { error } = await supabase
+      .from('doctors')
+      .update({ precio: val })
+      .eq('id', doctorInfo.id)
+    setSavingPrecio(false)
+    if (error) {
+      toast.error('No se pudo guardar la tarifa')
+    } else {
+      setDoctorInfo(prev => ({ ...prev, precio: val }))
+      toast.success('Tarifa actualizada · Visible para pacientes')
+    }
   }
 
   async function handleToggle() {
@@ -909,6 +930,56 @@ export default function PanelMedico() {
                   {uploadingPhoto ? 'Subiendo…' : fotoUrl ? 'Cambiar' : 'Subir foto'}
                 </span>
               </label>
+            </div>
+
+            {/* ── Mi tarifa ────────────────────────────────── */}
+            <div style={{
+              background: C.white, border: `1.5px solid ${C.gray200}`,
+              borderRadius: 16, padding: '12px 14px',
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.gray700, marginBottom: 10 }}>
+                💰 Mi tarifa de consulta
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <span style={{
+                    position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                    fontSize: 13, fontWeight: 700, color: C.gray500, pointerEvents: 'none',
+                  }}>S/.</span>
+                  <input
+                    type="number"
+                    min={10}
+                    max={999}
+                    value={precio}
+                    onChange={e => setPrecio(e.target.value)}
+                    style={{
+                      width: '100%', padding: '10px 12px 10px 40px',
+                      border: `1.5px solid ${C.gray300}`,
+                      borderRadius: 10, fontSize: 15, fontWeight: 700, color: C.gray900,
+                      outline: 'none', fontFamily: 'inherit', background: C.white,
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={handleSavePrecio}
+                  disabled={savingPrecio}
+                  style={{
+                    padding: '10px 18px', borderRadius: 10, border: 'none',
+                    background: savingPrecio
+                      ? C.green100
+                      : `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+                    color: savingPrecio ? C.green700 : C.white,
+                    fontSize: 13, fontWeight: 700,
+                    cursor: savingPrecio ? 'not-allowed' : 'pointer',
+                    flexShrink: 0, fontFamily: 'inherit', transition: 'all 0.15s',
+                  }}
+                >
+                  {savingPrecio ? 'Guardando…' : 'Guardar'}
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: C.gray400, marginTop: 6 }}>
+                Precio visible para pacientes al reservar cita
+              </div>
             </div>
 
             {/* ── Selector de fecha ──────────────────────────── */}

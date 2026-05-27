@@ -240,7 +240,7 @@ function ConsultaCard({ appt, expandedId, onToggle }) {
         )}
 
         {/* Fila inferior: código + botón receta */}
-        {(presc || presc?.pdf_url) && (
+        {presc && (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.gray100}`,
@@ -291,34 +291,24 @@ export default function Historial() {
 
     async function load() {
       setLoading(true)
-      const [apptRes, prescRes] = await Promise.all([
-        supabase
-          .from('appointments')
-          .select(`
-            id, scheduled_at, duration_minutes, notes_doctor,
-            doctor:doctors!doctor_id ( nombres, apellidos, especialidad, cmp )
-          `)
-          .eq('patient_id', profile.id)
-          .eq('status', 'done')
-          .order('scheduled_at', { ascending: false }),
-
-        supabase
-          .from('prescriptions')
-          .select('appointment_id, diagnosis, pdf_url, verification_code'),
-      ])
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+          id, scheduled_at, duration_minutes, notes_doctor,
+          doctor:doctors!doctor_id ( nombres, apellidos, especialidad, cmp ),
+          prescription:prescriptions!appointment_id ( appointment_id, diagnosis, pdf_url, verification_code )
+        `)
+        .eq('patient_id', profile.id)
+        .eq('status', 'done')
+        .order('scheduled_at', { ascending: false })
 
       if (cancelled) return
 
-      if (apptRes.error) {
-        console.error('[Historial] appointments:', apptRes.error.message)
-        setError(apptRes.error.message)
+      if (error) {
+        console.error('[Historial] appointments:', error.message)
+        setError(error.message)
       } else {
-        const prescMap = Object.fromEntries(
-          (prescRes.data ?? []).map(p => [p.appointment_id, p])
-        )
-        setConsultas((apptRes.data ?? []).map(a => ({
-          ...a, prescription: prescMap[a.id] ?? null,
-        })))
+        setConsultas(data ?? [])
       }
       setLoading(false)
     }

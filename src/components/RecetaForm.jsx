@@ -390,8 +390,8 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
       // Build PDF
       const doc = buildPDF({
         doctorName:   doctorName ?? 'Médico',
-        specialty:    doctorInfo?.specialty ?? '',
-        cmp:          doctorInfo?.cmp_code ?? '',
+        specialty:    doctorInfo?.especialidad ?? '',
+        cmp:          doctorInfo?.cmp ?? '',
         patientName,
         patientDNI,
         diagnosis:    diagnosis || 'No especificado',
@@ -582,7 +582,7 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
               Vista previa del membrete
             </div>
             <div style={{ fontSize: 12, color: C.gray700 }}>
-              <strong>Médico:</strong> {doctorName}{doctorInfo?.specialty ? ` · ${doctorInfo.specialty}` : ''}{doctorInfo?.cmp_code ? ` · CMP ${doctorInfo.cmp_code}` : ''}
+              <strong>Médico:</strong> {doctorName}{doctorInfo?.especialidad ? ` · ${doctorInfo.especialidad}` : ''}{doctorInfo?.cmp ? ` · CMP ${doctorInfo.cmp}` : ''}
             </div>
             <div style={{ fontSize: 12, color: C.gray700 }}>
               <strong>Paciente:</strong> {patientName}{patientDNI ? ` · DNI ${patientDNI}` : ''}

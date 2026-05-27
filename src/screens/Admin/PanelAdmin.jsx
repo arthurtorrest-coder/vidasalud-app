@@ -317,11 +317,15 @@ export default function PanelAdmin() {
   }
 
   async function handleApprove(doc) {
-    const { error: docErr } = await supabase
+    const { data: updated, error: docErr } = await supabase
       .from('doctors')
       .update({ aprobado: true, activo: true })
       .eq('id', doc.id)
-    if (docErr) { toast.error('Error al aprobar médico'); return }
+      .select('id')
+    if (docErr || !updated?.length) {
+      toast.error('Error al aprobar médico — ejecuta supabase/admin_rls_doctors.sql en el Dashboard')
+      return
+    }
     if (doc.profile_id) {
       await supabase.from('profiles').update({ role: 'doctor' }).eq('id', doc.profile_id)
     }
@@ -342,22 +346,30 @@ export default function PanelAdmin() {
   }
 
   async function handleApproveTarifa(doc) {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('doctors')
       .update({ precio: doc.precio_propuesto, precio_propuesto: null, precio_pendiente_aprobacion: false })
       .eq('id', doc.id)
-    if (error) { toast.error('Error al aprobar la tarifa'); return }
+      .select('id')
+    if (error || !updated?.length) {
+      toast.error('Error al aprobar la tarifa — ejecuta supabase/admin_rls_doctors.sql en el Dashboard')
+      return
+    }
     setPendingTarifas(prev => prev.filter(d => d.id !== doc.id))
     setDoctors(prev => prev.map(d => d.id === doc.id ? { ...d, precio: doc.precio_propuesto } : d))
     toast.success(`Tarifa de ${doc.full_name} actualizada a S/. ${doc.precio_propuesto}`)
   }
 
   async function handleRejectTarifa(doc) {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('doctors')
       .update({ precio_propuesto: null, precio_pendiente_aprobacion: false })
       .eq('id', doc.id)
-    if (error) { toast.error('Error al rechazar la tarifa'); return }
+      .select('id')
+    if (error || !updated?.length) {
+      toast.error('Error al rechazar la tarifa — ejecuta supabase/admin_rls_doctors.sql en el Dashboard')
+      return
+    }
     setPendingTarifas(prev => prev.filter(d => d.id !== doc.id))
     toast.success(`Propuesta de tarifa de ${doc.full_name} rechazada`)
   }

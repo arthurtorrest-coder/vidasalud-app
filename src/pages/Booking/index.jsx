@@ -271,6 +271,7 @@ export default function Booking() {
     setSubmitting(false)
 
     if (error) {
+      console.error('[Booking] appointments insert error:', error)
       if (error.code === '23505') {
         toast.error('Ese horario acaba de ser reservado. Elige otro.')
         setBooked(prev => new Set([...prev, selectedTime]))

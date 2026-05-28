@@ -275,7 +275,7 @@ export default function HistoriaClinica() {
           .from('profiles')
           .select('id, full_name, phone, dni, created_at')
           .eq('id', patientId)
-          .single(),
+          .maybeSingle(),
         supabase
           .from('appointments')
           .select(`

@@ -126,6 +126,18 @@ serve(async (req) => {
     return json({ error: room?.info ?? 'Error al crear la sala en Daily.co' }, 502)
   }
 
-  console.log('[create-daily-room] returning url:', roomUrl)
-  return json({ url: roomUrl, roomName, reused: false })
+  // UPDATE appointments usando service role — bypasea el RLS del frontend
+  const { error: updateErr } = await supabase
+    .from('appointments')
+    .update({ status: 'active', video_url: roomUrl })
+    .eq('id', appointmentId)
+
+  if (updateErr) {
+    console.error('[create-daily-room] appointments update error:', updateErr.message)
+    // No abortar: devolver la URL igual para que el médico pueda unirse
+  } else {
+    console.log('[create-daily-room] appointment updated to active')
+  }
+
+  return json({ url: roomUrl, roomName })
 })

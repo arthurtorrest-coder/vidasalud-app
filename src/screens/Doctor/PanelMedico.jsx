@@ -546,27 +546,15 @@ export default function PanelMedico() {
       return
     }
     const roomUrl = data.url
+    console.log('[handleStart] roomUrl:', roomUrl)
 
-    console.log('[handleStart] roomUrl to use:', roomUrl)
-
-    const { error } = await supabase
-      .from('appointments')
-      .update({ status: 'active', video_url: roomUrl })
-      .eq('id', appt.id)
-
-    console.log('[handleStart] DB update error:', error)
-
-    if (error) {
-      toast.error('No se pudo iniciar la consulta')
-    } else {
-      setAppointments(prev =>
-        prev.map(a => a.id === appt.id ? { ...a, status: 'active', video_url: roomUrl } : a)
-      )
-      setSoap({ s: '', o: '', a: '', p: '' })
-      console.log('[handleStart] calling setVideoUrl with:', roomUrl)
-      setVideoUrl(roomUrl)
-      toast.success('Consulta iniciada · Sala de video lista')
-    }
+    // La Edge Function ya hizo el UPDATE en Supabase con service role
+    setAppointments(prev =>
+      prev.map(a => a.id === appt.id ? { ...a, status: 'active', video_url: roomUrl } : a)
+    )
+    setSoap({ s: '', o: '', a: '', p: '' })
+    setVideoUrl(roomUrl)
+    toast.success('Consulta iniciada · Sala de video lista')
     setStartingId(null)
   }
 

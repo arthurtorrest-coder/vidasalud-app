@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import TriajeBot from '../../components/TriajeBot'
+import VideoRoom from '../../components/VideoRoom'
 
 const C = {
   green900: '#064E3B',
@@ -295,12 +296,63 @@ function QuickActions() {
   )
 }
 
+// ─── Alerta de consulta activa ────────────────────────────────
+
+function doctorTitulo(doc) {
+  const isCPsP = (doc?.cmp ?? '').startsWith('CPsP')
+  const fem    = (doc?.nombres ?? '').trimEnd().endsWith('a')
+  return isCPsP ? 'Psic.' : fem ? 'Dra.' : 'Dr.'
+}
+
+function ActiveCallBanner({ appt, onEnter }) {
+  const doc      = appt.doctor ?? {}
+  const titulo   = doctorTitulo(doc)
+  const nombre   = [doc.nombres, doc.apellidos].filter(Boolean).join(' ') || 'tu médico'
+  const spec     = doc.especialidad ?? ''
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #065F46, #059669)',
+      padding: '16px 20px 18px',
+      display: 'flex', flexDirection: 'column', gap: 12,
+      animation: 'banner-glow 2s ease-in-out infinite',
+      flexShrink: 0,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 18, animation: 'dot-blink 1s step-end infinite' }}>🔴</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
+            Tu médico te está esperando ahora
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.82)', marginTop: 3 }}>
+            {titulo} {nombre}{spec ? ` · ${spec}` : ''}
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={() => onEnter(appt.video_url)}
+        style={{
+          width: '100%', padding: '14px 0',
+          background: '#FFFFFF', color: '#065F46',
+          border: 'none', borderRadius: 12,
+          fontSize: 15, fontWeight: 800, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          fontFamily: 'inherit',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+        }}
+      >
+        📹 Entrar a la consulta
+      </button>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────
 
 export default function Home() {
-  const navigate   = useNavigate()
-  const { profile } = useAuthStore()
-  const firstName  = profile?.full_name?.split(' ')[0] ?? ''
+  const navigate    = useNavigate()
+  const { profile, user } = useAuthStore()
+  const firstName   = profile?.full_name?.split(' ')[0] ?? ''
 
   const [search,       setSearch]       = useState('')
   const [selectedSpec, setSelectedSpec] = useState(null)
@@ -308,6 +360,35 @@ export default function Home() {
   const [loadingDocs,  setLoadingDocs]  = useState(true)
   const [errorDocs,    setErrorDocs]    = useState(null)
   const [showTriaje,   setShowTriaje]   = useState(false)
+  const [activeAppt,   setActiveAppt]   = useState(null)
+  const [videoUrl,     setVideoUrl]     = useState(null)
+
+  const checkActiveAppt = useCallback(async () => {
+    if (!user?.id) return
+    const { data } = await supabase
+      .from('appointments')
+      .select('id, video_url, doctor:doctors(nombres, apellidos, especialidad, cmp)')
+      .eq('patient_id', user.id)
+      .eq('status', 'active')
+      .not('video_url', 'is', null)
+      .maybeSingle()
+    setActiveAppt(data ?? null)
+  }, [user?.id])
+
+  useEffect(() => { checkActiveAppt() }, [checkActiveAppt])
+
+  useEffect(() => {
+    if (!user?.id) return
+    const channel = supabase
+      .channel(`home-active-appt-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'appointments', filter: `patient_id=eq.${user.id}` },
+        () => { checkActiveAppt() },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [user?.id, checkActiveAppt])
 
   function fetchDoctors() {
     supabase
@@ -355,6 +436,23 @@ export default function Home() {
 
   return (
     <>
+      <style>{`
+        @keyframes banner-glow {
+          0%,100% { box-shadow: 0 4px 24px rgba(5,150,105,0.45); }
+          50%      { box-shadow: 0 4px 40px rgba(5,150,105,0.75); }
+        }
+        @keyframes dot-blink {
+          0%,100% { opacity: 1; }
+          50%      { opacity: 0; }
+        }
+      `}</style>
+
+      {videoUrl && <VideoRoom url={videoUrl} onLeave={() => setVideoUrl(null)} />}
+
+      {activeAppt && (
+        <ActiveCallBanner appt={activeAppt} onEnter={setVideoUrl} />
+      )}
+
       {showTriaje && (
         <TriajeBot
           onClose={() => setShowTriaje(false)}

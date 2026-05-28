@@ -14,6 +14,10 @@ const C = {
   amber:    '#F59E0B',
   amberBg:  '#FFFBEB',
   amberText:'#B45309',
+  blue700:  '#1D4ED8',
+  blue600:  '#2563EB',
+  blue50:   '#EFF6FF',
+  blue100:  '#DBEAFE',
   red600:   '#DC2626',
   red50:    '#FEF2F2',
   gray900:  '#111827',
@@ -79,6 +83,146 @@ function apptCode(id) {
   return 'VIDA-' + id.replace(/-/g, '').slice(0, 8).toUpperCase()
 }
 
+// ─── Instrucciones videollamada ───────────────────────────────
+
+const HOW_TO_STEPS = [
+  {
+    icon:  '📹',
+    title: 'Toca el botón azul',
+    text:  'Busca el botón grande azul que dice "Unirse a la consulta" y tócalo con el dedo.',
+    color: '#2563EB',
+    bg:    '#EFF6FF',
+    border:'#BFDBFE',
+  },
+  {
+    icon:  '🎤',
+    title: 'Acepta cámara y micrófono',
+    text:  'Cuando aparezca un aviso en pantalla, toca "Permitir". Así el médico podrá verte y escucharte.',
+    color: '#047857',
+    bg:    '#ECFDF5',
+    border:'#A7F3D0',
+  },
+  {
+    icon:  '✍️',
+    title: 'Escribe tu nombre',
+    text:  'Escribe tu nombre completo en el cuadro de texto que aparece y luego toca "Unirse".',
+    color: '#7C3AED',
+    bg:    '#F5F3FF',
+    border:'#DDD6FE',
+  },
+  {
+    icon:  '⏳',
+    title: 'Espera al médico',
+    text:  '¡Ya estás adentro! El médico se unirá en unos momentos. Quédate en un lugar tranquilo y bien iluminado.',
+    color: '#B45309',
+    bg:    '#FFFBEB',
+    border:'#FDE68A',
+  },
+]
+
+function HowToJoinModal({ onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1100,
+        background: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 390,
+          background: C.white,
+          borderRadius: '20px 20px 0 0',
+          padding: '20px 20px 40px',
+          display: 'flex', flexDirection: 'column',
+          maxHeight: '90vh', overflowY: 'auto',
+          animation: 'slide-up 0.25s ease',
+        }}
+      >
+        <div style={{ width: 40, height: 4, background: C.gray200, borderRadius: 2, margin: '0 auto 18px' }} />
+
+        <div style={{ textAlign: 'center', marginBottom: 22 }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>📱</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: C.gray900 }}>
+            ¿Cómo entrar a la consulta?
+          </div>
+          <div style={{ fontSize: 13, color: C.gray500, marginTop: 5, lineHeight: 1.5 }}>
+            Siga estos 4 pasos sencillos
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {HOW_TO_STEPS.map((step, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex', gap: 14, alignItems: 'flex-start',
+                background: step.bg,
+                borderRadius: 14,
+                padding: '14px 16px',
+                border: `1.5px solid ${step.border}`,
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                <div style={{
+                  width: 34, height: 34, borderRadius: '50%',
+                  background: step.color,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, fontWeight: 800, color: C.white,
+                }}>
+                  {i + 1}
+                </div>
+                {i < HOW_TO_STEPS.length - 1 && (
+                  <div style={{ width: 2, height: 16, background: `${step.color}30`, borderRadius: 1, marginTop: 4 }} />
+                )}
+              </div>
+
+              <div style={{ flex: 1, paddingTop: 5 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                  <span style={{ fontSize: 20 }}>{step.icon}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: step.color }}>{step.title}</span>
+                </div>
+                <div style={{ fontSize: 13, color: C.gray700, lineHeight: 1.65 }}>
+                  {step.text}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{
+          marginTop: 14,
+          background: C.green50, borderRadius: 12, padding: '12px 14px',
+          display: 'flex', gap: 10, alignItems: 'flex-start',
+          border: `1px solid ${C.green100}`,
+        }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>💡</span>
+          <span style={{ fontSize: 12, color: C.green700, lineHeight: 1.6 }}>
+            <strong>Consejo:</strong> Asegúrese de tener buena conexión a internet y de estar en un lugar tranquilo con buena luz.
+          </span>
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            marginTop: 16, width: '100%', padding: '14px 0',
+            background: `linear-gradient(135deg, #047857, #059669)`,
+            border: 'none', color: C.white,
+            borderRadius: 12, fontSize: 15, fontWeight: 800,
+            cursor: 'pointer', fontFamily: 'inherit',
+            boxShadow: '0 4px 14px rgba(5,150,105,0.3)',
+          }}
+        >
+          ✓ Entendido
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Subcomponentes ───────────────────────────────────────────
 
 function Avatar({ doc, size = 46 }) {
@@ -107,9 +251,10 @@ function StatusBadge({ status }) {
 }
 
 function AppointmentCard({ appt, onCancel, onJoin }) {
-  const doc       = appt.doctor
-  const canCancel = ['pending','paid'].includes(appt.status) && isFuture(appt.scheduled_at)
-  const canJoin   = appt.status === 'active' && !!appt.video_url
+  const doc        = appt.doctor
+  const canCancel  = ['pending','paid'].includes(appt.status) && isFuture(appt.scheduled_at)
+  const canJoin    = appt.status === 'active' && !!appt.video_url
+  const [showHowTo, setShowHowTo] = useState(false)
 
   return (
     <div style={{
@@ -158,23 +303,40 @@ function AppointmentCard({ appt, onCancel, onJoin }) {
         )}
       </div>
 
-      {/* Botón "Unirse a la consulta" — visible cuando el médico ya inició */}
+      {/* Botones de acción — visibles cuando el médico ya inició */}
       {canJoin && (
-        <button
-          onClick={() => onJoin(appt.video_url)}
-          style={{
-            width: '100%', padding: '14px 0',
-            background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
-            color: C.white, border: 'none', borderRadius: 12,
-            fontSize: 14, fontWeight: 800, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
-            animation: 'pulse-btn 2s infinite',
-          }}
-        >
-          📹 Unirse a la consulta
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button
+            onClick={() => onJoin(appt.video_url)}
+            style={{
+              width: '100%', padding: '14px 0',
+              background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',
+              color: C.white, border: 'none', borderRadius: 12,
+              fontSize: 14, fontWeight: 800, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
+              animation: 'pulse-btn 2s infinite',
+            }}
+          >
+            📹 Unirse a la consulta
+          </button>
+          <button
+            onClick={() => setShowHowTo(true)}
+            style={{
+              width: '100%', padding: '10px 0',
+              background: C.white, color: C.blue600,
+              border: `1.5px solid ${C.blue100}`, borderRadius: 12,
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              fontFamily: 'inherit',
+            }}
+          >
+            ❓ ¿Cómo entrar?
+          </button>
+        </div>
       )}
+
+      {showHowTo && <HowToJoinModal onClose={() => setShowHowTo(false)} />}
     </div>
   )
 }
@@ -348,6 +510,10 @@ export default function Citas() {
         @keyframes pulse-btn {
           0%,100% { box-shadow: 0 4px 14px rgba(37,99,235,0.3); }
           50%      { box-shadow: 0 4px 24px rgba(37,99,235,0.55); }
+        }
+        @keyframes slide-up {
+          from { transform: translateY(100%); opacity: 0; }
+          to   { transform: translateY(0);    opacity: 1; }
         }
       `}</style>
       <Toaster position="top-center" />

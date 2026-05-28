@@ -377,6 +377,7 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
   }
 
   async function handleGenerate() {
+    console.log('[RecetaForm] iniciando generacion')
     const filled = medications.filter(m => m.nombre.trim())
     if (!filled.length) {
       toast.error('Agrega al menos un medicamento')
@@ -421,23 +422,24 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
       }
 
       // Save record in prescriptions table
-      console.log('[RecetaForm] pdfUrl:', pdfUrl, '| appointment.id:', appointment?.id)
       if (pdfUrl && appointment?.id) {
-        const payload = {
-          appointment_id:    appointment.id,
-          doctor_id:         doctorInfo?.id,
-          patient_id:        appointment.patient_id,
-          verification_code: verificationCode,
-          diagnosis,
-          medicines:         filled,
-          pdf_url:           pdfUrl,
-        }
-        console.log('[RecetaForm] insert payload:', JSON.stringify(payload, null, 2))
-        const { data: dbData, error: dbErr } = await supabase
+        const appointment_id = appointment.id
+        const doctor_id      = doctorInfo?.id
+        const patient_id     = appointment.patient_id
+        console.log('[RecetaForm] insert payload:', { appointment_id, doctor_id, patient_id })
+        const { data, error } = await supabase
           .from('prescriptions')
-          .insert(payload)
+          .insert({
+            appointment_id,
+            doctor_id,
+            patient_id,
+            verification_code: verificationCode,
+            diagnosis,
+            medicines:         filled,
+            pdf_url:           pdfUrl,
+          })
           .select()
-        console.log('[RecetaForm] insert result — data:', dbData, '| error:', dbErr?.message, '| code:', dbErr?.code, '| details:', dbErr?.details)
+        console.log('[RecetaForm] insert result:', { data, error })
       } else {
         console.warn('[RecetaForm] insert skipped — pdfUrl:', pdfUrl, '| appointment?.id:', appointment?.id)
       }

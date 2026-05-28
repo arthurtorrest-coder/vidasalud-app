@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import toast, { Toaster } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
@@ -232,6 +233,7 @@ function SoapForm({ soap, onChange, onFinish, saving }) {
 
 // ─── Tarjeta de cita ──────────────────────────────────────────
 function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving, onOpenVideo }) {
+  const navigate  = useNavigate()
   const patient   = appt.patient
   const name      = patient?.full_name ?? 'Paciente'
   const canStart  = appt.status === 'paid' && !hasAnyActive
@@ -272,6 +274,19 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
             <div style={{ fontSize: 11, color: C.gray500, marginTop: 1 }}>
               DNI {patient.dni}
             </div>
+          )}
+          {appt.patient_id && (
+            <button
+              onClick={() => navigate(`/historia-clinica/${appt.patient_id}`)}
+              style={{
+                marginTop: 4, background: 'none', border: 'none', padding: 0,
+                color: C.green700, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 3,
+                fontFamily: 'inherit',
+              }}
+            >
+              📋 Ver historia clínica
+            </button>
           )}
         </div>
 

@@ -9,8 +9,9 @@ import RegisterMedico  from './screens/Auth/RegisterMedico'
 import NuevaContrasena from './screens/Auth/NuevaContrasena'
 import DoctorRoute     from './components/layout/DoctorRoute'
 import AdminRoute      from './components/layout/AdminRoute'
-import PanelMedico     from './screens/Doctor/PanelMedico'
-import PanelAdmin      from './screens/Admin/PanelAdmin'
+import PanelMedico      from './screens/Doctor/PanelMedico'
+import PanelAdmin       from './screens/Admin/PanelAdmin'
+import HistoriaClinica  from './screens/HistoriaClinica'
 import Landing         from './screens/Landing'
 import Home            from './pages/Home'
 import Booking         from './pages/Booking'
@@ -68,7 +69,8 @@ export default function App() {
 
           {/* Solo médicos */}
           <Route element={<DoctorRoute />}>
-            <Route path="/medico/panel" element={<PanelMedico />} />
+            <Route path="/medico/panel"                    element={<PanelMedico />}     />
+            <Route path="/historia-clinica/:patientId"     element={<HistoriaClinica />} />
           </Route>
 
           {/* Solo admins */}

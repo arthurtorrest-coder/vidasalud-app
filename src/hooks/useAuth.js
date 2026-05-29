@@ -14,8 +14,10 @@ export function useAuth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
-      else {
+      if (session?.user) {
+        setLoading(true)   // garantiza spinner hasta que profile+doctor estén listos
+        fetchProfile(session.user.id)
+      } else {
         setProfile(null)
         setDoctor(null)
         setLoading(false)

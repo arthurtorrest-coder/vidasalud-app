@@ -6,7 +6,8 @@ import AppShell        from './components/layout/AppShell'
 import Login           from './screens/Auth/Login'
 import Register        from './screens/Auth/Register'
 import RegisterMedico  from './screens/Auth/RegisterMedico'
-import NuevaContrasena from './screens/Auth/NuevaContrasena'
+import NuevaContrasena    from './screens/Auth/NuevaContrasena'
+import EsperaAprobacion  from './screens/Auth/EsperaAprobacion'
 import DoctorRoute     from './components/layout/DoctorRoute'
 import AdminRoute      from './components/layout/AdminRoute'
 import PanelMedico      from './screens/Doctor/PanelMedico'
@@ -66,6 +67,9 @@ export default function App() {
 
         {/* Rutas protegidas — redirigen a /login si no hay sesión */}
         <Route element={<ProtectedRoute />}>
+
+          {/* Médico pendiente de aprobación */}
+          <Route path="/espera-aprobacion" element={<EsperaAprobacion />} />
 
           {/* Solo médicos */}
           <Route element={<DoctorRoute />}>

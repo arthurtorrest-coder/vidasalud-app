@@ -480,6 +480,116 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ══════════ ¿ERES MÉDICO? ══════════ */}
+      <section style={{ padding: '52px 20px 48px', background: C.gray50 }}>
+        <div style={{
+          background: `linear-gradient(160deg, ${C.green900}, ${C.green700})`,
+          borderRadius: 24, padding: '36px 24px 32px',
+          maxWidth: 480, margin: '0 auto',
+          position: 'relative', overflow: 'hidden',
+        }}>
+          {/* Círculos decorativos */}
+          <div style={{
+            position: 'absolute', top: -50, right: -50,
+            width: 160, height: 160, borderRadius: '50%',
+            background: 'rgba(52,211,153,0.1)', pointerEvents: 'none',
+          }} />
+          <div style={{
+            position: 'absolute', bottom: -30, left: -30,
+            width: 100, height: 100, borderRadius: '50%',
+            background: 'rgba(52,211,153,0.07)', pointerEvents: 'none',
+          }} />
+
+          {/* Eyebrow */}
+          <div style={{
+            display: 'inline-block',
+            fontSize: 11, fontWeight: 700, letterSpacing: 1.2,
+            color: C.green200, background: 'rgba(52,211,153,0.15)',
+            border: '1px solid rgba(167,243,208,0.3)',
+            padding: '4px 12px', borderRadius: 20, marginBottom: 16,
+          }}>
+            PARA MÉDICOS
+          </div>
+
+          <h2 style={{
+            fontSize: 26, fontWeight: 900, color: C.white,
+            lineHeight: 1.2, marginBottom: 10, letterSpacing: -0.3,
+          }}>
+            Únete a nuestra<br />red de médicos
+          </h2>
+          <p style={{
+            fontSize: 13, color: 'rgba(255,255,255,0.7)',
+            lineHeight: 1.6, marginBottom: 26,
+          }}>
+            Amplía tu práctica con telemedicina. Atiende pacientes en todo el Perú desde donde estés.
+          </p>
+
+          {/* 3 beneficios */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
+            {[
+              {
+                icon: '🕒',
+                title: 'Horario flexible',
+                desc: 'Define cuándo y cuánto atender. Compatible con consultas presenciales.',
+              },
+              {
+                icon: '💰',
+                title: 'Pagos seguros',
+                desc: 'Honorarios directos en soles. Los pacientes pagan antes de la cita.',
+              },
+              {
+                icon: '✅',
+                title: 'Pacientes verificados',
+                desc: 'Cada paciente registra su DNI y confirma su identidad antes de consultar.',
+              },
+            ].map(b => (
+              <div key={b.title} style={{
+                display: 'flex', gap: 14, alignItems: 'flex-start',
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 14, padding: '14px 16px',
+              }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>{b.icon}</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: C.white, marginBottom: 3 }}>
+                    {b.title}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>
+                    {b.desc}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Botón */}
+          <button
+            onClick={() => navigate('/registro-medico')}
+            style={{
+              width: '100%', padding: '15px 24px',
+              background: C.white, border: 'none',
+              color: C.green800, borderRadius: 14,
+              fontSize: 15, fontWeight: 800,
+              cursor: 'pointer', fontFamily: 'inherit',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              transition: 'transform 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+          >
+            👨‍⚕️ Registrarme como médico
+          </button>
+
+          <div style={{
+            marginTop: 12, textAlign: 'center',
+            fontSize: 11, color: 'rgba(255,255,255,0.45)',
+          }}>
+            Verificamos tu CMP o CPsP · Aprobación en 1-2 días hábiles
+          </div>
+        </div>
+      </section>
+
       {/* ══════════ CTA FINAL ══════════ */}
       <section style={{
         padding: '52px 24px',

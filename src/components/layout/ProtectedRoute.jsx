@@ -1,10 +1,11 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 
 const C = { green600: '#059669', green100: '#D1FAE5', gray100: '#F3F4F6', white: '#FFFFFF' }
 
 export default function ProtectedRoute() {
-  const { user, loading } = useAuthStore()
+  const { user, profile, doctor, loading } = useAuthStore()
+  const location = useLocation()
 
   if (loading) {
     return (
@@ -31,6 +32,15 @@ export default function ProtectedRoute() {
   }
 
   if (!user) return <Navigate to="/login" replace />
+
+  // Médico con aprobación pendiente → pantalla de espera (excepto si ya está en ella)
+  if (
+    profile?.role === 'doctor' &&
+    doctor?.aprobado === false &&
+    location.pathname !== '/espera-aprobacion'
+  ) {
+    return <Navigate to="/espera-aprobacion" replace />
+  }
 
   return <Outlet />
 }

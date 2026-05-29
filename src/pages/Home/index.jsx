@@ -631,7 +631,7 @@ export default function Home() {
       <SectionHeader title="Acciones rápidas" />
       <QuickActions />
 
-      <SectionHeader title="Especialidades" actionLabel="Ver todas" onAction={() => navigate('/especialidades')} />
+      <SectionHeader title="Especialidades" />
       <div style={{ display: 'flex', gap: 8, padding: '0 20px 4px', overflowX: 'auto' }}>
         {SPECIALTIES.map((s, i) => (
           <SpecialtyChip
@@ -641,6 +641,21 @@ export default function Home() {
             onClick={() => setSelectedSpec(selectedSpec === s.label ? null : s.label)}
           />
         ))}
+      </div>
+      <div style={{ padding: '10px 20px 0' }}>
+        <button
+          onClick={() => navigate('/especialidades')}
+          style={{
+            width: '100%', padding: '12px 0',
+            background: `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+            color: C.white, border: 'none', borderRadius: 12,
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            fontFamily: 'inherit',
+            boxShadow: '0 4px 14px rgba(5,150,105,0.28)',
+          }}
+        >
+          🩺 Ver todas las especialidades
+        </button>
       </div>
 
       <SectionHeader

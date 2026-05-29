@@ -631,7 +631,7 @@ export default function Home() {
       <SectionHeader title="Acciones rápidas" />
       <QuickActions />
 
-      <SectionHeader title="Especialidades" actionLabel="Ver todas" onAction={() => {}} />
+      <SectionHeader title="Especialidades" actionLabel="Ver todas" onAction={() => navigate('/especialidades')} />
       <div style={{ display: 'flex', gap: 8, padding: '0 20px 4px', overflowX: 'auto' }}>
         {SPECIALTIES.map((s, i) => (
           <SpecialtyChip

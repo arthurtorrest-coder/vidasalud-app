@@ -20,6 +20,7 @@ import Payment         from './pages/Payment'
 import Citas           from './pages/Citas'
 import Historial       from './screens/Historial'
 import Perfil          from './pages/Perfil'
+import Especialidades  from './screens/Especialidades'
 
 const C = { green100: '#D1FAE5', green600: '#059669', gray100: '#F3F4F6' }
 
@@ -87,8 +88,9 @@ export default function App() {
             <Route path="/booking/:doctorId"   element={<Booking />}  />
             <Route path="/pago/:appointmentId" element={<Payment />}  />
             <Route path="/citas"               element={<Citas />}    />
-            <Route path="/historial"           element={<Historial />} />
-            <Route path="/perfil"              element={<Perfil />}    />
+            <Route path="/historial"           element={<Historial />}      />
+            <Route path="/perfil"              element={<Perfil />}         />
+            <Route path="/especialidades"      element={<Especialidades />} />
           </Route>
         </Route>
 

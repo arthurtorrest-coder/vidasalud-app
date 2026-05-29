@@ -434,6 +434,7 @@ export default function PanelMedico() {
   const [newStart,       setNewStart]       = useState('08:00')
   const [newEnd,         setNewEnd]         = useState('12:00')
   const [savingBlock,    setSavingBlock]    = useState(false)
+  const horarioRef = useRef(null)
 
   const activeAppt  = useMemo(() => appointments.find(a => a.status === 'active') ?? null, [appointments])
   const hasAnyActive = activeAppt !== null
@@ -486,6 +487,12 @@ export default function PanelMedico() {
         setLoadingScheds(false)
       })
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (horarioOpen) {
+      horarioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [horarioOpen])
 
   async function fetchData() {
     console.log('[PanelMedico] fetchData START — selectedDate:', selectedDate, '| user.id:', user?.id)
@@ -1101,12 +1108,18 @@ export default function PanelMedico() {
             </div>
 
             {/* ── Mi horario semanal ───────────────────────── */}
-            <div style={{
-              background: C.white, border: `1.5px solid ${C.gray200}`,
-              borderRadius: 16, overflow: 'hidden',
-            }}>
+            <div
+              ref={horarioRef}
+              style={{
+                background: C.white,
+                border: `1.5px solid ${horarioOpen ? C.green200 : C.gray200}`,
+                borderRadius: 16, overflow: 'hidden',
+                transition: 'border-color 0.2s',
+              }}
+            >
               {/* Cabecera colapsable */}
               <button
+                type="button"
                 onClick={() => setHorarioOpen(o => !o)}
                 style={{
                   width: '100%', padding: '12px 14px', background: 'none',

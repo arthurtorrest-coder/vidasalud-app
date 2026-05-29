@@ -1113,14 +1113,17 @@ export default function PanelMedico() {
               style={{
                 background: C.white,
                 border: `1.5px solid ${horarioOpen ? C.green200 : C.gray200}`,
-                borderRadius: 16, overflow: 'hidden',
+                borderRadius: 16,
                 transition: 'border-color 0.2s',
               }}
             >
               {/* Cabecera colapsable */}
               <button
                 type="button"
-                onClick={() => setHorarioOpen(o => !o)}
+                onClick={() => {
+                  console.log('[horario] click — horarioOpen era:', horarioOpen, '→ nuevo:', !horarioOpen)
+                  setHorarioOpen(o => !o)
+                }}
                 style={{
                   width: '100%', padding: '12px 14px', background: 'none',
                   border: 'none', cursor: 'pointer', fontFamily: 'inherit',

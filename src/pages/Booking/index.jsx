@@ -27,16 +27,23 @@ const C = {
   white:    '#FFFFFF',
 }
 
-/* ── Slots: 08:00 → 17:30 (20 turnos de 30 min) ─────────────── */
-const ALL_SLOTS = Array.from({ length: 20 }, (_, i) => {
-  const h = 8 + Math.floor(i / 2)
-  const m = i % 2 === 0 ? '00' : '30'
-  return `${String(h).padStart(2, '0')}:${m}`
-})
-const MORNING_SLOTS   = ALL_SLOTS.filter(s => parseInt(s) < 12)   // 08:00–11:30
-const AFTERNOON_SLOTS = ALL_SLOTS.filter(s => parseInt(s) >= 12)  // 12:00–17:30
-
 const DATES = Array.from({ length: 14 }, (_, i) => addDays(new Date(), i))
+
+/* Genera slots de durMin minutos dentro de un bloque hora_inicio→hora_fin */
+function generateSlots(horaInicio, horaFin, durMin = 20) {
+  const [sh, sm] = horaInicio.split(':').map(Number)
+  const [eh, em] = horaFin.split(':').map(Number)
+  let   cur      = sh * 60 + sm
+  const end      = eh * 60 + em
+  const slots    = []
+  while (cur + durMin <= end) {
+    slots.push(
+      `${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`
+    )
+    cur += durMin
+  }
+  return slots
+}
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 function doctorTitle(cmp, nombres) {
@@ -203,8 +210,9 @@ export default function Booking() {
   const [loadingDoctor, setLoadingDoctor] = useState(true)
   const [selectedDate,  setSelectedDate]  = useState(DATES[0])
   const [selectedTime,  setSelectedTime]  = useState(null)
-  const [booked,        setBooked]        = useState(new Set())
-  const [loadingSlots,  setLoadingSlots]  = useState(true)
+  const [booked,         setBooked]         = useState(new Set())
+  const [loadingSlots,   setLoadingSlots]   = useState(true)
+  const [availableSlots, setAvailableSlots] = useState([])
   const [motivo,        setMotivo]        = useState(() => {
     const saved = sessionStorage.getItem('vidasalud_triaje')
     if (saved) sessionStorage.removeItem('vidasalud_triaje')
@@ -230,19 +238,50 @@ export default function Booking() {
       })
   }, [doctorId, navigate])
 
-  /* cargar turnos ocupados al cambiar la fecha */
+  /* cargar horarios del médico y turnos ocupados al cambiar la fecha */
   useEffect(() => {
     setSelectedTime(null)
     setLoadingSlots(true)
-    supabase
-      .rpc('get_booked_slots', {
-        p_doctor_id: doctorId,
-        p_date: format(selectedDate, 'yyyy-MM-dd'),
-      })
-      .then(({ data }) => {
-        setBooked(new Set((data ?? []).map(r => r.slot_time)))
-        setLoadingSlots(false)
-      })
+
+    async function loadSlots() {
+      const dayOfWeek  = selectedDate.getDay()
+      const dateStr    = format(selectedDate, 'yyyy-MM-dd')
+      const [y, mo, d] = dateStr.split('-').map(Number)
+      const dayStart   = new Date(Date.UTC(y, mo - 1, d,     5, 0,  0)).toISOString()
+      const dayEnd     = new Date(Date.UTC(y, mo - 1, d + 1, 4, 59, 59)).toISOString()
+
+      const [{ data: scheduleData }, { data: apptData }] = await Promise.all([
+        supabase
+          .from('doctor_schedules')
+          .select('hora_inicio, hora_fin')
+          .eq('doctor_id', doctorId)
+          .eq('dia_semana', dayOfWeek)
+          .eq('activo', true),
+        supabase
+          .from('appointments')
+          .select('scheduled_at')
+          .eq('doctor_id', doctorId)
+          .gte('scheduled_at', dayStart)
+          .lte('scheduled_at', dayEnd)
+          .in('status', ['pending', 'paid', 'active', 'done']),
+      ])
+
+      setAvailableSlots(
+        (scheduleData ?? []).flatMap(b => generateSlots(b.hora_inicio, b.hora_fin))
+      )
+
+      setBooked(new Set(
+        (apptData ?? []).map(a => {
+          // Convertir UTC → hora Lima (UTC-5)
+          const t = new Date(new Date(a.scheduled_at).getTime() - 5 * 3600000)
+          return `${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}`
+        })
+      ))
+
+      setLoadingSlots(false)
+    }
+
+    loadSlots()
   }, [selectedDate, doctorId])
 
   /* crear cita y navegar al pago */
@@ -394,27 +433,58 @@ export default function Booking() {
           })}
         </div>
 
-        {/* ── Horarios de mañana ── */}
-        <SectionTitle>☀️ Por la mañana · 08:00 – 11:30</SectionTitle>
-        <SlotGrid
-          slots={MORNING_SLOTS}
-          selected={selectedTime}
-          booked={booked}
-          date={selectedDate}
-          onSelect={setSelectedTime}
-          loading={loadingSlots}
-        />
-
-        {/* ── Horarios de tarde ── */}
-        <SectionTitle>🌅 Por la tarde · 12:00 – 17:30</SectionTitle>
-        <SlotGrid
-          slots={AFTERNOON_SLOTS}
-          selected={selectedTime}
-          booked={booked}
-          date={selectedDate}
-          onSelect={setSelectedTime}
-          loading={loadingSlots}
-        />
+        {/* ── Horarios disponibles (dinámicos desde doctor_schedules) ── */}
+        {loadingSlots ? (
+          <>
+            <SectionTitle>Cargando horarios…</SectionTitle>
+            <SlotGrid slots={[]} selected={null} booked={new Set()} date={selectedDate} onSelect={() => {}} loading />
+          </>
+        ) : availableSlots.length === 0 ? (
+          <div style={{
+            textAlign: 'center', padding: '36px 20px',
+            display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center',
+          }}>
+            <span style={{ fontSize: 44 }}>📅</span>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.gray700 }}>
+              Sin horarios para este día
+            </div>
+            <div style={{ fontSize: 12, color: C.gray500, lineHeight: 1.55, maxWidth: 260 }}>
+              {doctor
+                ? `${doctorTitle(doctor.cmp, doctor.nombres)} ${doctor.nombres} no tiene disponibilidad el ${longDate(selectedDate).toLowerCase()}.`
+                : 'El médico no tiene disponibilidad para este día.'}
+              {' '}Prueba con otra fecha.
+            </div>
+          </div>
+        ) : (
+          <>
+            {availableSlots.some(s => parseInt(s) < 12) && (
+              <>
+                <SectionTitle>☀️ Por la mañana</SectionTitle>
+                <SlotGrid
+                  slots={availableSlots.filter(s => parseInt(s) < 12)}
+                  selected={selectedTime}
+                  booked={booked}
+                  date={selectedDate}
+                  onSelect={setSelectedTime}
+                  loading={false}
+                />
+              </>
+            )}
+            {availableSlots.some(s => parseInt(s) >= 12) && (
+              <>
+                <SectionTitle>🌅 Por la tarde</SectionTitle>
+                <SlotGrid
+                  slots={availableSlots.filter(s => parseInt(s) >= 12)}
+                  selected={selectedTime}
+                  booked={booked}
+                  date={selectedDate}
+                  onSelect={setSelectedTime}
+                  loading={false}
+                />
+              </>
+            )}
+          </>
+        )}
 
         {/* ── Motivo de consulta ── */}
         <SectionTitle>📝 Motivo de consulta</SectionTitle>

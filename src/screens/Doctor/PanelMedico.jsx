@@ -19,6 +19,8 @@ const C = {
   gray100:  '#F3F4F6', gray50:   '#F9FAFB', white:     '#FFFFFF',
 }
 
+const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+
 // ─── Helpers ─────────────────────────────────────────────────
 function fmtHora(iso) {
   return new Date(iso).toLocaleTimeString('es-PE', {
@@ -425,6 +427,13 @@ export default function PanelMedico() {
   const [videoUrl,       setVideoUrl]       = useState(null)
   const [selectedDate,   setSelectedDate]   = useState(getLimaToday)
   const [recetaData,     setRecetaData]     = useState(null)
+  const [schedules,      setSchedules]      = useState([])
+  const [loadingScheds,  setLoadingScheds]  = useState(false)
+  const [horarioOpen,    setHorarioOpen]    = useState(false)
+  const [addingFor,      setAddingFor]      = useState(null)
+  const [newStart,       setNewStart]       = useState('08:00')
+  const [newEnd,         setNewEnd]         = useState('12:00')
+  const [savingBlock,    setSavingBlock]    = useState(false)
 
   const activeAppt  = useMemo(() => appointments.find(a => a.status === 'active') ?? null, [appointments])
   const hasAnyActive = activeAppt !== null
@@ -460,6 +469,22 @@ export default function PanelMedico() {
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
+  }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cargar horarios cuando tengamos el doctors.id real
+  useEffect(() => {
+    if (!doctorInfo?.id) return
+    setLoadingScheds(true)
+    supabase
+      .from('doctor_schedules')
+      .select('*')
+      .eq('doctor_id', doctorInfo.id)
+      .order('dia_semana')
+      .order('hora_inicio')
+      .then(({ data }) => {
+        setSchedules(data ?? [])
+        setLoadingScheds(false)
+      })
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchData() {
@@ -702,6 +727,62 @@ export default function PanelMedico() {
       toast.error('No se pudo actualizar la disponibilidad')
     } else {
       toast.success(next ? 'Ahora estás disponible para nuevas citas' : 'Ya no apareces en la lista de médicos')
+    }
+  }
+
+  async function handleAddBlock() {
+    if (!newEnd || newEnd <= newStart) {
+      toast.error('La hora de fin debe ser posterior a la de inicio')
+      return
+    }
+    setSavingBlock(true)
+    const { data, error } = await supabase
+      .from('doctor_schedules')
+      .insert({
+        doctor_id:   doctorInfo.id,
+        dia_semana:  addingFor,
+        hora_inicio: newStart,
+        hora_fin:    newEnd,
+        activo:      true,
+      })
+      .select()
+      .single()
+    setSavingBlock(false)
+    if (error) {
+      toast.error('No se pudo guardar el bloque: ' + error.message)
+    } else {
+      setSchedules(prev =>
+        [...prev, data].sort((a, b) =>
+          a.dia_semana !== b.dia_semana
+            ? a.dia_semana - b.dia_semana
+            : a.hora_inicio.localeCompare(b.hora_inicio)
+        )
+      )
+      setAddingFor(null)
+      toast.success('Bloque guardado')
+    }
+  }
+
+  async function handleToggleBlock(block) {
+    const { error } = await supabase
+      .from('doctor_schedules')
+      .update({ activo: !block.activo })
+      .eq('id', block.id)
+    if (!error) {
+      setSchedules(prev =>
+        prev.map(b => b.id === block.id ? { ...b, activo: !b.activo } : b)
+      )
+    }
+  }
+
+  async function handleDeleteBlock(id) {
+    const { error } = await supabase
+      .from('doctor_schedules')
+      .delete()
+      .eq('id', id)
+    if (!error) {
+      setSchedules(prev => prev.filter(b => b.id !== id))
+      toast.success('Bloque eliminado')
     }
   }
 
@@ -1015,6 +1096,197 @@ export default function PanelMedico() {
               {!doctorInfo?.precio_pendiente_aprobacion && (
                 <div style={{ fontSize: 11, color: C.gray400, marginTop: 6 }}>
                   Precio visible para pacientes al reservar cita
+                </div>
+              )}
+            </div>
+
+            {/* ── Mi horario semanal ───────────────────────── */}
+            <div style={{
+              background: C.white, border: `1.5px solid ${C.gray200}`,
+              borderRadius: 16, overflow: 'hidden',
+            }}>
+              {/* Cabecera colapsable */}
+              <button
+                onClick={() => setHorarioOpen(o => !o)}
+                style={{
+                  width: '100%', padding: '12px 14px', background: 'none',
+                  border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>📅</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: C.gray700 }}>
+                    Mi horario semanal
+                  </span>
+                  {schedules.length > 0 && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, color: C.green700,
+                      background: C.green50, padding: '2px 8px', borderRadius: 10,
+                    }}>
+                      {schedules.filter(s => s.activo).length} activos
+                    </span>
+                  )}
+                </div>
+                <span style={{
+                  fontSize: 11, color: C.gray400,
+                  display: 'inline-block',
+                  transform: horarioOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s',
+                }}>▼</span>
+              </button>
+
+              {/* Cuerpo expandido */}
+              {horarioOpen && (
+                <div style={{
+                  borderTop: `1px solid ${C.gray100}`,
+                  padding: '8px 12px 12px',
+                  display: 'flex', flexDirection: 'column', gap: 6,
+                }}>
+                  {loadingScheds ? (
+                    <div style={{ fontSize: 12, color: C.gray400, textAlign: 'center', padding: '8px 0' }}>
+                      Cargando horarios…
+                    </div>
+                  ) : DIAS.map((dia, dayIdx) => {
+                    const dayBlocks    = schedules.filter(s => s.dia_semana === dayIdx)
+                    const isAddingHere = addingFor === dayIdx
+                    return (
+                      <div key={dayIdx} style={{
+                        borderRadius: 10, padding: '8px 10px',
+                        background: C.gray50, border: `1px solid ${C.gray100}`,
+                      }}>
+                        {/* Encabezado del día */}
+                        <div style={{
+                          display: 'flex', alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: (dayBlocks.length > 0 || isAddingHere) ? 7 : 0,
+                        }}>
+                          <span style={{
+                            fontSize: 11, fontWeight: 800, color: C.gray700, letterSpacing: 0.5,
+                          }}>
+                            {dia}
+                            {dayBlocks.length > 0 && (
+                              <span style={{ fontWeight: 500, color: C.gray400, marginLeft: 5 }}>
+                                ({dayBlocks.length})
+                              </span>
+                            )}
+                          </span>
+                          {!isAddingHere && (
+                            <button
+                              onClick={() => {
+                                setAddingFor(dayIdx)
+                                setNewStart('08:00')
+                                setNewEnd('12:00')
+                              }}
+                              style={{
+                                background: 'none', border: `1px dashed ${C.green200}`,
+                                color: C.green600, borderRadius: 6, padding: '2px 8px',
+                                fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              + Agregar
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Bloques del día */}
+                        {dayBlocks.map(block => (
+                          <div key={block.id} style={{
+                            display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4,
+                            background: block.activo ? C.green50 : C.white,
+                            border: `1.5px solid ${block.activo ? C.green100 : C.gray200}`,
+                            borderRadius: 8, padding: '5px 8px',
+                          }}>
+                            <span style={{
+                              flex: 1, fontSize: 12, fontWeight: 700,
+                              color: block.activo ? C.green800 : C.gray400,
+                            }}>
+                              {block.hora_inicio.slice(0, 5)} – {block.hora_fin.slice(0, 5)}
+                            </span>
+                            <button
+                              onClick={() => handleToggleBlock(block)}
+                              style={{
+                                padding: '2px 8px', borderRadius: 10, border: 'none',
+                                background: block.activo ? C.green600 : C.gray300,
+                                color: C.white, fontSize: 9, fontWeight: 700,
+                                cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                              }}
+                            >
+                              {block.activo ? 'Activo' : 'Inactivo'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBlock(block.id)}
+                              style={{
+                                background: 'none', border: 'none', fontSize: 14,
+                                cursor: 'pointer', color: C.gray300,
+                                lineHeight: 1, flexShrink: 0, padding: '0 2px',
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+
+                        {/* Formulario nuevo bloque */}
+                        {isAddingHere && (
+                          <div style={{
+                            display: 'flex', gap: 4, alignItems: 'center',
+                            marginTop: dayBlocks.length > 0 ? 4 : 0,
+                          }}>
+                            <input
+                              type="time"
+                              value={newStart}
+                              onChange={e => setNewStart(e.target.value)}
+                              style={{
+                                flex: 1, padding: '6px', borderRadius: 8,
+                                border: `1.5px solid ${C.green200}`,
+                                fontSize: 12, color: C.gray900, outline: 'none',
+                                fontFamily: 'inherit',
+                              }}
+                            />
+                            <span style={{ fontSize: 10, color: C.gray500, flexShrink: 0 }}>–</span>
+                            <input
+                              type="time"
+                              value={newEnd}
+                              onChange={e => setNewEnd(e.target.value)}
+                              style={{
+                                flex: 1, padding: '6px', borderRadius: 8,
+                                border: `1.5px solid ${C.green200}`,
+                                fontSize: 12, color: C.gray900, outline: 'none',
+                                fontFamily: 'inherit',
+                              }}
+                            />
+                            <button
+                              onClick={handleAddBlock}
+                              disabled={savingBlock}
+                              style={{
+                                background: savingBlock ? C.green100 : C.green600,
+                                border: 'none',
+                                color: savingBlock ? C.green700 : C.white,
+                                borderRadius: 8, padding: '6px 10px',
+                                fontSize: 13, fontWeight: 700,
+                                cursor: savingBlock ? 'not-allowed' : 'pointer',
+                                fontFamily: 'inherit', flexShrink: 0,
+                              }}
+                            >
+                              {savingBlock ? '…' : '✓'}
+                            </button>
+                            <button
+                              onClick={() => setAddingFor(null)}
+                              style={{
+                                background: 'none', border: 'none', fontSize: 16,
+                                cursor: 'pointer', color: C.gray400,
+                                lineHeight: 1, flexShrink: 0,
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

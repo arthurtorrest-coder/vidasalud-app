@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { format, addDays, isToday, isSameDay } from 'date-fns'
+import { format, addDays, addWeeks, startOfWeek, startOfDay, isToday, isSameDay, isBefore } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
@@ -27,7 +27,8 @@ const C = {
   white:    '#FFFFFF',
 }
 
-const DATES = Array.from({ length: 14 }, (_, i) => addDays(new Date(), i))
+/* Nombres cortos por getDay() — 0=Dom … 6=Sáb */
+const DIAS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
 /* Genera slots de durMin minutos dentro de un bloque hora_inicio→hora_fin */
 function generateSlots(horaInicio, horaFin, durMin = 20) {
@@ -60,12 +61,6 @@ function nowLimaHHMM() {
 
 function isPastSlot(date, slot) {
   return isToday(date) && slot <= nowLimaHHMM()
-}
-
-function labelDate(date) {
-  if (isToday(date)) return 'Hoy'
-  // "lun." → "LUN"
-  return format(date, 'EEE', { locale: es }).replace('.', '').toUpperCase()
 }
 
 function longDate(date) {
@@ -177,6 +172,121 @@ function SlotGrid({ slots, selected, booked, date, onSelect, loading }) {
   )
 }
 
+/* ── Calendario semanal ──────────────────────────────────────── */
+function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, weekOffset, onPrev, onNext }) {
+  const todayStart = startOfDay(new Date())
+  const monday     = startOfWeek(addWeeks(todayStart, weekOffset), { weekStartsOn: 1 })
+  const days       = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
+
+  // Etiqueta del mes — si la semana cruza dos meses muestra ambos
+  const m0 = format(monday,  'MMMM', { locale: es })
+  const m6 = format(days[6], 'MMMM', { locale: es })
+  const yr = format(days[6], 'yyyy')
+  const monthRaw = m0 === m6 ? `${m0} ${yr}` : `${m0.slice(0, 3)} – ${m6.slice(0, 3)} ${yr}`
+  const monthCap = monthRaw.charAt(0).toUpperCase() + monthRaw.slice(1)
+
+  const navStyle = (disabled) => ({
+    width: 34, height: 34, borderRadius: 8, fontFamily: 'inherit',
+    background: disabled ? C.gray100 : C.green50,
+    border: `1.5px solid ${disabled ? C.gray200 : C.green200}`,
+    color: disabled ? C.gray300 : C.green700,
+    cursor: disabled ? 'default' : 'pointer',
+    fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  })
+
+  return (
+    <div style={{ padding: '0 16px' }}>
+
+      {/* ── Encabezado: mes + navegación ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', marginBottom: 12,
+      }}>
+        <button type="button" onClick={onPrev} disabled={weekOffset === 0} style={navStyle(weekOffset === 0)}>◀</button>
+        <span style={{ fontSize: 14, fontWeight: 800, color: C.gray700 }}>{monthCap}</span>
+        <button type="button" onClick={onNext} disabled={weekOffset >= 8} style={navStyle(weekOffset >= 8)}>▶</button>
+      </div>
+
+      {/* ── Letras de días (L M X J V S D) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 4 }}>
+        {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((l, i) => (
+          <div key={i} style={{
+            textAlign: 'center', fontSize: 9, fontWeight: 800,
+            color: C.gray400, letterSpacing: 0.5,
+          }}>
+            {l}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Celdas de días ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
+        {days.map(day => {
+          const isPast = isBefore(day, todayStart)
+          const isHoy  = isToday(day)
+          const isSel  = isSameDay(day, selectedDate)
+          const hasSch = scheduleDays.has(day.getDay())
+
+          let bg     = 'transparent'
+          let bdCol  = 'transparent'
+          let numCol = isPast ? C.gray300 : C.gray900
+          let dotCol = null
+
+          if (isSel) {
+            bg = C.green700; bdCol = C.green600; numCol = C.white
+            dotCol = hasSch ? 'rgba(255,255,255,0.55)' : null
+          } else if (isHoy) {
+            bg = C.green50; bdCol = C.green200; numCol = C.green700
+            dotCol = hasSch ? C.green500 : null
+          } else if (!isPast) {
+            dotCol = hasSch ? C.green500 : C.gray200
+          }
+
+          return (
+            <button
+              key={day.toISOString()}
+              type="button"
+              disabled={isPast}
+              onClick={() => onSelectDate(day)}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                padding: '8px 2px 7px', borderRadius: 12,
+                background: bg, border: `1.5px solid ${bdCol}`,
+                cursor: isPast ? 'not-allowed' : 'pointer',
+                opacity: isPast && !isHoy ? 0.28 : 1,
+                gap: 2, fontFamily: 'inherit',
+                transition: 'background 0.12s, border-color 0.12s',
+              }}
+            >
+              {/* Nombre del día / etiqueta especial HOY */}
+              <span style={{
+                fontSize: 9, fontWeight: 800, letterSpacing: 0.3,
+                color: isSel ? 'rgba(255,255,255,0.65)'
+                     : isHoy ? C.green600
+                     : C.gray400,
+              }}>
+                {isHoy && !isSel ? 'HOY' : DIAS_SHORT[day.getDay()]}
+              </span>
+
+              {/* Número de día */}
+              <span style={{ fontSize: 18, fontWeight: 900, lineHeight: 1, color: numCol }}>
+                {format(day, 'd')}
+              </span>
+
+              {/* Punto indicador de disponibilidad */}
+              <div style={{
+                width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+                background: dotCol ?? 'transparent',
+              }} />
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 /* Fila de resumen (etiqueta + valor) */
 function ResumenFila({ label, value, grande }) {
   return (
@@ -206,9 +316,11 @@ export default function Booking() {
   const navigate     = useNavigate()
   const { user }     = useAuthStore()
 
-  const [doctor,        setDoctor]        = useState(null)
-  const [loadingDoctor, setLoadingDoctor] = useState(true)
-  const [selectedDate,  setSelectedDate]  = useState(DATES[0])
+  const [doctor,          setDoctor]          = useState(null)
+  const [loadingDoctor,   setLoadingDoctor]   = useState(true)
+  const [weekOffset,      setWeekOffset]      = useState(0)
+  const [docScheduleDays, setDocScheduleDays] = useState(new Set())
+  const [selectedDate,    setSelectedDate]    = useState(() => new Date())
   const [selectedTime,  setSelectedTime]  = useState(null)
   const [booked,         setBooked]         = useState(new Set())
   const [loadingSlots,   setLoadingSlots]   = useState(true)
@@ -220,7 +332,7 @@ export default function Booking() {
   })
   const [submitting,    setSubmitting]    = useState(false)
 
-  /* cargar datos del médico */
+  /* cargar datos del médico + días de horario configurados */
   useEffect(() => {
     supabase
       .from('doctors')
@@ -235,6 +347,15 @@ export default function Booking() {
           setDoctor(data)
         }
         setLoadingDoctor(false)
+      })
+
+    supabase
+      .from('doctor_schedules')
+      .select('dia_semana')
+      .eq('doctor_id', doctorId)
+      .eq('activo', true)
+      .then(({ data }) => {
+        setDocScheduleDays(new Set((data ?? []).map(s => s.dia_semana)))
       })
   }, [doctorId, navigate])
 
@@ -400,37 +521,39 @@ export default function Booking() {
           )}
         </div>
 
-        {/* ── Selector de fecha ── */}
+        {/* ── Calendario semanal ── */}
         <SectionTitle>📅 Elige una fecha</SectionTitle>
-        <div style={{ display: 'flex', gap: 8, padding: '0 20px', overflowX: 'auto' }}>
-          {DATES.map(date => {
-            const active = isSameDay(date, selectedDate)
-            return (
-              <button
-                key={date.toISOString()}
-                onClick={() => setSelectedDate(date)}
-                style={{
-                  flexShrink: 0, minWidth: 54,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  padding: '10px 12px', borderRadius: 12, cursor: 'pointer',
-                  background: active ? C.green700 : C.white,
-                  border: `1.5px solid ${active ? C.green700 : C.gray300}`,
-                  transition: 'all 0.12s',
-                  boxShadow: active ? '0 2px 8px rgba(5,150,105,0.25)' : 'none',
-                }}
-              >
-                <span style={{ fontSize: 10, fontWeight: 700, color: active ? C.green100 : C.gray500 }}>
-                  {labelDate(date)}
-                </span>
-                <span style={{ fontSize: 20, fontWeight: 900, color: active ? C.white : C.gray900, lineHeight: 1.2 }}>
-                  {format(date, 'd')}
-                </span>
-                <span style={{ fontSize: 10, fontWeight: 500, color: active ? C.green200 : C.gray500 }}>
-                  {format(date, 'MMM', { locale: es })}
-                </span>
-              </button>
-            )
-          })}
+        <WeekCalendar
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          scheduleDays={docScheduleDays}
+          weekOffset={weekOffset}
+          onPrev={() => setWeekOffset(w => Math.max(0, w - 1))}
+          onNext={() => setWeekOffset(w => Math.min(8, w + 1))}
+        />
+
+        {/* Fecha seleccionada — confirma visualmente la elección */}
+        <div style={{
+          margin: '10px 20px 0',
+          padding: '9px 14px',
+          background: C.green50,
+          border: `1px solid ${C.green100}`,
+          borderRadius: 10,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 14 }}>📅</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.green700 }}>
+            {longDate(selectedDate)}
+          </span>
+          {!loadingSlots && availableSlots.length > 0 && (
+            <span style={{
+              marginLeft: 'auto', fontSize: 10, fontWeight: 700,
+              background: C.green100, color: C.green700,
+              padding: '2px 8px', borderRadius: 20,
+            }}>
+              {availableSlots.length} horarios
+            </span>
+          )}
         </div>
 
         {/* ── Horarios disponibles (dinámicos desde doctor_schedules) ── */}

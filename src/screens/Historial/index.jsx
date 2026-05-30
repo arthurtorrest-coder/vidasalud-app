@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 
@@ -284,7 +285,9 @@ export default function Historial() {
   const [error,       setError]       = useState(null)
   const [search,      setSearch]      = useState('')
   const [expandedId,  setExpandedId]  = useState(null)
-  const [searchFocus, setSearchFocus] = useState(false)
+  const [searchFocus,  setSearchFocus]  = useState(false)
+  const location                        = useLocation()
+  const [soloRecetas,  setSoloRecetas]  = useState(location.state?.filtro === 'recetas')
 
   useEffect(() => {
     if (!profile?.id) return
@@ -319,9 +322,16 @@ export default function Historial() {
   }, [profile?.id])
 
   const filtered = useMemo(() => {
+    let items = consultas
+    if (soloRecetas) {
+      items = items.filter(c => {
+        const raw = c.prescription
+        return Array.isArray(raw) ? raw.length > 0 : raw !== null
+      })
+    }
     const q = search.trim().toLowerCase()
-    if (!q) return consultas
-    return consultas.filter(c => {
+    if (!q) return items
+    return items.filter(c => {
       const d    = c.doctor ?? {}
       const soap = parseSoap(c.notes_doctor)
       const text = [
@@ -330,7 +340,7 @@ export default function Historial() {
       ].join(' ').toLowerCase()
       return text.includes(q)
     })
-  }, [consultas, search])
+  }, [consultas, search, soloRecetas])
 
   function handleToggle(id) {
     setExpandedId(prev => (prev === id ? null : id))
@@ -409,6 +419,38 @@ export default function Historial() {
             }}
           />
         </div>
+
+        {/* Chip de filtro activo */}
+        {soloRecetas && (
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'rgba(255,255,255,0.18)',
+              border: '1.5px solid rgba(255,255,255,0.35)',
+              borderRadius: 20, padding: '5px 10px 5px 12px',
+            }}>
+              <span style={{ fontSize: 13 }}>💊</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: C.white }}>
+                Solo con receta
+              </span>
+              <button
+                type="button"
+                onClick={() => setSoloRecetas(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.2)', border: 'none',
+                  color: C.white, cursor: 'pointer',
+                  width: 18, height: 18, borderRadius: '50%',
+                  fontSize: 13, lineHeight: 1, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: 0, marginLeft: 2, fontFamily: 'inherit',
+                }}
+                aria-label="Quitar filtro recetas"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Contenido ── */}
@@ -448,7 +490,9 @@ export default function Historial() {
               Sin resultados
             </div>
             <div style={{ fontSize: 12, color: C.gray500, marginTop: 4 }}>
-              No hay consultas que coincidan con "{search}"
+              {soloRecetas && !search.trim()
+                ? 'Ninguna consulta tiene receta digital aún'
+                : `No hay consultas que coincidan con "${search}"`}
             </div>
           </div>
         )}

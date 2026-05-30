@@ -260,17 +260,17 @@ function SectionHeader({ title, actionLabel, onAction }) {
 function QuickActions() {
   const navigate = useNavigate()
   const actions = [
-    { icon: '⚡', label: 'Consulta\nahora',    color: C.green50,  border: C.green200, to: '/citas'     },
-    { icon: '📅', label: 'Agendar\ncita',       color: '#EFF6FF',  border: '#BFDBFE', to: '/citas'     },
-    { icon: '💊', label: 'Receta\nelectrónica', color: '#FFF7ED',  border: '#FED7AA', to: '/historial' },
-    { icon: '📋', label: 'Mi\nhistorial',       color: '#F5F3FF',  border: '#DDD6FE', to: '/historial' },
+    { icon: '⚡', label: 'Consultar\nahora',  color: C.green50,  border: C.green200, to: '/especialidades' },
+    { icon: '📅', label: 'Mis\ncitas',         color: '#EFF6FF',  border: '#BFDBFE', to: '/citas'          },
+    { icon: '💊', label: 'Receta\ndigital',    color: '#FFF7ED',  border: '#FED7AA', onTap: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
+    { icon: '📋', label: 'Mi\nhistorial',      color: '#F5F3FF',  border: '#DDD6FE', to: '/historial'      },
   ]
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, padding: '0 20px' }}>
       {actions.map((a, i) => (
         <button
           key={i}
-          onClick={() => navigate(a.to)}
+          onClick={() => a.onTap ? a.onTap() : navigate(a.to)}
           style={{
             background: a.color, border: `1.5px solid ${a.border}`,
             borderRadius: 14, padding: '12px 8px', cursor: 'pointer',

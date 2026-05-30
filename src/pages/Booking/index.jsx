@@ -177,7 +177,6 @@ function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, loadingSchedul
   const todayStart = startOfDay(new Date())
   const monday     = startOfWeek(addWeeks(todayStart, weekOffset), { weekStartsOn: 1 })
   const days       = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
-  const maxDay     = addDays(todayStart, 6)   // último día permitido: hoy + 6
 
   // Etiqueta del mes — si la semana cruza dos meses muestra ambos
   const m0 = format(monday,  'MMMM', { locale: es })
@@ -206,7 +205,7 @@ function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, loadingSchedul
       }}>
         <button type="button" onClick={onPrev} disabled={weekOffset === 0} style={navStyle(weekOffset === 0)}>◀</button>
         <span style={{ fontSize: 14, fontWeight: 800, color: C.gray700 }}>{monthCap}</span>
-        <button type="button" onClick={onNext} disabled={isBefore(maxDay, addDays(monday, 7))} style={navStyle(isBefore(maxDay, addDays(monday, 7)))}>▶</button>
+        <button type="button" onClick={onNext} disabled style={navStyle(true)}>▶</button>
       </div>
 
       {/* ── Letras de días (L M X J V S D) ── */}
@@ -225,16 +224,15 @@ function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, loadingSchedul
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
         {days.map(day => {
           const isPast   = isBefore(day, todayStart)
-          const isTooFar = isBefore(maxDay, day)
           const isHoy    = isToday(day)
           const isSel    = isSameDay(day, selectedDate)
           const hasSch   = !loadingScheduleDays && scheduleDays.has(day.getDay())
-          const noSch    = !loadingScheduleDays && !hasSch && !isPast && !isTooFar
-          const disabled = isPast || noSch || isTooFar
+          const noSch    = !loadingScheduleDays && !hasSch && !isPast
+          const disabled = isPast || noSch
 
           let bg     = 'transparent'
           let bdCol  = 'transparent'
-          let numCol = isPast || noSch || isTooFar ? C.gray300 : C.gray900
+          let numCol = isPast || noSch ? C.gray300 : C.gray900
           let dotCol = null
 
           if (isSel && hasSch) {
@@ -263,7 +261,7 @@ function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, loadingSchedul
                 padding: '8px 2px 7px', borderRadius: 12,
                 background: bg, border: `1.5px solid ${bdCol}`,
                 cursor: disabled ? 'not-allowed' : 'pointer',
-                opacity: (isPast && !isHoy) || noSch || isTooFar ? 0.32 : 1,
+                opacity: (isPast && !isHoy) || noSch ? 0.32 : 1,
                 gap: 2, fontFamily: 'inherit',
                 transition: 'background 0.12s, border-color 0.12s',
               }}

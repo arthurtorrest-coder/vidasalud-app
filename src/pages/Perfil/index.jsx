@@ -8,6 +8,7 @@ const C = {
   green800: '#065F46',
   green700: '#047857',
   green600: '#059669',
+  green500: '#10B981',
   green100: '#D1FAE5',
   green50:  '#ECFDF5',
   red600:   '#DC2626',
@@ -59,7 +60,7 @@ function Field({ label, value, icon, readOnly, inputProps }) {
           />
         )}
         {readOnly && (
-          <span style={{ fontSize: 11, color: C.gray400, fontWeight: 600, flexShrink: 0 }}>No editable</span>
+          <span style={{ fontSize: 12, color: C.gray400, fontWeight: 600, flexShrink: 0 }}>No editable</span>
         )}
       </div>
     </div>

@@ -1,16 +1,16 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 
 const C = {
+  green900: '#064E3B',
+  green800: '#065F46',
   green700: '#047857',
   green600: '#059669',
-  green100: '#D1FAE5',
   green50:  '#ECFDF5',
   gray500:  '#6B7280',
   gray200:  '#E5E7EB',
   white:    '#FFFFFF',
 }
 
-// SVG icons — viewBox 0 0 24 24, stroke-based
 const ICONS = {
   home: (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -41,9 +41,18 @@ const ICONS = {
   ),
 }
 
-const ITEMS = [
-  { path: '/inicio',    icon: ICONS.home,      label: 'Inicio',    roots: ['/inicio', '/booking', '/pago'] },
-  { path: '/citas',     icon: ICONS.calendar,  label: 'Citas',     roots: ['/citas'] },
+const VIDEO_ICON = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14" />
+    <rect x="1" y="6" width="14" height="12" rx="2" ry="2" />
+  </svg>
+)
+
+const LEFT_ITEMS = [
+  { path: '/inicio',    icon: ICONS.home,     label: 'Inicio',    roots: ['/inicio', '/booking', '/pago'] },
+  { path: '/citas',     icon: ICONS.calendar, label: 'Citas',     roots: ['/citas'] },
+]
+const RIGHT_ITEMS = [
   { path: '/historial', icon: ICONS.clipboard, label: 'Historial', roots: ['/historial'] },
   { path: '/perfil',    icon: ICONS.user,      label: 'Perfil',    roots: ['/perfil'] },
 ]
@@ -52,59 +61,107 @@ function isActive(roots, pathname) {
   return roots.some(r => pathname === r || pathname.startsWith(r + '/'))
 }
 
+function NavItem({ path, icon, label, roots, navigate, pathname }) {
+  const active = isActive(roots, pathname)
+  return (
+    <button
+      onClick={() => navigate(path)}
+      style={{
+        flex: 1, background: 'none', border: 'none', cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        gap: 4, padding: '10px 0 12px',
+        transition: 'opacity 0.1s',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+      onPointerDown={e => { e.currentTarget.style.opacity = '0.6' }}
+      onPointerUp={e => { e.currentTarget.style.opacity = '1' }}
+      onPointerLeave={e => { e.currentTarget.style.opacity = '1' }}
+      aria-label={label}
+    >
+      <div style={{
+        width: 44, height: 30, borderRadius: 15,
+        background: active ? C.green50 : 'transparent',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'background 0.2s',
+      }}>
+        <div style={{ color: active ? C.green600 : C.gray500, display: 'flex', transition: 'color 0.2s' }}>
+          {icon}
+        </div>
+      </div>
+      <span style={{
+        fontSize: 12, fontWeight: active ? 700 : 500,
+        color: active ? C.green700 : C.gray500,
+        fontFamily: "'DM Sans', sans-serif",
+        transition: 'color 0.2s',
+      }}>
+        {label}
+      </span>
+    </button>
+  )
+}
+
 export default function BottomNav() {
-  const navigate      = useNavigate()
-  const { pathname }  = useLocation()
+  const navigate     = useNavigate()
+  const { pathname } = useLocation()
 
   return (
     <div style={{
       display: 'flex',
+      alignItems: 'flex-end',
       borderTop: `1px solid ${C.gray200}`,
       background: C.white,
       flexShrink: 0,
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     }}>
-      {ITEMS.map(({ path, icon, label, roots }) => {
-        const active = isActive(roots, pathname)
-        return (
-          <button
-            key={path}
-            onClick={() => navigate(path)}
-            style={{
-              flex: 1, background: 'none', border: 'none', cursor: 'pointer',
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              gap: 4, padding: '10px 0 12px',
-              transition: 'opacity 0.1s',
-            }}
-            onMouseDown={e => e.currentTarget.style.opacity = '0.7'}
-            onMouseUp={e => e.currentTarget.style.opacity = '1'}
-            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-            onTouchStart={e => e.currentTarget.style.opacity = '0.7'}
-            onTouchEnd={e => e.currentTarget.style.opacity = '1'}
-            aria-label={label}
-          >
-            <div style={{
-              width: 44, height: 30,
-              borderRadius: 15,
-              background: active ? C.green50 : 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'background 0.2s',
-            }}>
-              <div style={{ color: active ? C.green600 : C.gray500, display: 'flex', transition: 'color 0.2s' }}>
-                {icon}
-              </div>
-            </div>
-            <span style={{
-              fontSize: 10, fontWeight: active ? 700 : 500,
-              color: active ? C.green700 : C.gray500,
-              fontFamily: "'DM Sans', sans-serif",
-              transition: 'color 0.2s, font-weight 0.1s',
-            }}>
-              {label}
-            </span>
-          </button>
-        )
-      })}
+      {LEFT_ITEMS.map(item => (
+        <NavItem key={item.path} {...item} navigate={navigate} pathname={pathname} />
+      ))}
+
+      {/* CTA central — sube visualmente sobre los íconos laterales */}
+      <div style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', gap: 4, paddingBottom: 12,
+      }}>
+        <button
+          onClick={() => navigate('/especialidades')}
+          style={{
+            width: 52, height: 52, borderRadius: '50%',
+            background: `linear-gradient(145deg, ${C.green900}, ${C.green700})`,
+            border: `3px solid ${C.white}`,
+            boxShadow: '0 4px 16px rgba(5,150,105,0.45), 0 0 0 1px rgba(5,150,105,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+            WebkitTapHighlightColor: 'transparent',
+            flexShrink: 0,
+            transition: 'transform 0.12s, box-shadow 0.12s',
+          }}
+          onPointerDown={e => {
+            e.currentTarget.style.transform = 'scale(0.91)'
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(5,150,105,0.3)'
+          }}
+          onPointerUp={e => {
+            e.currentTarget.style.transform = 'scale(1)'
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(5,150,105,0.45), 0 0 0 1px rgba(5,150,105,0.15)'
+          }}
+          onPointerLeave={e => {
+            e.currentTarget.style.transform = 'scale(1)'
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(5,150,105,0.45), 0 0 0 1px rgba(5,150,105,0.15)'
+          }}
+          aria-label="Consultar"
+        >
+          {VIDEO_ICON}
+        </button>
+        <span style={{
+          fontSize: 12, fontWeight: 700, color: C.green700,
+          fontFamily: "'DM Sans', sans-serif",
+        }}>
+          Consultar
+        </span>
+      </div>
+
+      {RIGHT_ITEMS.map(item => (
+        <NavItem key={item.path} {...item} navigate={navigate} pathname={pathname} />
+      ))}
     </div>
   )
 }

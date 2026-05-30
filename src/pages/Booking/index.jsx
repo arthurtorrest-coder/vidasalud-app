@@ -159,7 +159,7 @@ function SlotGrid({ slots, selected, booked, date, onSelect, loading }) {
             {slot}
             {occupied && !past && (
               <span style={{
-                display: 'block', fontSize: 9, fontWeight: 500,
+                display: 'block', fontSize: 12, fontWeight: 500,
                 color: C.gray400, marginTop: 3,
               }}>
                 Ocupado
@@ -212,7 +212,7 @@ function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, loadingSchedul
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 4 }}>
         {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((l, i) => (
           <div key={i} style={{
-            textAlign: 'center', fontSize: 9, fontWeight: 800,
+            textAlign: 'center', fontSize: 12, fontWeight: 800,
             color: C.gray400, letterSpacing: 0.5,
           }}>
             {l}
@@ -264,11 +264,12 @@ function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, loadingSchedul
                 opacity: (isPast && !isHoy) || noSch ? 0.32 : 1,
                 gap: 2, fontFamily: 'inherit',
                 transition: 'background 0.12s, border-color 0.12s',
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
               {/* Nombre del día / etiqueta especial HOY */}
               <span style={{
-                fontSize: 9, fontWeight: 800, letterSpacing: 0.3,
+                fontSize: 12, fontWeight: 800, letterSpacing: 0.3,
                 color: isSel ? 'rgba(255,255,255,0.65)'
                      : isHoy ? C.green600
                      : C.gray400,
@@ -557,7 +558,7 @@ export default function Booking() {
           </span>
           {!loadingSlots && availableSlots.length > 0 && (
             <span style={{
-              marginLeft: 'auto', fontSize: 10, fontWeight: 700,
+              marginLeft: 'auto', fontSize: 12, fontWeight: 700,
               background: C.green100, color: C.green700,
               padding: '2px 8px', borderRadius: 20,
             }}>

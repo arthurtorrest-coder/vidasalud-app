@@ -106,7 +106,7 @@ function StatusBadge({ status, label }) {
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
       background: s.bg, color: s.label,
-      fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+      fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
     }}>
       <span style={{
         width: 6, height: 6, borderRadius: '50%', background: s.dot,
@@ -121,17 +121,19 @@ function DoctorCard({ doc, onBook }) {
   const [hovered, setHovered] = useState(false)
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onPointerDown={() => setHovered(true)}
+      onPointerUp={() => setHovered(false)}
+      onPointerLeave={() => setHovered(false)}
       onClick={() => onBook(doc)}
       style={{
         display: 'flex', alignItems: 'center', gap: 14,
         background: C.white,
         border: `1.5px solid ${hovered ? C.green500 : C.gray300}`,
         borderRadius: 16, padding: '14px 16px', cursor: 'pointer',
-        transition: 'all 0.18s ease',
-        transform: hovered ? 'translateY(-2px)' : 'none',
-        boxShadow: hovered ? '0 8px 24px rgba(16,185,129,0.12)' : 'none',
+        transition: 'all 0.15s ease',
+        transform: hovered ? 'scale(0.985)' : 'scale(1)',
+        boxShadow: hovered ? '0 6px 20px rgba(16,185,129,0.13)' : 'none',
+        WebkitTapHighlightColor: 'transparent',
       }}
     >
       <Avatar initials={doc.initials} fotoUrl={doc.fotoUrl} size={52} />
@@ -182,17 +184,26 @@ function DoctorSkeleton() {
 }
 
 function SpecialtyChip({ icon, label, price, selected, onClick }) {
+  const [pressed, setPressed] = useState(false)
   return (
-    <div onClick={onClick} style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      gap: 6, padding: '12px 14px', borderRadius: 14, cursor: 'pointer',
-      background: selected ? C.green700 : C.white,
-      border: `1.5px solid ${selected ? C.green700 : C.gray300}`,
-      transition: 'all 0.15s ease', minWidth: 72, flexShrink: 0,
-    }}>
+    <div
+      onClick={onClick}
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={() => setPressed(false)}
+      onPointerLeave={() => setPressed(false)}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        gap: 6, padding: '12px 14px', borderRadius: 14, cursor: 'pointer',
+        background: selected ? C.green700 : C.white,
+        border: `1.5px solid ${selected ? C.green700 : C.gray300}`,
+        transition: 'all 0.15s ease', minWidth: 72, flexShrink: 0,
+        transform: pressed ? 'scale(0.94)' : 'scale(1)',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
       <span style={{ fontSize: 24 }}>{icon}</span>
-      <span style={{ fontSize: 11, fontWeight: 700, color: selected ? C.white : C.gray700 }}>{label}</span>
-      <span style={{ fontSize: 10, color: selected ? C.green100 : C.gray500 }}>S/. {price}</span>
+      <span style={{ fontSize: 12, fontWeight: 700, color: selected ? C.white : C.gray700 }}>{label}</span>
+      <span style={{ fontSize: 12, color: selected ? C.green100 : C.gray500 }}>S/. {price}</span>
     </div>
   )
 }
@@ -282,12 +293,14 @@ function QuickActions() {
             borderRadius: 14, padding: '12px 8px', cursor: 'pointer',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
             transition: 'transform 0.12s',
+            WebkitTapHighlightColor: 'transparent',
           }}
-          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.04)'}
-          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          onPointerDown={e => { e.currentTarget.style.transform = 'scale(0.93)' }}
+          onPointerUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
+          onPointerLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
         >
           <span style={{ fontSize: 22 }}>{a.icon}</span>
-          <span style={{ fontSize: 10, fontWeight: 700, color: C.gray700, textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.3 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.gray700, textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.3 }}>
             {a.label}
           </span>
         </button>
@@ -519,7 +532,7 @@ export default function Home() {
               borderRadius: 10, padding: '8px 10px', textAlign: 'center',
             }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: C.white }}>{s.n}</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>{s.label}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>{s.label}</div>
             </div>
           ))}
         </div>

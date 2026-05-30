@@ -2,18 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
-
-/* ── Paleta ─────────────────────────────────────────────────── */
-const C = {
-  green900: '#064E3B', green800: '#065F46', green700: '#047857',
-  green600: '#059669', green500: '#10B981', green200: '#A7F3D0',
-  green100: '#D1FAE5', green50:  '#ECFDF5',
-  amber:    '#F59E0B',
-  gray900:  '#111827', gray700: '#374151', gray500: '#6B7280',
-  gray400:  '#9CA3AF', gray300: '#D1D5DB', gray200: '#E5E7EB',
-  gray100:  '#F3F4F6', white:   '#FFFFFF',
-  red: '#EF4444', red50: '#FEF2F2',
-}
+import { C } from '../../lib/tokens'
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 function codigoCita(id) {

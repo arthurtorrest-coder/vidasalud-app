@@ -5,24 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import TriajeBot from '../../components/TriajeBot'
 import VideoRoom from '../../components/VideoRoom'
-
-const C = {
-  green900: '#064E3B',
-  green800: '#065F46',
-  green700: '#047857',
-  green600: '#059669',
-  green500: '#10B981',
-  green200: '#A7F3D0',
-  green100: '#D1FAE5',
-  green50:  '#ECFDF5',
-  amber:    '#F59E0B',
-  gray900:  '#111827',
-  gray700:  '#374151',
-  gray500:  '#6B7280',
-  gray300:  '#D1D5DB',
-  gray100:  '#F3F4F6',
-  white:    '#FFFFFF',
-}
+import { C } from '../../lib/tokens'
 
 const SPECIALTIES = [
   { icon: '🩺', label: 'General',     price: 35 },

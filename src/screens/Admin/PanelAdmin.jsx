@@ -7,19 +7,7 @@ import {
 import { Toaster, toast } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
-
-// ─── Paleta ───────────────────────────────────────────────────
-const C = {
-  green900: '#064E3B', green800: '#065F46', green700: '#047857',
-  green600: '#059669', green500: '#10B981', green400: '#34D399',
-  green200: '#A7F3D0', green100: '#D1FAE5', green50:  '#ECFDF5',
-  amber:    '#F59E0B', amberBg:  '#FFFBEB', amberText: '#B45309',
-  blue600:  '#2563EB', blueBg:   '#EFF6FF', blueText:  '#1D4ED8',
-  red600:   '#DC2626', redBg:    '#FEF2F2',
-  gray900:  '#111827', gray700:  '#374151', gray500:   '#6B7280',
-  gray400:  '#9CA3AF', gray300:  '#D1D5DB', gray200:   '#E5E7EB',
-  gray100:  '#F3F4F6', gray50:   '#F9FAFB', white:     '#FFFFFF',
-}
+import { C } from '../../lib/tokens'
 
 const STATUS_CFG = {
   pending:   { label: 'Pend. pago',  bg: C.amberBg,  color: C.amberText },

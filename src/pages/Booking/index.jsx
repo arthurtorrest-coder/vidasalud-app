@@ -173,10 +173,11 @@ function SlotGrid({ slots, selected, booked, date, onSelect, loading }) {
 }
 
 /* ── Calendario semanal ──────────────────────────────────────── */
-function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, weekOffset, onPrev, onNext }) {
+function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, loadingScheduleDays, weekOffset, onPrev, onNext }) {
   const todayStart = startOfDay(new Date())
   const monday     = startOfWeek(addWeeks(todayStart, weekOffset), { weekStartsOn: 1 })
   const days       = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
+  const maxDay     = addDays(todayStart, 6)   // último día permitido: hoy + 6
 
   // Etiqueta del mes — si la semana cruza dos meses muestra ambos
   const m0 = format(monday,  'MMMM', { locale: es })
@@ -205,7 +206,7 @@ function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, weekOffset, on
       }}>
         <button type="button" onClick={onPrev} disabled={weekOffset === 0} style={navStyle(weekOffset === 0)}>◀</button>
         <span style={{ fontSize: 14, fontWeight: 800, color: C.gray700 }}>{monthCap}</span>
-        <button type="button" onClick={onNext} disabled={weekOffset >= 8} style={navStyle(weekOffset >= 8)}>▶</button>
+        <button type="button" onClick={onNext} disabled={isBefore(maxDay, addDays(monday, 7))} style={navStyle(isBefore(maxDay, addDays(monday, 7)))}>▶</button>
       </div>
 
       {/* ── Letras de días (L M X J V S D) ── */}
@@ -223,21 +224,29 @@ function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, weekOffset, on
       {/* ── Celdas de días ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
         {days.map(day => {
-          const isPast = isBefore(day, todayStart)
-          const isHoy  = isToday(day)
-          const isSel  = isSameDay(day, selectedDate)
-          const hasSch = scheduleDays.has(day.getDay())
+          const isPast   = isBefore(day, todayStart)
+          const isTooFar = isBefore(maxDay, day)
+          const isHoy    = isToday(day)
+          const isSel    = isSameDay(day, selectedDate)
+          const hasSch   = !loadingScheduleDays && scheduleDays.has(day.getDay())
+          const noSch    = !loadingScheduleDays && !hasSch && !isPast && !isTooFar
+          const disabled = isPast || noSch || isTooFar
 
           let bg     = 'transparent'
           let bdCol  = 'transparent'
-          let numCol = isPast ? C.gray300 : C.gray900
+          let numCol = isPast || noSch || isTooFar ? C.gray300 : C.gray900
           let dotCol = null
 
-          if (isSel) {
+          if (isSel && hasSch) {
             bg = C.green700; bdCol = C.green600; numCol = C.white
-            dotCol = hasSch ? 'rgba(255,255,255,0.55)' : null
+            dotCol = 'rgba(255,255,255,0.55)'
+          } else if (isSel && !hasSch) {
+            // selected but no schedule — keep neutral
+            bg = C.gray100; bdCol = C.gray300; numCol = C.gray400
           } else if (isHoy) {
-            bg = C.green50; bdCol = C.green200; numCol = C.green700
+            bg = hasSch ? C.green50 : 'transparent'
+            bdCol = hasSch ? C.green200 : C.gray200
+            numCol = hasSch ? C.green700 : C.gray300
             dotCol = hasSch ? C.green500 : null
           } else if (!isPast) {
             dotCol = hasSch ? C.green500 : C.gray200
@@ -247,14 +256,14 @@ function WeekCalendar({ selectedDate, onSelectDate, scheduleDays, weekOffset, on
             <button
               key={day.toISOString()}
               type="button"
-              disabled={isPast}
-              onClick={() => onSelectDate(day)}
+              disabled={disabled}
+              onClick={() => !disabled && onSelectDate(day)}
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 padding: '8px 2px 7px', borderRadius: 12,
                 background: bg, border: `1.5px solid ${bdCol}`,
-                cursor: isPast ? 'not-allowed' : 'pointer',
-                opacity: isPast && !isHoy ? 0.28 : 1,
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: (isPast && !isHoy) || noSch || isTooFar ? 0.32 : 1,
                 gap: 2, fontFamily: 'inherit',
                 transition: 'background 0.12s, border-color 0.12s',
               }}
@@ -318,8 +327,9 @@ export default function Booking() {
 
   const [doctor,          setDoctor]          = useState(null)
   const [loadingDoctor,   setLoadingDoctor]   = useState(true)
-  const [weekOffset,      setWeekOffset]      = useState(0)
-  const [docScheduleDays, setDocScheduleDays] = useState(new Set())
+  const [weekOffset,           setWeekOffset]           = useState(0)
+  const [docScheduleDays,      setDocScheduleDays]      = useState(new Set())
+  const [loadingScheduleDays,  setLoadingScheduleDays]  = useState(true)
   const [selectedDate,    setSelectedDate]    = useState(() => new Date())
   const [selectedTime,  setSelectedTime]  = useState(null)
   const [booked,         setBooked]         = useState(new Set())
@@ -355,7 +365,8 @@ export default function Booking() {
       .eq('doctor_id', doctorId)
       .eq('activo', true)
       .then(({ data }) => {
-        setDocScheduleDays(new Set((data ?? []).map(s => s.dia_semana)))
+        setDocScheduleDays(new Set((data ?? []).map(s => Number(s.dia_semana))))
+        setLoadingScheduleDays(false)
       })
   }, [doctorId, navigate])
 
@@ -527,6 +538,7 @@ export default function Booking() {
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
           scheduleDays={docScheduleDays}
+          loadingScheduleDays={loadingScheduleDays}
           weekOffset={weekOffset}
           onPrev={() => setWeekOffset(w => Math.max(0, w - 1))}
           onNext={() => setWeekOffset(w => Math.min(8, w + 1))}

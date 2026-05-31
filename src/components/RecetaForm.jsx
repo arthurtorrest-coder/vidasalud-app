@@ -512,7 +512,7 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
 
   return createPortal(
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 9997,
+      position: 'fixed', inset: 0, zIndex: 10002,
       background: 'rgba(0,0,0,0.6)',
       display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
       fontFamily: "'DM Sans', system-ui, sans-serif",

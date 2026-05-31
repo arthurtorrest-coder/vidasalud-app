@@ -870,7 +870,27 @@ export default function PanelMedico() {
 
       {/* Overlay de videollamada */}
       {videoUrl && (
-        <VideoRoom url={videoUrl} onLeave={() => setVideoUrl(null)} />
+        <VideoRoom
+          url={videoUrl}
+          onLeave={() => setVideoUrl(null)}
+          extraActions={
+            activeAppt && (
+              <button
+                onClick={() => setRecetaData({ appointment: activeAppt, soap })}
+                style={{
+                  background: 'rgba(255,255,255,0.15)',
+                  border: '1px solid rgba(255,255,255,0.28)',
+                  color: '#fff', borderRadius: 8, padding: '6px 12px',
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                📋 Receta
+              </button>
+            )
+          }
+        />
       )}
 
       {/* Formulario de receta electrónica */}

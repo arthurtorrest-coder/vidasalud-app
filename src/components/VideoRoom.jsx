@@ -7,7 +7,7 @@ const C = {
   white:    '#FFFFFF',
 }
 
-export default function VideoRoom({ url, onLeave }) {
+export default function VideoRoom({ url, onLeave, extraActions }) {
   const [loaded, setLoaded] = useState(false)
   const iframeRef = useRef(null)
 
@@ -60,17 +60,20 @@ export default function VideoRoom({ url, onLeave }) {
             )}
           </div>
 
-          <button
-            onClick={onLeave}
-            style={{
-              background: C.red600, border: 'none', color: C.white,
-              borderRadius: 8, padding: '6px 14px',
-              fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
-            }}
-          >
-            Salir ✕
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {extraActions}
+            <button
+              onClick={onLeave}
+              style={{
+                background: C.red600, border: 'none', color: C.white,
+                borderRadius: 8, padding: '6px 14px',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              Salir ✕
+            </button>
+          </div>
         </div>
 
         {/* ── Área de video ── */}

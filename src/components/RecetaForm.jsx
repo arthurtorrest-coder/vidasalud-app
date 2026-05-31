@@ -36,7 +36,18 @@ const PDF_C = {
   grayBg:     [249, 250, 251],
 }
 
-function buildPDF({ doctorName, specialty, cmp, patientName, patientDNI, diagnosis, medications, verificationCode, indications }) {
+async function loadImageAsBase64(url) {
+  const resp = await fetch(url)
+  const blob = await resp.blob()
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function buildPDF({ doctorName, specialty, cmp, firmaUrl, patientName, patientDNI, diagnosis, medications, verificationCode, indications }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
   const W = 210
   const ml = 18, mr = 18
@@ -209,9 +220,21 @@ function buildPDF({ doctorName, specialty, cmp, patientName, patientDNI, diagnos
 
   // Left column: signature block
   const sigW = 95
-  doc.setDrawColor(...grayLight)
-  doc.setLineWidth(0.4)
-  doc.line(ml, y + 18, ml + sigW, y + 18)
+
+  if (firmaUrl) {
+    try {
+      const imgData = await loadImageAsBase64(firmaUrl)
+      doc.addImage(imgData, ml, y, 60, 20)
+    } catch {
+      doc.setDrawColor(...grayLight)
+      doc.setLineWidth(0.4)
+      doc.line(ml, y + 18, ml + sigW, y + 18)
+    }
+  } else {
+    doc.setDrawColor(...grayLight)
+    doc.setLineWidth(0.4)
+    doc.line(ml, y + 18, ml + sigW, y + 18)
+  }
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
@@ -408,10 +431,11 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
 
     try {
       // Build PDF
-      const doc = buildPDF({
+      const doc = await buildPDF({
         doctorName:   doctorName ?? 'Médico',
         specialty:    doctorInfo?.especialidad ?? '',
         cmp:          doctorInfo?.cmp ?? '',
+        firmaUrl:     doctorInfo?.firma_url ?? null,
         patientName,
         patientDNI,
         diagnosis:    diagnosis || 'No especificado',

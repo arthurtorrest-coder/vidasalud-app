@@ -407,6 +407,8 @@ export default function PanelMedico() {
   const [toggling,       setToggling]       = useState(false)
   const [fotoUrl,        setFotoUrl]        = useState(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [firmaUrl,       setFirmaUrl]       = useState(null)
+  const [uploadingFirma, setUploadingFirma] = useState(false)
   const [precio,         setPrecio]         = useState('')
   const [savingPrecio,   setSavingPrecio]   = useState(false)
   const [soap,           setSoap]           = useState({ s: '', o: '', a: '', p: '' })
@@ -491,14 +493,14 @@ export default function PanelMedico() {
     let info = null
     const { data: byId } = await supabase
       .from('doctors')
-      .select('id, activo, especialidad, cmp, profile_id, foto_url, precio, precio_propuesto, precio_pendiente_aprobacion')
+      .select('id, activo, especialidad, cmp, profile_id, foto_url, firma_url, precio, precio_propuesto, precio_pendiente_aprobacion')
       .eq('id', user.id)
       .maybeSingle()
     info = byId
     if (!info) {
       const { data: byProfile } = await supabase
         .from('doctors')
-        .select('id, activo, especialidad, cmp, profile_id, foto_url, precio, precio_propuesto, precio_pendiente_aprobacion')
+        .select('id, activo, especialidad, cmp, profile_id, foto_url, firma_url, precio, precio_propuesto, precio_pendiente_aprobacion')
         .eq('profile_id', user.id)
         .maybeSingle()
       info = byProfile
@@ -515,6 +517,7 @@ export default function PanelMedico() {
     setDoctorInfo(info)
     setDisponible(info.activo ?? false)
     setFotoUrl(info.foto_url ?? null)
+    setFirmaUrl(info.firma_url ?? null)
     setPrecio(info.precio ?? '')
 
     // Paso 2: citas usando doctors.id (no user.id)
@@ -682,6 +685,57 @@ export default function PanelMedico() {
     setFotoUrl(urlConTimestamp)
     setDoctorInfo(prev => ({ ...prev, foto_url: urlConTimestamp }))
     toast.success('Foto de perfil actualizada')
+  }
+
+  async function handleFirmaChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
+      toast.error('Selecciona una imagen JPG o PNG')
+      return
+    }
+    if (file.size > 1 * 1024 * 1024) {
+      toast.error('La imagen de firma no puede superar 1 MB')
+      return
+    }
+    if (!doctorInfo?.id) {
+      toast.error('No se pudo identificar tu perfil de médico')
+      return
+    }
+
+    setUploadingFirma(true)
+    const path = `${doctorInfo.id}/firma.png`
+
+    const { error: uploadErr } = await supabase.storage
+      .from('doctors')
+      .upload(path, file, { upsert: true, contentType: file.type })
+
+    if (uploadErr) {
+      setUploadingFirma(false)
+      toast.error('No se pudo subir la firma: ' + uploadErr.message)
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('doctors').getPublicUrl(path)
+    const urlConTimestamp = `${publicUrl}?t=${Date.now()}`
+
+    const { error: updateErr } = await supabase
+      .from('doctors')
+      .update({ firma_url: urlConTimestamp })
+      .eq('id', doctorInfo.id)
+
+    setUploadingFirma(false)
+
+    if (updateErr) {
+      toast.error('Firma subida pero no se pudo guardar la URL: ' + updateErr.message)
+      return
+    }
+
+    setFirmaUrl(urlConTimestamp)
+    setDoctorInfo(prev => ({ ...prev, firma_url: urlConTimestamp }))
+    toast.success('Firma manuscrita actualizada')
   }
 
   async function handleSavePrecio() {
@@ -1019,6 +1073,62 @@ export default function PanelMedico() {
                   transition: 'all 0.15s',
                 }}>
                   {uploadingPhoto ? 'Subiendo…' : fotoUrl ? 'Cambiar' : 'Subir foto'}
+                </span>
+              </label>
+            </div>
+
+            {/* ── Mi firma manuscrita ──────────────────────── */}
+            <div style={{
+              background: C.white, border: `1.5px solid ${C.gray200}`,
+              borderRadius: 16, padding: '12px 14px',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
+              <div style={{
+                flexShrink: 0, width: 80, height: 40, borderRadius: 8,
+                border: `1.5px solid ${C.gray200}`, background: C.white,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden',
+              }}>
+                {firmaUrl ? (
+                  <img
+                    src={firmaUrl}
+                    alt="firma"
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                  />
+                ) : (
+                  <span style={{ fontSize: 22 }}>✍️</span>
+                )}
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900 }}>
+                  Mi firma manuscrita
+                </div>
+                <div style={{ fontSize: 11, color: C.gray500, marginTop: 2, lineHeight: 1.4 }}>
+                  {firmaUrl
+                    ? 'Aparece en tus recetas electrónicas'
+                    : 'Sube tu firma · JPG/PNG, fondo blanco, máx. 1 MB'}
+                </div>
+              </div>
+
+              <label style={{ flexShrink: 0, cursor: uploadingFirma ? 'not-allowed' : 'pointer' }}>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png"
+                  onChange={handleFirmaChange}
+                  disabled={uploadingFirma}
+                  style={{ display: 'none' }}
+                />
+                <span style={{
+                  display: 'block',
+                  background: uploadingFirma ? C.gray100 : C.green50,
+                  border: `1.5px solid ${uploadingFirma ? C.gray200 : C.green200}`,
+                  color: uploadingFirma ? C.gray400 : C.green700,
+                  borderRadius: 10, padding: '7px 13px',
+                  fontSize: 12, fontWeight: 700,
+                  transition: 'all 0.15s',
+                }}>
+                  {uploadingFirma ? 'Subiendo…' : firmaUrl ? 'Cambiar' : 'Subir firma'}
                 </span>
               </label>
             </div>

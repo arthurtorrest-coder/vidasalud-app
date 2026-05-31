@@ -417,6 +417,7 @@ export default function PanelMedico() {
   const [videoUrl,       setVideoUrl]       = useState(null)
   const [selectedDate,   setSelectedDate]   = useState(getLimaToday)
   const [recetaData,     setRecetaData]     = useState(null)
+  const [recetaAbiertaEnConsulta, setRecetaAbiertaEnConsulta] = useState(false)
   const [schedules,      setSchedules]      = useState([])
   const [loadingScheds,  setLoadingScheds]  = useState(false)
   const [horarioOpen,    setHorarioOpen]    = useState(false)
@@ -625,7 +626,10 @@ export default function PanelMedico() {
       )
       setSoap({ s: '', o: '', a: '', p: '' })
       toast.success('Consulta completada · Nota SOAP guardada', { duration: 4000 })
-      setRecetaData({ appointment: apptSnapshot, soap: soapSnapshot })
+      if (!recetaAbiertaEnConsulta) {
+        setRecetaData({ appointment: apptSnapshot, soap: soapSnapshot })
+      }
+      setRecetaAbiertaEnConsulta(false)
     }
     setSaving(false)
   }
@@ -876,7 +880,10 @@ export default function PanelMedico() {
           extraActions={
             activeAppt && (
               <button
-                onClick={() => setRecetaData({ appointment: activeAppt, soap })}
+                onClick={() => {
+                setRecetaData({ appointment: activeAppt, soap })
+                setRecetaAbiertaEnConsulta(true)
+              }}
                 style={{
                   background: 'rgba(255,255,255,0.15)',
                   border: '1px solid rgba(255,255,255,0.28)',

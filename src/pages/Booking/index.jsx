@@ -584,11 +584,24 @@ export default function Booking() {
                 />
               </>
             )}
-            {availableSlots.some(s => parseInt(s) >= 12) && (
+            {availableSlots.some(s => parseInt(s) >= 12 && parseInt(s) < 19) && (
               <>
                 <SectionTitle>🌅 Por la tarde</SectionTitle>
                 <SlotGrid
-                  slots={availableSlots.filter(s => parseInt(s) >= 12)}
+                  slots={availableSlots.filter(s => parseInt(s) >= 12 && parseInt(s) < 19)}
+                  selected={selectedTime}
+                  booked={booked}
+                  date={selectedDate}
+                  onSelect={setSelectedTime}
+                  loading={false}
+                />
+              </>
+            )}
+            {availableSlots.some(s => parseInt(s) >= 19) && (
+              <>
+                <SectionTitle>🌙 Por la noche</SectionTitle>
+                <SlotGrid
+                  slots={availableSlots.filter(s => parseInt(s) >= 19)}
                   selected={selectedTime}
                   booked={booked}
                   date={selectedDate}

@@ -205,36 +205,55 @@ function buildPDF({ doctorName, specialty, cmp, patientName, patientDNI, diagnos
   }
 
   // ─── SIGNATURE + VERIFICATION CODE ───────────────────────
-  if (y > 238) { doc.addPage(); y = 20 }
+  if (y > 230) { doc.addPage(); y = 20 }
 
+  // Left column: signature block
+  const sigW = 95
   doc.setDrawColor(...grayLight)
-  doc.setLineWidth(0.5)
-  doc.line(ml, y + 22, ml + 65, y + 22)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(...gray)
-  doc.text('Firma y sello del medico', ml, y + 27)
-  doc.text(`CMP ${cmp}`, ml, y + 33)
+  doc.setLineWidth(0.4)
+  doc.line(ml, y + 18, ml + sigW, y + 18)
 
-  // Verification box
-  const vx = W - mr - 64
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...dark)
+  doc.text(doctorName, ml, y + 24)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.setTextColor(...gray)
+  doc.text(specialty, ml, y + 30)
+  doc.text(`${cmp.startsWith('CPsP') ? cmp : 'CMP ' + cmp}`, ml, y + 36)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...greenDark)
+  doc.text('Firma digital verificada - VIDASALUD', ml, y + 43)
+
+  // Right column: verification box
+  const vx = W - mr - 68
   doc.setFillColor(...green50)
   doc.setDrawColor(...greenLight)
-  doc.roundedRect(vx, y, 64, 30, 3, 3, 'FD')
+  doc.roundedRect(vx, y, 68, 46, 3, 3, 'FD')
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(6.5)
+  doc.setFontSize(6)
   doc.setTextColor(...greenDark)
-  doc.text('CODIGO DE VERIFICACION', vx + 32, y + 8, { align: 'center' })
+  doc.text('CODIGO DE VERIFICACION', vx + 34, y + 8, { align: 'center' })
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  doc.text(verificationCode, vx + 32, y + 18, { align: 'center' })
+  doc.setFontSize(14)
+  doc.setTextColor(...greenDark)
+  doc.text(verificationCode, vx + 34, y + 20, { align: 'center' })
+
+  doc.setDrawColor(...greenLight)
+  doc.setLineWidth(0.3)
+  doc.line(vx + 8, y + 25, vx + 60, y + 25)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
+  doc.setFontSize(6.5)
   doc.setTextColor(...gray)
-  doc.text('vidasalud.pe/verificar', vx + 32, y + 25, { align: 'center' })
+  doc.text('vidasalud.pe/verificar', vx + 34, y + 32, { align: 'center' })
+  doc.text('Valida bajo Ley 30421', vx + 34, y + 39, { align: 'center' })
 
   // ─── FOOTER ───────────────────────────────────────────────
   const fy = 277

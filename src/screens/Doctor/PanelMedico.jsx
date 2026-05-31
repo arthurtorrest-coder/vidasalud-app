@@ -900,6 +900,7 @@ export default function PanelMedico() {
           doctorInfo={doctorInfo}
           doctorName={doctorName}
           soap={recetaData.soap}
+          modoCompacto={!!videoUrl}
           onClose={() => setRecetaData(null)}
           onSuccess={() => setRecetaData(null)}
         />

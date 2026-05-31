@@ -394,7 +394,7 @@ function MedRow({ med, idx, onChange, onRemove, canRemove }) {
 
 // ─── Main form ────────────────────────────────────────────────
 
-export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, onClose, onSuccess }) {
+export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, modoCompacto, onClose, onSuccess }) {
   const [diagnosis,    setDiagnosis]    = useState(soap?.a?.trim() || '')
   const [medications,  setMedications]  = useState([{ nombre: '', dosis: '', frecuencia: '', duracion: '' }])
   const [indications,  setIndications]  = useState('')
@@ -510,29 +510,43 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
     transition: 'border-color 0.15s, box-shadow 0.15s',
   })
 
+  const isCompact = modoCompacto && window.innerWidth >= 768
+
   return createPortal(
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 10002,
-      background: 'rgba(0,0,0,0.6)',
-      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      position: 'fixed', zIndex: 10002,
       fontFamily: "'DM Sans', system-ui, sans-serif",
+      ...(isCompact
+        ? { top: 0, right: 0, bottom: 0, width: '40%', minWidth: 320 }
+        : { inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }
+      ),
     }}>
       <style>{`
-        @keyframes rf-up { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes rf-up    { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes rf-right { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: ${C.gray300}; border-radius: 4px; }
       `}</style>
 
       <div style={{
-        width: '100%', maxWidth: 520,
-        maxHeight: '94vh',
         background: C.gray50,
-        borderRadius: '24px 24px 0 0',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
-        animation: 'rf-up 0.28s ease',
-        boxShadow: '0 -8px 40px rgba(0,0,0,0.2)',
+        ...(isCompact
+          ? {
+              width: '100%', height: '100%',
+              borderRadius: '16px 0 0 16px',
+              boxShadow: '-8px 0 40px rgba(0,0,0,0.28)',
+              animation: 'rf-right 0.28s ease',
+            }
+          : {
+              width: '100%', maxWidth: 520, maxHeight: '94vh',
+              borderRadius: '24px 24px 0 0',
+              boxShadow: '0 -8px 40px rgba(0,0,0,0.2)',
+              animation: 'rf-up 0.28s ease',
+            }
+        ),
       }}>
 
         {/* ── Header ── */}

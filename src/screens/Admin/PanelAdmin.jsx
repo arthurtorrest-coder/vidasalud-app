@@ -200,6 +200,7 @@ export default function PanelAdmin() {
   const [pendingDoctors, setPendingDoctors] = useState([])
   const [pendingTarifas, setPendingTarifas] = useState([])
   const [income,         setIncome]         = useState(null)
+  const [sessionLogs,    setSessionLogs]    = useState([])
   const [loading,        setLoading]        = useState(true)
   const [lastRefresh,    setLastRefresh]     = useState(null)
 
@@ -216,7 +217,7 @@ export default function PanelAdmin() {
     setLoading(true)
     const { start, end, weekStart } = getLimaRange()
 
-    const [apptRes, weekRes, docRes, payRes, pendingRes, tarifasRes] = await Promise.all([
+    const [apptRes, weekRes, docRes, payRes, pendingRes, tarifasRes, sessionRes] = await Promise.all([
       supabase
         .from('appointments')
         .select(`
@@ -257,6 +258,16 @@ export default function PanelAdmin() {
         .select('id, nombres, apellidos, especialidad, cmp, precio, precio_propuesto')
         .eq('precio_pendiente_aprobacion', true)
         .order('nombres', { ascending: true }),
+
+      supabase
+        .from('session_logs')
+        .select(`
+          id, inicio_sesion, fin_sesion, duracion_minutos, estado,
+          doctor:doctors!doctor_id ( nombres, apellidos ),
+          patient:profiles!patient_id ( full_name )
+        `)
+        .order('inicio_sesion', { ascending: false })
+        .limit(20),
     ])
 
     if (apptRes.error)    console.warn('[PanelAdmin] appointments:', apptRes.error.message)
@@ -265,6 +276,7 @@ export default function PanelAdmin() {
     if (payRes.error)     console.warn('[PanelAdmin] payments:',    payRes.error.message)
     if (pendingRes.error) console.warn('[PanelAdmin] pending:',     pendingRes.error.message)
     if (tarifasRes.error) console.warn('[PanelAdmin] tarifas:',     tarifasRes.error.message)
+    if (sessionRes.error) console.warn('[PanelAdmin] sessions:',    sessionRes.error.message)
 
     setTodayAppts(apptRes.data ?? [])
     setWeekAppts(weekRes.data ?? [])
@@ -293,6 +305,7 @@ export default function PanelAdmin() {
       setIncome(0)
     }
 
+    setSessionLogs(sessionRes.data ?? [])
     setLastRefresh(new Date())
     setLoading(false)
   }, [])
@@ -918,6 +931,101 @@ export default function PanelAdmin() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* ── Registro de sesiones (Ley 30421) ── */}
+        <div style={{
+          background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`,
+          padding: 20, marginBottom: 24,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 18 }}>🛡️</span>
+              <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, margin: 0 }}>
+                Registro de sesiones
+              </h2>
+              <span style={{
+                fontSize: 10, fontWeight: 700, color: C.green700,
+                background: C.green50, padding: '3px 8px', borderRadius: 20, letterSpacing: 0.4,
+              }}>
+                LEY 30421
+              </span>
+            </div>
+            {!loading && (
+              <span style={{
+                fontSize: 12, fontWeight: 700, color: C.green700,
+                background: C.green50, padding: '3px 10px', borderRadius: 20,
+              }}>
+                {sessionLogs.length} recientes
+              </span>
+            )}
+          </div>
+          <div style={{ overflowY: 'auto', maxHeight: 380 }}>
+            <table>
+              <thead>
+                <tr>
+                  <TH>Fecha / Hora inicio</TH>
+                  <TH>Médico</TH>
+                  <TH>Paciente</TH>
+                  <TH right>Duración</TH>
+                  <TH>Estado</TH>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  [1, 2, 3, 4, 5].map(i => (
+                    <tr key={i}>
+                      {[1, 2, 3, 4, 5].map(j => (
+                        <td key={j} style={{ padding: '12px 14px', borderBottom: `1px solid ${C.gray100}` }}>
+                          {skeletonBar(j === 4 ? '40px' : '75%', 12)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : sessionLogs.length === 0 ? (
+                  <EmptyRow cols={5} msg="Sin sesiones registradas aún" />
+                ) : (
+                  sessionLogs.map(s => {
+                    const doctorName = s.doctor
+                      ? [s.doctor.nombres, s.doctor.apellidos].filter(Boolean).join(' ') || '—'
+                      : '—'
+                    const patientName = s.patient?.full_name ?? '—'
+                    const fechaHora   = s.inicio_sesion
+                      ? new Date(s.inicio_sesion).toLocaleString('es-PE', {
+                          timeZone: 'America/Lima',
+                          day: '2-digit', month: 'short', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })
+                      : '—'
+                    const estadoCfg = {
+                      iniciada:     { bg: C.blueBg,   color: C.blueText,  label: '⬤ Iniciada'    },
+                      completada:   { bg: C.green50,   color: C.green700,  label: '✓ Completada'  },
+                      interrumpida: { bg: C.redBg,     color: C.red600,    label: '✗ Interrumpida' },
+                    }[s.estado] ?? { bg: C.gray100, color: C.gray500, label: s.estado }
+                    return (
+                      <tr key={s.id}>
+                        <TD muted>{fechaHora}</TD>
+                        <TD>{doctorName}</TD>
+                        <TD muted>{patientName}</TD>
+                        <TD right muted>
+                          {s.duracion_minutos != null ? `${s.duracion_minutos} min` : '—'}
+                        </TD>
+                        <TD>
+                          <span style={{
+                            fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                            background: estadoCfg.bg, color: estadoCfg.color, whiteSpace: 'nowrap',
+                          }}>
+                            {estadoCfg.label}
+                          </span>
+                        </TD>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* ── Footer ── */}

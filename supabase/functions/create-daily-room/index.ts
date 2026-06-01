@@ -94,7 +94,7 @@ serve(async (req) => {
   )
   const { data: appt, error: apptErr } = await supabase
     .from('appointments')
-    .select('id, doctor_id, video_url')
+    .select('id, doctor_id, patient_id, video_url')
     .eq('id', appointmentId)
     .single()
 
@@ -139,5 +139,29 @@ serve(async (req) => {
     console.log('[create-daily-room] appointment updated to active')
   }
 
-  return json({ url: roomUrl, roomName })
+  // Registrar inicio de sesión para cumplimiento Ley 30421
+  const ipMedico = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+               ?? req.headers.get('x-real-ip')
+               ?? null
+
+  const { data: sessionLog, error: sessionErr } = await supabase
+    .from('session_logs')
+    .insert({
+      appointment_id: appointmentId,
+      doctor_id:      appt.doctor_id,
+      patient_id:     appt.patient_id ?? null,
+      inicio_sesion:  new Date().toISOString(),
+      ip_medico:      ipMedico,
+      estado:         'iniciada',
+    })
+    .select('id')
+    .single()
+
+  if (sessionErr) {
+    console.warn('[create-daily-room] session_logs insert failed:', sessionErr.message)
+  } else {
+    console.log('[create-daily-room] session_log created:', sessionLog.id)
+  }
+
+  return json({ url: roomUrl, roomName, sessionLogId: sessionLog?.id ?? null })
 })

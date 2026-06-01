@@ -415,6 +415,8 @@ export default function PanelMedico() {
   const [saving,         setSaving]         = useState(false)
   const [startingId,     setStartingId]     = useState(null)
   const [videoUrl,       setVideoUrl]       = useState(null)
+  const [sessionLogId,   setSessionLogId]   = useState(null)
+  const [sesionInicio,   setSesionInicio]   = useState(null)
   const [selectedDate,   setSelectedDate]   = useState(getLimaToday)
   const [recetaData,     setRecetaData]     = useState(null)
   const [recetaAbiertaEnConsulta, setRecetaAbiertaEnConsulta] = useState(false)
@@ -593,6 +595,8 @@ export default function PanelMedico() {
     )
     setSoap({ s: '', o: '', a: '', p: '' })
     setVideoUrl(roomUrl)
+    setSessionLogId(data.sessionLogId ?? null)
+    setSesionInicio(new Date())
     toast.success('Consulta iniciada · Sala de video lista')
     setStartingId(null)
   }
@@ -630,6 +634,23 @@ export default function PanelMedico() {
         setRecetaData({ appointment: apptSnapshot, soap: soapSnapshot })
       }
       setRecetaAbiertaEnConsulta(false)
+
+      // Actualizar session_log con fin de sesión
+      if (sessionLogId) {
+        const finSesion = new Date()
+        const duracion  = sesionInicio
+          ? Math.round((finSesion.getTime() - sesionInicio.getTime()) / 60000)
+          : null
+        supabase
+          .from('session_logs')
+          .update({ fin_sesion: finSesion.toISOString(), duracion_minutos: duracion, estado: 'completada' })
+          .eq('id', sessionLogId)
+          .then(({ error }) => {
+            if (error) console.warn('[handleFinish] session_logs update failed:', error.message)
+          })
+        setSessionLogId(null)
+        setSesionInicio(null)
+      }
     }
     setSaving(false)
   }

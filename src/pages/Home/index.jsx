@@ -445,7 +445,7 @@ export default function Home() {
 
       {videoUrl && <VideoRoom url={videoUrl} onLeave={() => setVideoUrl(null)} />}
 
-      {activeAppt && (
+      {activeAppt && profile?.role === 'patient' && (
         <ActiveCallBanner appt={activeAppt} onEnter={setVideoUrl} />
       )}
 

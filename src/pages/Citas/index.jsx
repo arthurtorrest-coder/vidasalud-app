@@ -485,25 +485,33 @@ export default function Citas() {
   // Suscripción realtime: actualiza status y video_url sin refetch completo
   useEffect(() => {
     if (!user) return
+    console.log('[Citas] creando canal realtime para patient_id:', user.id)
     const channel = supabase
       .channel(`citas-paciente-${user.id}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'appointments', filter: `patient_id=eq.${user.id}` },
         (payload) => {
+          console.log('[Citas] UPDATE recibido — id:', payload.new.id, '| status:', payload.new.status)
           setAppts(prev => prev.map(a =>
             a.id === payload.new.id
               ? { ...a, status: payload.new.status, video_url: payload.new.video_url }
               : a
           ))
           if (payload.new.status === 'done') {
+            console.log('[Citas] redirigiendo a /calificar/', payload.new.id)
             navigate(`/calificar/${payload.new.id}`)
           }
         }
       )
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [user])
+      .subscribe((status, err) => {
+        console.log('[Citas] subscription status:', status, err ?? '')
+      })
+    return () => {
+      console.log('[Citas] removiendo canal realtime')
+      supabase.removeChannel(channel)
+    }
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const cats   = categorize(appts)
   const counts = { proximas: cats.proximas.length, pasadas: cats.pasadas.length, canceladas: cats.canceladas.length }

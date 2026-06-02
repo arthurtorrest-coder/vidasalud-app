@@ -11,15 +11,25 @@ const DAILY_API_KEY   = Deno.env.get('DAILY_API_KEY') ?? ''
 const DAILY_BASE_URL  = 'https://api.daily.co/v1'
 const ROOM_EXPIRY_SEC = 60 * 60 * 2   // 2 horas
 
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+const ALLOWED_ORIGINS = [
+  'https://clinicavidasalud.com',
+  'https://www.clinicavidasalud.com',
+  'http://localhost:5173',
+  'http://localhost:3000',
+]
+
+function corsHeaders(origin: string) {
+  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  return {
+    'Access-Control-Allow-Origin':  allowed,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  }
 }
 
-function json(body: unknown, status = 200) {
+function json(body: unknown, cors: Record<string, string>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
+    headers: { ...cors, 'Content-Type': 'application/json' },
   })
 }
 
@@ -59,6 +69,9 @@ async function createRoom(name: string, expiresAt: number) {
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('Origin') ?? ''
+  const CORS = corsHeaders(origin)
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS })
   }
@@ -66,12 +79,12 @@ serve(async (req) => {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) {
     console.error('[create-daily-room] No Authorization header')
-    return json({ error: 'No autorizado' }, 401)
+    return json({ error: 'No autorizado' }, CORS, 401)
   }
 
   if (!DAILY_API_KEY) {
     console.error('[create-daily-room] DAILY_API_KEY not set')
-    return json({ error: 'DAILY_API_KEY no configurado en los secretos' }, 500)
+    return json({ error: 'DAILY_API_KEY no configurado en los secretos' }, CORS, 500)
   }
 
   let appointmentId: string
@@ -81,7 +94,7 @@ serve(async (req) => {
     if (!appointmentId) throw new Error('appointmentId requerido')
   } catch (e) {
     console.error('[create-daily-room] Bad request:', (e as Error).message)
-    return json({ error: (e as Error).message }, 400)
+    return json({ error: (e as Error).message }, CORS, 400)
   }
 
   console.log('[create-daily-room] appointmentId:', appointmentId)
@@ -100,7 +113,7 @@ serve(async (req) => {
 
   console.log('[create-daily-room] appointment query — data:', appt, '| error:', apptErr)
 
-  if (apptErr || !appt) return json({ error: 'Cita no encontrada' }, 404)
+  if (apptErr || !appt) return json({ error: 'Cita no encontrada' }, CORS, 404)
 
   // No reutilizar video_url cacheado: la sala puede haber expirado.
   // Siempre intentar crear; si ya existe en Daily.co la obtenemos por nombre.
@@ -119,11 +132,11 @@ serve(async (req) => {
     console.log('[create-daily-room] room already exists, fetching existing…')
     const existing = await getRoomByName(roomName)
     console.log('[create-daily-room] existing room:', existing)
-    if (!existing?.url) return json({ error: 'No se pudo obtener la sala existente' }, 500)
+    if (!existing?.url) return json({ error: 'No se pudo obtener la sala existente' }, CORS, 500)
     roomUrl = existing.url
   } else {
     console.error('[create-daily-room] Daily.co error:', room)
-    return json({ error: room?.info ?? 'Error al crear la sala en Daily.co' }, 502)
+    return json({ error: room?.info ?? 'Error al crear la sala en Daily.co' }, CORS, 502)
   }
 
   // UPDATE appointments usando service role — bypasea el RLS del frontend
@@ -163,5 +176,5 @@ serve(async (req) => {
     console.log('[create-daily-room] session_log created:', sessionLog.id)
   }
 
-  return json({ url: roomUrl, roomName, sessionLogId: sessionLog?.id ?? null })
+  return json({ url: roomUrl, roomName, sessionLogId: sessionLog?.id ?? null }, CORS)
 })

@@ -479,7 +479,7 @@ export default function Especialidades() {
                   key={doc.id}
                   doc={doc}
                   slots={getProximosSlots(doc.id, schedules)}
-                  onBook={id => navigate(`/booking/${id}`)}
+                  onBook={id => navigate(`/medico/${id}`)}
                 />
               ))}
 

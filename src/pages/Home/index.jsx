@@ -427,7 +427,7 @@ export default function Home() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBook = (doc) => {
-    navigate(`/booking/${doc.id}`)
+    navigate(`/medico/${doc.id}`)
   }
 
   const filteredDocs = doctors.filter(d => {

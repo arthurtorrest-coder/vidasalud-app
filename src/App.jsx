@@ -21,6 +21,7 @@ import Citas           from './pages/Citas'
 import Historial       from './screens/Historial'
 import Perfil          from './pages/Perfil'
 import Especialidades  from './screens/Especialidades'
+import Calificacion   from './screens/Calificacion'
 
 const C = { green100: '#D1FAE5', green600: '#059669', gray100: '#F3F4F6' }
 
@@ -91,6 +92,7 @@ export default function App() {
             <Route path="/historial"           element={<Historial />}      />
             <Route path="/perfil"              element={<Perfil />}         />
             <Route path="/especialidades"      element={<Especialidades />} />
+            <Route path="/calificar/:appointmentId" element={<Calificacion />} />
           </Route>
         </Route>
 

@@ -76,9 +76,16 @@ function Avatar({ initials, fotoUrl, size = 48 }) {
 }
 
 function StarRating({ rating }) {
+  const filled = Math.round(rating)
   return (
-    <span style={{ color: C.amber, fontWeight: 700, fontSize: 12 }}>
-      ★ {rating.toFixed(1)}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+      <span style={{ color: C.amber, letterSpacing: 1, fontSize: 13, lineHeight: 1 }}>
+        {'★'.repeat(filled)}
+        <span style={{ color: C.gray300 }}>{'★'.repeat(5 - filled)}</span>
+      </span>
+      <span style={{ fontSize: 12, fontWeight: 700, color: C.gray700 }}>
+        {rating.toFixed(1)}
+      </span>
     </span>
   )
 }

@@ -465,6 +465,26 @@ export default function PanelMedico() {
     return () => { supabase.removeChannel(channel) }
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Realtime: actualiza rating cuando un paciente envía una reseña
+  useEffect(() => {
+    if (!doctorInfo?.id) return
+    const channel = supabase
+      .channel(`panel-medico-rating-${doctorInfo.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'doctors', filter: `id=eq.${doctorInfo.id}` },
+        (payload) => {
+          setDoctorInfo(prev => ({
+            ...prev,
+            rating:        payload.new.rating,
+            total_reviews: payload.new.total_reviews,
+          }))
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Cargar horarios cuando tengamos el doctors.id real
   useEffect(() => {
     if (!doctorInfo?.id) return
@@ -496,14 +516,14 @@ export default function PanelMedico() {
     let info = null
     const { data: byId } = await supabase
       .from('doctors')
-      .select('id, activo, especialidad, cmp, profile_id, foto_url, firma_url, precio, precio_propuesto, precio_pendiente_aprobacion')
+      .select('id, activo, especialidad, cmp, profile_id, foto_url, firma_url, precio, precio_propuesto, precio_pendiente_aprobacion, rating, total_reviews')
       .eq('id', user.id)
       .maybeSingle()
     info = byId
     if (!info) {
       const { data: byProfile } = await supabase
         .from('doctors')
-        .select('id, activo, especialidad, cmp, profile_id, foto_url, firma_url, precio, precio_propuesto, precio_pendiente_aprobacion')
+        .select('id, activo, especialidad, cmp, profile_id, foto_url, firma_url, precio, precio_propuesto, precio_pendiente_aprobacion, rating, total_reviews')
         .eq('profile_id', user.id)
         .maybeSingle()
       info = byProfile
@@ -967,6 +987,22 @@ export default function PanelMedico() {
             {(specialty || cmp) && (
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
                 {specialty}{specialty && cmp && ' · '}{cmp}
+              </div>
+            )}
+            {doctorInfo?.total_reviews > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                <span style={{ color: C.amber, fontSize: 14, letterSpacing: 1 }}>
+                  {'★'.repeat(Math.round(doctorInfo.rating ?? 0))}
+                  <span style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    {'★'.repeat(5 - Math.round(doctorInfo.rating ?? 0))}
+                  </span>
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.white }}>
+                  {Number(doctorInfo.rating ?? 0).toFixed(1)}
+                </span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+                  ({doctorInfo.total_reviews} reseña{doctorInfo.total_reviews !== 1 ? 's' : ''})
+                </span>
               </div>
             )}
 

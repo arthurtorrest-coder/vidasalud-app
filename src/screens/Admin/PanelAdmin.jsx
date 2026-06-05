@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
+  AreaChart, Area,
 } from 'recharts'
 import { Toaster, toast } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
@@ -67,6 +68,24 @@ function buildWeekChart(appts) {
       fill:  i === 6 ? '#059669' : '#A7F3D0',
     }
   })
+}
+
+function getMonthRange() {
+  const now  = new Date()
+  const lima = new Date(now.getTime() - 5 * 3600 * 1000)
+  const y    = lima.getUTCFullYear()
+  const mo   = lima.getUTCMonth()
+  const monthLabel = new Date(Date.UTC(y, mo, 15)).toLocaleDateString('es-PE', {
+    month: 'long', year: 'numeric', timeZone: 'UTC',
+  })
+  const last30 = new Date(Date.UTC(y, mo, lima.getUTCDate(), 5))
+  last30.setDate(last30.getDate() - 29)
+  return {
+    startOfMonth: new Date(Date.UTC(y, mo, 1, 5, 0, 0)).toISOString(),
+    endOfMonth:   new Date(Date.UTC(y, mo + 1, 1, 4, 59, 59)).toISOString(),
+    last30Start:  last30.toISOString(),
+    monthLabel:   monthLabel.replace(/^\w/, c => c.toUpperCase()),
+  }
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────
@@ -187,6 +206,67 @@ const TD = ({ children, right, muted }) => (
   </td>
 )
 
+function MesStatCard({ icon, label, value, sub, accent = C.green700, bg = C.green50 }) {
+  return (
+    <div style={{
+      background: C.white, borderRadius: 16,
+      border: `1.5px solid ${C.gray200}`,
+      padding: '20px 22px',
+      display: 'flex', flexDirection: 'column', gap: 8,
+      boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 28 }}>{icon}</span>
+        <span style={{
+          fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+          color: accent, background: bg,
+          padding: '3px 8px', borderRadius: 20,
+        }}>
+          MES
+        </span>
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 900, color: C.gray900, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.gray500 }}>{label}</div>
+      {sub && <div style={{ fontSize: 11, color: C.gray400, marginTop: -4 }}>{sub}</div>}
+    </div>
+  )
+}
+
+function HorizTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  const n = payload[0].value
+  return (
+    <div style={{
+      background: C.white, border: `1.5px solid ${C.green200}`,
+      padding: '8px 14px', borderRadius: 10,
+      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.green800, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 800, color: C.gray900 }}>
+        {n} {n === 1 ? 'cita' : 'citas'}
+      </div>
+    </div>
+  )
+}
+
+function IncomeTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{
+      background: C.white, border: `1.5px solid ${C.green200}`,
+      padding: '8px 14px', borderRadius: 10,
+      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.green800, marginBottom: 2 }}>
+        {payload[0]?.payload?.fullDate ?? ''}
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 800, color: C.gray900 }}>
+        {fmtSoles(payload[0].value)}
+      </div>
+    </div>
+  )
+}
+
 // ─── Panel principal ──────────────────────────────────────────
 
 export default function PanelAdmin() {
@@ -202,7 +282,10 @@ export default function PanelAdmin() {
   const [income,         setIncome]         = useState(null)
   const [sessionLogs,    setSessionLogs]    = useState([])
   const [loading,        setLoading]        = useState(true)
-  const [lastRefresh,    setLastRefresh]     = useState(null)
+  const [lastRefresh,    setLastRefresh]    = useState(null)
+  const [monthAppts,     setMonthAppts]     = useState([])
+  const [newPatients,    setNewPatients]    = useState(0)
+  const [thirtyDayAppts, setThirtyDayAppts] = useState([])
 
   const stats = useMemo(() => ({
     total:       todayAppts.length,
@@ -213,11 +296,71 @@ export default function PanelAdmin() {
 
   const chartData = useMemo(() => buildWeekChart(weekAppts), [weekAppts])
 
+  const monthStats = useMemo(() => {
+    const citasMes    = monthAppts.length
+    const ingresosMes = monthAppts.reduce((s, a) => s + (Number(a.precio_total) || 0), 0)
+    const avgRating   = doctors.length
+      ? doctors.reduce((s, d) => s + (Number(d.rating) || 0), 0) / doctors.length
+      : 0
+    return { citasMes, ingresosMes, avgRating, nuevosPacientes: newPatients }
+  }, [monthAppts, doctors, newPatients])
+
+  const topDoctors = useMemo(() => {
+    if (!monthAppts.length) return []
+    const map = new Map()
+    monthAppts.forEach(a => {
+      if (!a.doctor?.id) return
+      const k = a.doctor.id
+      if (!map.has(k)) map.set(k, { ...a.doctor, citasMes: 0 })
+      map.get(k).citasMes++
+    })
+    return [...map.values()].sort((a, b) => b.citasMes - a.citasMes).slice(0, 5)
+  }, [monthAppts])
+
+  const specData = useMemo(() => {
+    if (!monthAppts.length) return []
+    const m = new Map()
+    monthAppts.forEach(a => {
+      const s = (a.doctor?.especialidad ?? 'Otra')
+        .replace('Medicina General', 'Med. General')
+        .replace('Gastroenterología', 'Gastro.')
+      m.set(s, (m.get(s) ?? 0) + 1)
+    })
+    return [...m.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 7)
+      .map(([especialidad, citas]) => ({ especialidad, citas }))
+  }, [monthAppts])
+
+  const incomeByDay = useMemo(() => {
+    const now = new Date()
+    return Array.from({ length: 30 }, (_, i) => {
+      const day = new Date(now)
+      day.setDate(day.getDate() - (29 - i))
+      day.setHours(0, 0, 0, 0)
+      const next = new Date(day)
+      next.setDate(next.getDate() + 1)
+      const income = thirtyDayAppts.filter(a => {
+        const t = new Date(a.scheduled_at)
+        return t >= day && t < next
+      }).reduce((s, a) => s + (Number(a.precio_total) || 0), 0)
+      const label = i % 7 === 0 || i === 29
+        ? day.toLocaleDateString('es-PE', { day: 'numeric', month: 'short', timeZone: 'America/Lima' })
+        : ''
+      return {
+        dia:      label,
+        fullDate: day.toLocaleDateString('es-PE', { day: 'numeric', month: 'short', timeZone: 'America/Lima' }),
+        ingresos: income,
+      }
+    })
+  }, [thirtyDayAppts])
+
   const fetchAll = useCallback(async () => {
     setLoading(true)
-    const { start, end, weekStart } = getLimaRange()
+    const { start, end, weekStart }                    = getLimaRange()
+    const { startOfMonth, endOfMonth, last30Start }    = getMonthRange()
 
-    const [apptRes, weekRes, docRes, payRes, pendingRes, tarifasRes, sessionRes] = await Promise.all([
+    const [apptRes, weekRes, docRes, payRes, pendingRes, tarifasRes, sessionRes, monthRes, patientRes, thirtyRes] = await Promise.all([
       supabase
         .from('appointments')
         .select(`
@@ -268,6 +411,29 @@ export default function PanelAdmin() {
         `)
         .order('inicio_sesion', { ascending: false })
         .limit(20),
+
+      // Citas completadas del mes (con datos del médico para rankings)
+      supabase
+        .from('appointments')
+        .select('id, precio_total, scheduled_at, doctor:doctors!doctor_id(id, nombres, apellidos, especialidad, rating, foto_url, cmp)')
+        .eq('status', 'done')
+        .gte('scheduled_at', startOfMonth)
+        .lte('scheduled_at', endOfMonth),
+
+      // Nuevos pacientes registrados este mes
+      supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('role', 'patient')
+        .gte('created_at', startOfMonth)
+        .lte('created_at', endOfMonth),
+
+      // Citas completadas últimos 30 días (tendencia de ingresos)
+      supabase
+        .from('appointments')
+        .select('id, precio_total, scheduled_at')
+        .eq('status', 'done')
+        .gte('scheduled_at', last30Start),
     ])
 
     if (apptRes.error)    console.warn('[PanelAdmin] appointments:', apptRes.error.message)
@@ -276,7 +442,10 @@ export default function PanelAdmin() {
     if (payRes.error)     console.warn('[PanelAdmin] payments:',    payRes.error.message)
     if (pendingRes.error) console.warn('[PanelAdmin] pending:',     pendingRes.error.message)
     if (tarifasRes.error) console.warn('[PanelAdmin] tarifas:',     tarifasRes.error.message)
-    if (sessionRes.error) console.warn('[PanelAdmin] sessions:',    sessionRes.error.message)
+    if (sessionRes.error)  console.warn('[PanelAdmin] sessions:',    sessionRes.error.message)
+    if (monthRes?.error)   console.warn('[PanelAdmin] monthAppts:',  monthRes.error.message)
+    if (patientRes?.error) console.warn('[PanelAdmin] newPatients:', patientRes.error.message)
+    if (thirtyRes?.error)  console.warn('[PanelAdmin] thirtyDays:',  thirtyRes.error.message)
 
     setTodayAppts(apptRes.data ?? [])
     setWeekAppts(weekRes.data ?? [])
@@ -306,6 +475,9 @@ export default function PanelAdmin() {
     }
 
     setSessionLogs(sessionRes.data ?? [])
+    if (!monthRes?.error)   setMonthAppts(monthRes?.data ?? [])
+    if (!patientRes?.error) setNewPatients(patientRes?.count ?? 0)
+    if (!thirtyRes?.error)  setThirtyDayAppts(thirtyRes?.data ?? [])
     setLastRefresh(new Date())
     setLoading(false)
   }, [])
@@ -611,6 +783,280 @@ export default function PanelAdmin() {
                 </span>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* ── Estadísticas del mes ── */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, margin: 0 }}>
+              Estadísticas del mes
+            </h2>
+            <span style={{
+              fontSize: 11, fontWeight: 700, color: C.green700,
+              background: C.green50, padding: '3px 10px', borderRadius: 20, letterSpacing: 0.3,
+            }}>
+              {getMonthRange().monthLabel}
+            </span>
+          </div>
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 16, animation: 'pa-fade 0.3s ease',
+          }}>
+            {loading ? [1, 2, 3, 4].map(i => (
+              <div key={i} style={{
+                background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`,
+                padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 12,
+              }}>
+                {skeletonBar('40%', 28)} {skeletonBar('55%', 12)}
+              </div>
+            )) : <>
+              <MesStatCard
+                icon="💰" label="Ingresos del mes"
+                value={fmtSoles(monthStats.ingresosMes)}
+                sub={`${monthStats.citasMes} citas completadas`}
+              />
+              <MesStatCard
+                icon="✅" label="Consultas completadas"
+                value={monthStats.citasMes}
+                sub="Status done este mes"
+              />
+              <MesStatCard
+                icon="⭐" label="Rating promedio"
+                value={`${monthStats.avgRating.toFixed(1)} / 5`}
+                sub="Promedio médicos activos"
+                accent={C.amberText} bg={C.amberBg}
+              />
+              <MesStatCard
+                icon="👥" label="Nuevos pacientes"
+                value={monthStats.nuevosPacientes}
+                sub="Registrados este mes"
+                accent={C.blueText} bg={C.blueBg}
+              />
+            </>}
+          </div>
+        </div>
+
+        {/* ── Rankings: Médicos top + Especialidades ── */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 400px',
+          gap: 20, marginBottom: 24,
+        }}>
+
+          {/* Médicos más consultados */}
+          <div style={{
+            background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`,
+            padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          }}>
+            <SectionHeader
+              title="Médicos más consultados"
+              count={loading ? null : topDoctors.length ? `Top ${topDoctors.length}` : null}
+            />
+            {loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0' }}>
+                    <div style={{ width: 38, height: 38, borderRadius: '50%', background: C.gray200, flexShrink: 0 }} />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {skeletonBar('50%', 12)} {skeletonBar('35%', 10)}
+                    </div>
+                    <div style={{ width: 48, height: 28, background: C.gray200, borderRadius: 8 }} />
+                  </div>
+                ))}
+              </div>
+            ) : topDoctors.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', color: C.gray400, fontSize: 13 }}>
+                Sin citas completadas este mes
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {topDoctors.map((doc, i) => {
+                  const initials = ((doc.nombres?.[0] ?? '?') + (doc.apellidos?.[0] ?? '?')).toUpperCase()
+                  const isCPsP   = (doc.cmp ?? '').startsWith('CPsP')
+                  const titulo   = isCPsP ? 'Psic.' : 'Dr(a).'
+                  const name     = [doc.nombres, doc.apellidos].filter(Boolean).join(' ')
+                  const medals   = ['🥇', '🥈', '🥉']
+                  return (
+                    <div key={doc.id ?? i} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px', borderRadius: 12,
+                      background: i === 0 ? C.green50 : 'transparent',
+                      border: `1px solid ${i === 0 ? C.green200 : 'transparent'}`,
+                    }}>
+                      <span style={{
+                        width: 22, textAlign: 'center', flexShrink: 0,
+                        fontSize: i < 3 ? 16 : 13, fontWeight: 900,
+                        color: i < 3 ? C.green700 : C.gray400,
+                      }}>
+                        {i < 3 ? medals[i] : `${i + 1}.`}
+                      </span>
+                      {doc.foto_url ? (
+                        <img src={doc.foto_url} alt={name}
+                          style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                      ) : (
+                        <div style={{
+                          width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                          background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: C.white, fontWeight: 800, fontSize: 13,
+                        }}>
+                          {initials}
+                        </div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 13, fontWeight: 700, color: C.gray900,
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                          {titulo} {name}
+                        </div>
+                        <div style={{ fontSize: 11, color: C.gray500, marginTop: 1 }}>
+                          {doc.especialidad ?? '—'}
+                          {doc.rating > 0 && (
+                            <span style={{ color: C.amber, fontWeight: 700, marginLeft: 6 }}>
+                              ★ {Number(doc.rating).toFixed(1)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                        <div style={{
+                          fontSize: 20, fontWeight: 900,
+                          color: i === 0 ? C.green700 : C.gray800,
+                        }}>
+                          {doc.citasMes}
+                        </div>
+                        <div style={{ fontSize: 10, color: C.gray400, fontWeight: 600 }}>citas</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Especialidades más demandadas */}
+          <div style={{
+            background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`,
+            padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+            display: 'flex', flexDirection: 'column',
+          }}>
+            <SectionHeader title="Especialidades más demandadas" />
+            {loading ? (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'center' }}>
+                {[85, 65, 55, 40, 30, 20, 14].map((w, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{ width: 90, height: 10, background: C.gray200, borderRadius: 4, flexShrink: 0 }} />
+                    <div style={{ height: 22, width: `${w}%`, background: C.gray200, borderRadius: 4 }} />
+                  </div>
+                ))}
+              </div>
+            ) : specData.length === 0 ? (
+              <div style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: C.gray400, fontSize: 13,
+              }}>
+                Sin datos este mes
+              </div>
+            ) : (
+              <div style={{ flex: 1, minHeight: 220 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={specData}
+                    layout="vertical"
+                    barSize={18}
+                    margin={{ top: 0, right: 28, bottom: 0, left: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke={C.gray100} horizontal={false} />
+                    <XAxis
+                      type="number" allowDecimals={false}
+                      tick={{ fontSize: 10, fill: C.gray400, fontFamily: 'DM Sans, sans-serif' }}
+                      axisLine={false} tickLine={false}
+                    />
+                    <YAxis
+                      type="category" dataKey="especialidad" width={96}
+                      tick={{ fontSize: 10, fill: C.gray600, fontFamily: 'DM Sans, sans-serif' }}
+                      axisLine={false} tickLine={false}
+                    />
+                    <Tooltip content={<HorizTooltip />} cursor={{ fill: C.green50 }} />
+                    <Bar dataKey="citas" fill={C.green500} radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Tendencia de ingresos (30 días) ── */}
+        <div style={{
+          background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`,
+          padding: 20, marginBottom: 24,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: 14,
+          }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, margin: 0 }}>
+              Ingresos por día — últimos 30 días
+            </h2>
+            {!loading && (
+              <span style={{
+                fontSize: 12, fontWeight: 800, color: C.green700,
+                background: C.green50, padding: '4px 14px', borderRadius: 20,
+              }}>
+                Total: {fmtSoles(monthStats.ingresosMes)}
+              </span>
+            )}
+          </div>
+
+          {loading ? (
+            <div style={{
+              height: 200, background: C.gray50, borderRadius: 12,
+              animation: 'pa-fade 1.5s ease infinite alternate',
+            }} />
+          ) : (
+            <div style={{ height: 200 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={incomeByDay}
+                  margin={{ top: 8, right: 8, bottom: 0, left: 4 }}
+                >
+                  <defs>
+                    <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={C.green500} stopOpacity={0.18} />
+                      <stop offset="95%" stopColor={C.green500} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.gray100} vertical={false} />
+                  <XAxis
+                    dataKey="dia"
+                    tick={{ fontSize: 10, fill: C.gray400, fontFamily: 'DM Sans, sans-serif' }}
+                    axisLine={false} tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={v => v === 0 ? '0' : `S/.${v}`}
+                    tick={{ fontSize: 10, fill: C.gray400, fontFamily: 'DM Sans, sans-serif' }}
+                    axisLine={false} tickLine={false} width={56}
+                  />
+                  <Tooltip content={<IncomeTooltip />} cursor={{ stroke: C.green200, strokeWidth: 1 }} />
+                  <Area
+                    type="monotone" dataKey="ingresos"
+                    stroke={C.green600} strokeWidth={2}
+                    fill="url(#incomeGrad)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: C.green600, strokeWidth: 0 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, justifyContent: 'center' }}>
+            <div style={{ width: 20, height: 2, background: C.green600, borderRadius: 1 }} />
+            <span style={{ fontSize: 11, color: C.gray400 }}>
+              Ingresos diarios de citas completadas (precio_total)
+            </span>
           </div>
         </div>
 

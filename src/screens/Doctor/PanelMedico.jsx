@@ -6,6 +6,10 @@ import { useAuthStore } from '../../stores/authStore'
 import VideoRoom from '../../components/VideoRoom'
 import RecetaForm from '../../components/RecetaForm'
 import { C } from '../../lib/tokens'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTooltip, ResponsiveContainer,
+} from 'recharts'
 
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
@@ -396,6 +400,52 @@ function EmptyState() {
   )
 }
 
+// ─── Tooltip personalizado del gráfico ───────────────────────
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  const n = payload[0].value
+  return (
+    <div style={{
+      background: C.green800, color: C.white,
+      padding: '6px 10px', borderRadius: 8,
+      fontSize: 11, fontWeight: 700,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+    }}>
+      <div style={{ marginBottom: 2 }}>{label}</div>
+      <div>{n} cita{n !== 1 ? 's' : ''}</div>
+    </div>
+  )
+}
+
+// ─── Tarjeta de métrica estadística ──────────────────────────
+function StatCard({ icon, value, label, color = C.green700, stars = false }) {
+  return (
+    <div style={{
+      background: C.gray50, border: `1px solid ${C.gray100}`,
+      borderRadius: 12, padding: '10px 12px',
+      display: 'flex', flexDirection: 'column', gap: 3,
+    }}>
+      <span style={{ fontSize: 14, lineHeight: 1 }}>{icon}</span>
+      {stars ? (
+        <>
+          <div style={{ fontSize: 12, color: C.amber, lineHeight: 1, letterSpacing: 1 }}>
+            {'★'.repeat(Math.round(Number(value)))}
+            <span style={{ color: C.gray200 }}>
+              {'★'.repeat(5 - Math.round(Number(value)))}
+            </span>
+          </div>
+          <span style={{ fontSize: 15, fontWeight: 800, color, lineHeight: 1 }}>{value}</span>
+        </>
+      ) : (
+        <span style={{ fontSize: 17, fontWeight: 800, color, lineHeight: 1.2 }}>{value}</span>
+      )}
+      <span style={{ fontSize: 10, color: C.gray500, fontWeight: 600, lineHeight: 1.3, marginTop: 1 }}>
+        {label}
+      </span>
+    </div>
+  )
+}
+
 // ─── Panel principal ──────────────────────────────────────────
 export default function PanelMedico() {
   const { user, profile } = useAuthStore()
@@ -427,7 +477,11 @@ export default function PanelMedico() {
   const [newStart,       setNewStart]       = useState('08:00')
   const [newEnd,         setNewEnd]         = useState('12:00')
   const [savingBlock,    setSavingBlock]    = useState(false)
-  const horarioRef = useRef(null)
+  const horarioRef  = useRef(null)
+  const statsRef    = useRef(null)
+  const [statsOpen,    setStatsOpen]    = useState(false)
+  const [statsData,    setStatsData]    = useState(null)
+  const [loadingStats, setLoadingStats] = useState(false)
 
   const activeAppt  = useMemo(() => appointments.find(a => a.status === 'active') ?? null, [appointments])
   const hasAnyActive = activeAppt !== null
@@ -501,11 +555,23 @@ export default function PanelMedico() {
       })
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cargar estadísticas del mes cuando tengamos el doctors.id real
+  useEffect(() => {
+    if (!doctorInfo?.id) return
+    loadStats()
+  }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (horarioOpen) {
       horarioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [horarioOpen])
+
+  useEffect(() => {
+    if (statsOpen) {
+      statsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [statsOpen])
 
   async function fetchData() {
     console.log('[PanelMedico] fetchData START — selectedDate:', selectedDate, '| user.id:', user?.id)
@@ -575,6 +641,70 @@ export default function PanelMedico() {
     }
     setAppointments(appts ?? [])
     setLoading(false)
+  }
+
+  async function loadStats() {
+    if (!doctorInfo?.id) return
+    setLoadingStats(true)
+
+    const today = getLimaToday()
+    const [y, mo] = today.split('-').map(Number)
+
+    // Rango del mes actual en UTC (Lima = UTC-5, inicio del día Lima = 05:00 UTC)
+    const startMonth = new Date(Date.UTC(y, mo - 1, 1, 5, 0, 0)).toISOString()
+    const endMonth   = new Date(Date.UTC(y, mo,     1, 4, 59, 59)).toISOString()
+
+    // Últimos 7 días
+    const startWeekStr = dateStrShift(today, -6)
+    const [wy, wmo, wd] = startWeekStr.split('-').map(Number)
+    const startWeek = new Date(Date.UTC(wy, wmo - 1, wd, 5, 0, 0)).toISOString()
+
+    const [{ data: monthAppts }, { data: weekAppts }] = await Promise.all([
+      supabase
+        .from('appointments')
+        .select('id, precio_total, scheduled_at')
+        .eq('doctor_id', doctorInfo.id)
+        .eq('status', 'done')
+        .gte('scheduled_at', startMonth)
+        .lte('scheduled_at', endMonth),
+      supabase
+        .from('appointments')
+        .select('id, scheduled_at')
+        .eq('doctor_id', doctorInfo.id)
+        .eq('status', 'done')
+        .gte('scheduled_at', startWeek),
+    ])
+
+    const citasMes    = (monthAppts ?? []).length
+    const ingresosMes = (monthAppts ?? []).reduce(
+      (sum, a) => sum + (Number(a.precio_total) || Number(doctorInfo.precio) || 0),
+      0,
+    )
+
+    // Construir datos del gráfico: 7 días de más antiguo a hoy
+    const DAYS_ABR = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+    const chartData = []
+    for (let i = 6; i >= 0; i--) {
+      const dayStr       = dateStrShift(today, -i)
+      const [dy, dm, dd] = dayStr.split('-').map(Number)
+      const dt           = new Date(Date.UTC(dy, dm - 1, dd, 12))
+      const count        = (weekAppts ?? []).filter(a => {
+        const limaDate = new Date(new Date(a.scheduled_at).getTime() - 5 * 3600 * 1000)
+        const limaStr  = [
+          limaDate.getUTCFullYear(),
+          String(limaDate.getUTCMonth() + 1).padStart(2, '0'),
+          String(limaDate.getUTCDate()).padStart(2, '0'),
+        ].join('-')
+        return limaStr === dayStr
+      }).length
+      chartData.push({
+        dia:   i === 0 ? 'Hoy' : DAYS_ABR[dt.getUTCDay()],
+        citas: count,
+      })
+    }
+
+    setStatsData({ citasMes, ingresosMes, chartData })
+    setLoadingStats(false)
   }
 
   async function handleStart(appt) {
@@ -1286,6 +1416,152 @@ export default function PanelMedico() {
               {!doctorInfo?.precio_pendiente_aprobacion && (
                 <div style={{ fontSize: 11, color: C.gray400, marginTop: 6 }}>
                   Precio visible para pacientes al reservar cita
+                </div>
+              )}
+            </div>
+
+            {/* ── Mis estadísticas ─────────────────────────── */}
+            <div
+              ref={statsRef}
+              style={{
+                background: C.white,
+                border: `1.5px solid ${statsOpen ? C.green200 : C.gray200}`,
+                borderRadius: 16,
+                transition: 'border-color 0.2s',
+              }}
+            >
+              {/* Cabecera colapsable */}
+              <button
+                type="button"
+                onClick={() => setStatsOpen(o => !o)}
+                style={{
+                  width: '100%', padding: '12px 14px', background: 'none',
+                  border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>📊</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: C.gray700 }}>
+                    Mis estadísticas
+                  </span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color: C.green700,
+                    background: C.green50, padding: '2px 8px', borderRadius: 10,
+                  }}>
+                    Este mes
+                  </span>
+                </div>
+                <span style={{
+                  fontSize: 11, color: C.gray400,
+                  display: 'inline-block',
+                  transform: statsOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s',
+                }}>▼</span>
+              </button>
+
+              {/* Cuerpo expandido */}
+              {statsOpen && (
+                <div style={{
+                  borderTop: `1px solid ${C.gray100}`,
+                  padding: '12px 14px 14px',
+                  display: 'flex', flexDirection: 'column', gap: 14,
+                }}>
+                  {loadingStats ? (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      gap: 8, padding: '16px 0', color: C.gray400, fontSize: 12,
+                    }}>
+                      <div style={{
+                        width: 16, height: 16, borderRadius: '50%',
+                        border: `2px solid ${C.green100}`, borderTopColor: C.green600,
+                        animation: 'spin 0.7s linear infinite',
+                      }} />
+                      Cargando estadísticas…
+                    </div>
+                  ) : (
+                    <>
+                      {/* Grid 2×2 de métricas */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <StatCard
+                          icon="📋"
+                          value={statsData?.citasMes ?? 0}
+                          label="Citas este mes"
+                        />
+                        <StatCard
+                          icon="💰"
+                          value={`S/. ${statsData?.ingresosMes ?? 0}`}
+                          label="Ingresos del mes"
+                        />
+                        <StatCard
+                          icon="⭐"
+                          value={Number(doctorInfo?.rating ?? 0).toFixed(1)}
+                          label="Rating promedio"
+                          color={C.amber}
+                          stars
+                        />
+                        <StatCard
+                          icon="💬"
+                          value={doctorInfo?.total_reviews ?? 0}
+                          label="Reseñas totales"
+                        />
+                      </div>
+
+                      {/* Gráfico de barras */}
+                      <div>
+                        <div style={{
+                          fontSize: 11, fontWeight: 700, color: C.gray600, marginBottom: 8,
+                        }}>
+                          Citas completadas · Última semana
+                        </div>
+                        <ResponsiveContainer width="100%" height={110}>
+                          <BarChart
+                            data={statsData?.chartData ?? []}
+                            barSize={22}
+                            margin={{ top: 4, right: 0, left: -28, bottom: 0 }}
+                          >
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              stroke={C.gray100}
+                              vertical={false}
+                            />
+                            <XAxis
+                              dataKey="dia"
+                              tick={{ fontSize: 10, fill: C.gray500, fontFamily: 'inherit' }}
+                              axisLine={false}
+                              tickLine={false}
+                            />
+                            <YAxis
+                              allowDecimals={false}
+                              tick={{ fontSize: 9, fill: C.gray400 }}
+                              axisLine={false}
+                              tickLine={false}
+                              width={28}
+                            />
+                            <RechartsTooltip
+                              content={<ChartTooltip />}
+                              cursor={{ fill: C.green50 }}
+                            />
+                            <Bar
+                              dataKey="citas"
+                              fill={C.green500}
+                              radius={[5, 5, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 6, marginTop: 6,
+                        }}>
+                          <div style={{
+                            width: 10, height: 10, borderRadius: 3, background: C.green500, flexShrink: 0,
+                          }} />
+                          <span style={{ fontSize: 10, color: C.gray400 }}>
+                            Citas completadas por día
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>

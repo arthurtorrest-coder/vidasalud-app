@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
@@ -6,6 +6,24 @@ import { useAuthStore } from '../../stores/authStore'
 import TriajeBot from '../../components/TriajeBot'
 import VideoRoom from '../../components/VideoRoom'
 import { C } from '../../lib/tokens'
+
+// Mapa síntoma → especialidad para sugerencias en la búsqueda
+const SYMPTOMS = {
+  'fiebre': 'General', 'gripe': 'General', 'resfriado': 'General', 'cefalea': 'General',
+  'dolor cabeza': 'General', 'dolor de cabeza': 'General',
+  'tos': 'Neumología', 'respira': 'Neumología', 'bronquio': 'Neumología', 'asma': 'Neumología',
+  'diente': 'Odontología', 'muela': 'Odontología', 'caries': 'Odontología', 'boca': 'Odontología',
+  'piel': 'Dermatología', 'acné': 'Dermatología', 'manchas': 'Dermatología', 'sarpullido': 'Dermatología',
+  'niño': 'Pediatría', 'bebé': 'Pediatría', 'infante': 'Pediatría', 'infantil': 'Pediatría',
+  'corazón': 'Cardiología', 'presión': 'Cardiología', 'colesterol': 'Cardiología', 'arritmia': 'Cardiología',
+  'ansiedad': 'Psicología', 'depresión': 'Psicología', 'estrés': 'Psicología', 'tristeza': 'Psicología',
+  'dieta': 'Nutrición', 'obesidad': 'Nutrición', 'adelgazar': 'Nutrición', 'peso': 'Nutrición',
+  'ojo': 'Oftalmología', 'visión': 'Oftalmología', 'vista': 'Oftalmología',
+  'hueso': 'Traumatología', 'rodilla': 'Traumatología', 'fractura': 'Traumatología', 'espalda': 'Traumatología',
+  'diabetes': 'Endocrinología', 'tiroides': 'Endocrinología', 'hormona': 'Endocrinología',
+  'estómago': 'Gastroenterología', 'digestión': 'Gastroenterología', 'reflujo': 'Gastroenterología',
+  'nutrición': 'Nutrición',
+}
 
 const SPECIALTIES = [
   { icon: '🩺', label: 'General',     price: 35 },
@@ -223,30 +241,88 @@ function PromoStrip() {
   )
 }
 
-function SearchBar({ value, onChange }) {
+function SearchResultItem({ doc, onSelect }) {
+  const [pressed, setPressed] = useState(false)
+  return (
+    <div
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={() => { setPressed(false); onSelect() }}
+      onPointerLeave={() => setPressed(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '10px 16px',
+        background: pressed ? C.green50 : C.white,
+        cursor: 'pointer', transition: 'background 0.1s',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <Avatar initials={doc.initials} fotoUrl={doc.fotoUrl} size={38} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {doc.name}
+        </div>
+        <div style={{ fontSize: 11, color: C.gray500, marginTop: 1 }}>
+          {doc.spec}
+          {doc.price > 0 && (
+            <span style={{ color: C.green700, fontWeight: 700, marginLeft: 5 }}>
+              · S/. {doc.price}
+            </span>
+          )}
+        </div>
+      </div>
+      {doc.rating > 0 && (
+        <span style={{ fontSize: 11, color: C.amber, fontWeight: 700, flexShrink: 0 }}>
+          ★ {doc.rating.toFixed(1)}
+        </span>
+      )}
+      <span style={{ color: C.gray300, fontSize: 16, flexShrink: 0 }}>›</span>
+    </div>
+  )
+}
+
+function SearchBar({ value, onChange, onFocus, onBlur }) {
   const [focused, setFocused] = useState(false)
   return (
     <div style={{ position: 'relative', margin: '16px 20px 0' }}>
       <span style={{
         position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
         color: focused ? C.green600 : C.gray500, fontSize: 18, pointerEvents: 'none',
+        zIndex: 1,
       }}>🔍</span>
       <input
         type="text"
         placeholder="Buscar médico, síntoma o especialidad..."
         value={value}
         onChange={e => onChange(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onFocus={() => { setFocused(true); onFocus?.() }}
+        onBlur={() => { setFocused(false); onBlur?.() }}
         style={{
-          width: '100%', padding: '12px 16px 12px 44px',
+          width: '100%', padding: '12px 40px 12px 44px',
           border: `1.5px solid ${focused ? C.green500 : C.gray300}`,
-          borderRadius: 12, fontSize: 13, outline: 'none',
+          borderRadius: focused && value ? '12px 12px 0 0' : 12,
+          fontSize: 13, outline: 'none',
           background: C.white, color: C.gray900,
           boxShadow: focused ? '0 0 0 3px rgba(16,185,129,0.12)' : 'none',
-          transition: 'border-color 0.15s',
+          transition: 'border-color 0.15s, border-radius 0.15s',
         }}
       />
+      {value && (
+        <button
+          type="button"
+          onPointerDown={e => { e.preventDefault(); onChange('') }}
+          style={{
+            position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+            background: C.gray200, border: 'none', borderRadius: '50%',
+            width: 20, height: 20, cursor: 'pointer', padding: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, color: C.gray500, lineHeight: 1,
+            WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          ×
+        </button>
+      )}
     </div>
   )
 }
@@ -430,6 +506,32 @@ export default function Home() {
     navigate(`/medico/${doc.id}`)
   }
 
+  // Especialidad sugerida cuando el texto coincide con un síntoma conocido
+  const symptomSpec = useMemo(() => {
+    if (!search.trim()) return null
+    const q = search.toLowerCase()
+    for (const [kw, spec] of Object.entries(SYMPTOMS)) {
+      if (q.includes(kw)) return spec
+    }
+    return null
+  }, [search])
+
+  // Resultados en tiempo real para el panel de búsqueda
+  const searchResults = useMemo(() => {
+    if (!search.trim()) return []
+    const q = search.toLowerCase()
+    const byName = doctors.filter(d =>
+      d.name.toLowerCase().includes(q) || d.spec.toLowerCase().includes(q)
+    )
+    const bySymptom = symptomSpec
+      ? doctors.filter(d =>
+          d.spec.toLowerCase().includes(symptomSpec.toLowerCase()) &&
+          !byName.some(b => b.id === d.id)
+        )
+      : []
+    return [...byName, ...bySymptom].slice(0, 7)
+  }, [search, doctors, symptomSpec])
+
   const filteredDocs = doctors.filter(d => {
     const q         = search.toLowerCase()
     const specMatch = !selectedSpec || d.spec.toLowerCase().includes(selectedSpec.toLowerCase())
@@ -598,6 +700,123 @@ export default function Home() {
       )}
 
       <SearchBar value={search} onChange={setSearch} />
+
+      {/* ── Panel de búsqueda en tiempo real ── */}
+      {search.trim().length > 0 && (
+        <div style={{
+          margin: '0 20px',
+          background: C.white,
+          border: `1.5px solid ${C.green200}`,
+          borderTop: 'none',
+          borderRadius: '0 0 14px 14px',
+          overflow: 'hidden',
+          boxShadow: '0 8px 24px rgba(5,150,105,0.13)',
+          zIndex: 10,
+        }}>
+
+          {/* Sugerencia de síntoma */}
+          {symptomSpec && (
+            <div
+              onPointerDown={e => {
+                e.preventDefault()
+                setSearch('')
+                setSelectedSpec(symptomSpec)
+              }}
+              style={{
+                padding: '8px 16px', cursor: 'pointer',
+                background: '#FFFBEB',
+                borderBottom: `1px solid #FDE68A`,
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 14 }}>💡</span>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600 }}>
+                  Síntoma detectado · Ver médicos de{' '}
+                </span>
+                <span style={{ fontSize: 11, color: '#92400E', fontWeight: 800 }}>
+                  {symptomSpec}
+                </span>
+              </div>
+              <span style={{ fontSize: 12, color: '#B45309' }}>›</span>
+            </div>
+          )}
+
+          {/* Cabecera de resultados */}
+          <div style={{
+            padding: '8px 16px 6px',
+            background: C.green50,
+            borderBottom: `1px solid ${C.green100}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: C.green800 }}>
+              {searchResults.length > 0
+                ? `${searchResults.length} resultado${searchResults.length !== 1 ? 's' : ''} para "${search}"`
+                : `Sin resultados para "${search}"`}
+            </span>
+            <button
+              type="button"
+              onPointerDown={e => { e.preventDefault(); setSearch('') }}
+              style={{
+                background: 'none', border: 'none', color: C.gray400,
+                fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0,
+              }}
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Lista de resultados */}
+          {searchResults.length === 0 ? (
+            <div style={{
+              padding: '20px 16px', textAlign: 'center',
+              color: C.gray400, fontSize: 12,
+            }}>
+              No encontramos médicos para "{search}".<br />
+              <span style={{ color: C.green700, fontWeight: 600 }}>
+                Intenta con el nombre del médico o una especialidad.
+              </span>
+            </div>
+          ) : (
+            <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+              {searchResults.map((doc, i) => (
+                <div key={doc.id}>
+                  {i > 0 && (
+                    <div style={{ height: 1, background: C.gray100, margin: '0 16px' }} />
+                  )}
+                  <SearchResultItem
+                    doc={doc}
+                    onSelect={() => {
+                      setSearch('')
+                      navigate(`/medico/${doc.id}`)
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pie: ver todos */}
+          {searchResults.length > 0 && (
+            <div style={{ padding: '6px 16px 10px', borderTop: `1px solid ${C.gray100}` }}>
+              <button
+                type="button"
+                onPointerDown={e => { e.preventDefault() }}
+                onClick={() => setSearch(search)}
+                style={{
+                  width: '100%', padding: '7px 0',
+                  background: 'none',
+                  border: `1px solid ${C.green200}`,
+                  borderRadius: 8, fontSize: 11, fontWeight: 700,
+                  color: C.green700, cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Ver todos los resultados en la lista ↓
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Asistente de triaje IA */}
       <button

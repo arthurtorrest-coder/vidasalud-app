@@ -226,12 +226,13 @@ function SoapForm({ soap, onChange, onFinish, saving }) {
 }
 
 // ─── Tarjeta de cita ──────────────────────────────────────────
-function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving, onOpenVideo }) {
+function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving, onOpenVideo, onChat }) {
   const navigate  = useNavigate()
   const patient   = appt.patient
   const name      = patient?.full_name ?? 'Paciente'
   const canStart  = appt.status === 'paid' && !hasAnyActive
   const blocked   = appt.status === 'paid' && hasAnyActive && !isActive
+  const canChat   = ['paid', 'active', 'done'].includes(appt.status)
 
   return (
     <div style={{
@@ -381,6 +382,29 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
           onFinish={onFinish}
           saving={saving}
         />
+      )}
+
+      {/* Botón de chat */}
+      {canChat && (
+        <button
+          type="button"
+          onClick={() => onChat(appt.id)}
+          style={{
+            marginTop: 10, width: '100%', padding: '10px 0',
+            background: C.white,
+            border: `1.5px solid ${C.green200}`,
+            borderRadius: 12, color: C.green700,
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            fontFamily: 'inherit',
+            transition: 'background 0.15s',
+          }}
+          onPointerDown={e => { e.currentTarget.style.background = C.green50 }}
+          onPointerUp={e => { e.currentTarget.style.background = C.white }}
+          onPointerLeave={e => { e.currentTarget.style.background = C.white }}
+        >
+          💬 Chat con {name.split(' ')[0]}
+        </button>
       )}
     </div>
   )
@@ -1848,6 +1872,7 @@ export default function PanelMedico() {
                 onFinish={handleFinish}
                 saving={saving}
                 onOpenVideo={setVideoUrl}
+                onChat={id => navigate(`/chat/${id}`)}
               />
             ))}
 

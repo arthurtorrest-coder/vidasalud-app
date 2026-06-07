@@ -472,6 +472,7 @@ function StatCard({ icon, value, label, color = C.green700, stars = false }) {
 
 // ─── Panel principal ──────────────────────────────────────────
 export default function PanelMedico() {
+  const navigate           = useNavigate()
   const { user, profile } = useAuthStore()
 
   const [appointments,   setAppointments]   = useState([])

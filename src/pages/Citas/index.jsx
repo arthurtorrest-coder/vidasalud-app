@@ -251,11 +251,12 @@ function StatusBadge({ status }) {
   )
 }
 
-function AppointmentCard({ appt, onCancel, onJoin, onCalificar }) {
+function AppointmentCard({ appt, onCancel, onJoin, onCalificar, onChat }) {
   const doc        = appt.doctor
   const canCancel  = ['pending','paid'].includes(appt.status) && isFuture(appt.scheduled_at)
   const canJoin    = appt.status === 'active' && !!appt.video_url
   const isDone     = appt.status === 'done'
+  const canChat    = ['paid','active','done'].includes(appt.status)
   const [showHowTo, setShowHowTo] = useState(false)
 
   return (
@@ -338,21 +339,41 @@ function AppointmentCard({ appt, onCancel, onJoin, onCalificar }) {
         </div>
       )}
 
-      {/* Botón calificar — disponible para consultas completadas */}
-      {isDone && (
-        <button
-          onClick={() => onCalificar(appt.id)}
-          style={{
-            width: '100%', padding: '11px 0',
-            background: C.green50, border: `1.5px solid ${C.green200}`,
-            borderRadius: 12, color: C.green700,
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            fontFamily: 'inherit',
-          }}
-        >
-          ⭐ Calificar consulta
-        </button>
+      {/* Botón chat + calificar */}
+      {(canChat || isDone) && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          {canChat && (
+            <button
+              onClick={() => onChat(appt.id)}
+              style={{
+                flex: 1, padding: '11px 0',
+                background: C.white,
+                border: `1.5px solid ${C.green200}`,
+                borderRadius: 12, color: C.green700,
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                fontFamily: 'inherit',
+              }}
+            >
+              💬 Chat
+            </button>
+          )}
+          {isDone && (
+            <button
+              onClick={() => onCalificar(appt.id)}
+              style={{
+                flex: 1, padding: '11px 0',
+                background: C.green50, border: `1.5px solid ${C.green200}`,
+                borderRadius: 12, color: C.green700,
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                fontFamily: 'inherit',
+              }}
+            >
+              ⭐ Calificar
+            </button>
+          )}
+        </div>
       )}
 
       {showHowTo && <HowToJoinModal onClose={() => setShowHowTo(false)} />}
@@ -605,6 +626,7 @@ export default function Citas() {
             onCancel={setToCancel}
             onJoin={setVideoUrl}
             onCalificar={id => navigate(`/calificar/${id}`)}
+            onChat={id => navigate(`/chat/${id}`)}
           />
         ))}
       </div>

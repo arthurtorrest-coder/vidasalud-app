@@ -23,6 +23,7 @@ import Perfil          from './pages/Perfil'
 import Especialidades  from './screens/Especialidades'
 import Calificacion   from './screens/Calificacion'
 import PerfilMedico   from './screens/PerfilMedico'
+import Chat           from './screens/Chat'
 
 const C = { green100: '#D1FAE5', green600: '#059669', gray100: '#F3F4F6' }
 
@@ -95,6 +96,7 @@ export default function App() {
             <Route path="/especialidades"      element={<Especialidades />} />
             <Route path="/calificar/:appointmentId" element={<Calificacion />} />
             <Route path="/medico/:doctorId"         element={<PerfilMedico />} />
+            <Route path="/chat/:appointmentId"      element={<Chat />} />
           </Route>
         </Route>
 

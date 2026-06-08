@@ -1,4 +1,7 @@
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
 
 const C = {
   green900: '#064E3B',
@@ -61,7 +64,7 @@ function isActive(roots, pathname) {
   return roots.some(r => pathname === r || pathname.startsWith(r + '/'))
 }
 
-function NavItem({ path, icon, label, roots, navigate, pathname }) {
+function NavItem({ path, icon, label, roots, navigate, pathname, badge = 0 }) {
   const active = isActive(roots, pathname)
   return (
     <button
@@ -79,6 +82,7 @@ function NavItem({ path, icon, label, roots, navigate, pathname }) {
       aria-label={label}
     >
       <div style={{
+        position: 'relative',
         width: 44, height: 30, borderRadius: 15,
         background: active ? C.green50 : 'transparent',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -87,6 +91,22 @@ function NavItem({ path, icon, label, roots, navigate, pathname }) {
         <div style={{ color: active ? C.green600 : C.gray500, display: 'flex', transition: 'color 0.2s' }}>
           {icon}
         </div>
+        {badge > 0 && (
+          <div style={{
+            position: 'absolute', top: -2, right: -2,
+            minWidth: 16, height: 16, borderRadius: 8,
+            background: '#EF4444', color: '#FFFFFF',
+            fontSize: 9, fontWeight: 800,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '0 3px',
+            border: '1.5px solid #FFFFFF',
+            boxShadow: '0 1px 4px rgba(239,68,68,0.4)',
+            letterSpacing: 0,
+            lineHeight: 1,
+          }}>
+            {badge > 9 ? '9+' : badge}
+          </div>
+        )}
       </div>
       <span style={{
         fontSize: 12, fontWeight: active ? 700 : 500,
@@ -103,6 +123,46 @@ function NavItem({ path, icon, label, roots, navigate, pathname }) {
 export default function BottomNav() {
   const navigate     = useNavigate()
   const { pathname } = useLocation()
+  const { user }     = useAuthStore()
+  const [unreadMsgs, setUnreadMsgs] = useState(0)
+
+  // Carga inicial de mensajes no leídos
+  useEffect(() => {
+    if (!user?.id) return
+    supabase
+      .from('mensajes')
+      .select('id', { count: 'exact', head: true })
+      .neq('sender_id', user.id)
+      .eq('leido', false)
+      .then(({ count }) => setUnreadMsgs(count ?? 0))
+  }, [user?.id])
+
+  // Realtime: +1 al llegar mensaje nuevo, -1 al marcarse como leído
+  useEffect(() => {
+    if (!user?.id) return
+    const ch = supabase
+      .channel(`bottomnav-unread-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'mensajes' },
+        payload => {
+          if (payload.new.sender_id !== user.id) {
+            setUnreadMsgs(n => n + 1)
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'mensajes' },
+        payload => {
+          if (payload.new.leido && !payload.old?.leido && payload.new.sender_id !== user.id) {
+            setUnreadMsgs(n => Math.max(0, n - 1))
+          }
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [user?.id])
 
   return (
     <div style={{

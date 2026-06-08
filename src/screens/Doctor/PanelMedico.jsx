@@ -226,7 +226,7 @@ function SoapForm({ soap, onChange, onFinish, saving }) {
 }
 
 // ─── Tarjeta de cita ──────────────────────────────────────────
-function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving, onOpenVideo, onChat }) {
+function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving, onOpenVideo, onChat, unreadCount = 0 }) {
   const navigate  = useNavigate()
   const patient   = appt.patient
   const name      = patient?.full_name ?? 'Paciente'
@@ -390,9 +390,10 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
           type="button"
           onClick={() => onChat(appt.id)}
           style={{
+            position: 'relative',
             marginTop: 10, width: '100%', padding: '10px 0',
-            background: C.white,
-            border: `1.5px solid ${C.green200}`,
+            background: unreadCount > 0 ? C.green50 : C.white,
+            border: `1.5px solid ${unreadCount > 0 ? C.green300 : C.green200}`,
             borderRadius: 12, color: C.green700,
             fontSize: 13, fontWeight: 700, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -400,10 +401,25 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
             transition: 'background 0.15s',
           }}
           onPointerDown={e => { e.currentTarget.style.background = C.green50 }}
-          onPointerUp={e => { e.currentTarget.style.background = C.white }}
-          onPointerLeave={e => { e.currentTarget.style.background = C.white }}
+          onPointerUp={e => { e.currentTarget.style.background = unreadCount > 0 ? C.green50 : C.white }}
+          onPointerLeave={e => { e.currentTarget.style.background = unreadCount > 0 ? C.green50 : C.white }}
         >
           💬 Chat con {name.split(' ')[0]}
+          {unreadCount > 0 && (
+            <span style={{
+              position: 'absolute', top: -6, right: 10,
+              minWidth: 18, height: 18, borderRadius: 9,
+              background: '#EF4444', color: '#FFFFFF',
+              fontSize: 10, fontWeight: 800,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '0 4px',
+              border: '2px solid #FFFFFF',
+              boxShadow: '0 1px 4px rgba(239,68,68,0.45)',
+              letterSpacing: 0,
+            }}>
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </button>
       )}
     </div>
@@ -507,6 +523,7 @@ export default function PanelMedico() {
   const [statsOpen,    setStatsOpen]    = useState(false)
   const [statsData,    setStatsData]    = useState(null)
   const [loadingStats, setLoadingStats] = useState(false)
+  const [unreadCounts, setUnreadCounts] = useState({})   // { [appointmentId]: number }
 
   const activeAppt  = useMemo(() => appointments.find(a => a.status === 'active') ?? null, [appointments])
   const hasAnyActive = activeAppt !== null
@@ -598,6 +615,87 @@ export default function PanelMedico() {
     }
   }, [statsOpen])
 
+  // Realtime: mensajes nuevos de pacientes → badge + toast
+  useEffect(() => {
+    if (!doctorInfo?.id || !user?.id || appointments.length === 0) return
+    const apptMap = new Map(appointments.map(a => [a.id, a]))
+
+    const ch = supabase
+      .channel(`panel-chat-${doctorInfo.id}-${selectedDate}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'mensajes' },
+        payload => {
+          const msg = payload.new
+          if (msg.sender_id === user.id) return          // mensaje propio
+          if (!apptMap.has(msg.appointment_id)) return   // no es de una cita de hoy
+
+          // Incrementar badge
+          setUnreadCounts(prev => ({
+            ...prev,
+            [msg.appointment_id]: (prev[msg.appointment_id] ?? 0) + 1,
+          }))
+
+          // Toast clickeable que lleva al chat
+          const appt        = apptMap.get(msg.appointment_id)
+          const patientName = appt?.patient?.full_name ?? 'Paciente'
+          const preview     = msg.contenido.length > 55
+            ? msg.contenido.slice(0, 55) + '…'
+            : msg.contenido
+
+          toast.custom(t => (
+            <div
+              onClick={() => { navigate(`/chat/${msg.appointment_id}`); toast.dismiss(t.id) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: '#FFFFFF', borderRadius: 14, padding: '11px 15px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.14)',
+                border: '1.5px solid #D1FAE5',
+                cursor: 'pointer', maxWidth: 320,
+                fontFamily: 'inherit',
+                opacity: t.visible ? 1 : 0,
+                transition: 'opacity 0.25s',
+              }}
+            >
+              <span style={{ fontSize: 22, flexShrink: 0 }}>💬</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#047857' }}>
+                  Mensaje de {patientName}
+                </div>
+                <div style={{
+                  fontSize: 12, color: '#6B7280', marginTop: 2,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {preview}
+                </div>
+              </div>
+              <span style={{ fontSize: 11, color: '#059669', fontWeight: 700, flexShrink: 0 }}>
+                Ver →
+              </span>
+            </div>
+          ), { duration: 6000 })
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'mensajes' },
+        payload => {
+          const msg = payload.new
+          if (!apptMap.has(msg.appointment_id)) return
+          // Si se marcó como leído, decrementar contador
+          if (msg.leido && !payload.old?.leido && msg.sender_id !== user.id) {
+            setUnreadCounts(prev => ({
+              ...prev,
+              [msg.appointment_id]: Math.max(0, (prev[msg.appointment_id] ?? 1) - 1),
+            }))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(ch) }
+  }, [doctorInfo?.id, user?.id, appointments, selectedDate]) // eslint-disable-line react-hooks/exhaustive-deps
+
   async function fetchData() {
     console.log('[PanelMedico] fetchData START — selectedDate:', selectedDate, '| user.id:', user?.id)
     setLoading(true)
@@ -666,6 +764,23 @@ export default function PanelMedico() {
     }
     setAppointments(appts ?? [])
     setLoading(false)
+    loadUnreadCounts(appts ?? [])
+  }
+
+  async function loadUnreadCounts(appts) {
+    if (!user?.id || !appts.length) return
+    const ids = appts.map(a => a.id)
+    const { data } = await supabase
+      .from('mensajes')
+      .select('appointment_id')
+      .in('appointment_id', ids)
+      .neq('sender_id', user.id)
+      .eq('leido', false)
+    const counts = {}
+    ;(data ?? []).forEach(m => {
+      counts[m.appointment_id] = (counts[m.appointment_id] ?? 0) + 1
+    })
+    setUnreadCounts(counts)
   }
 
   async function loadStats() {
@@ -1874,6 +1989,7 @@ export default function PanelMedico() {
                 saving={saving}
                 onOpenVideo={setVideoUrl}
                 onChat={id => navigate(`/chat/${id}`)}
+                unreadCount={unreadCounts[appt.id] ?? 0}
               />
             ))}
 

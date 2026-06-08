@@ -174,18 +174,18 @@ function DoctorSkeleton() {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 14,
-      background: C.white, border: `1.5px solid ${C.gray300}`,
+      background: C.white, border: `1.5px solid ${C.gray200}`,
       borderRadius: 16, padding: '14px 16px',
     }}>
-      <div style={{ width: 52, height: 52, borderRadius: '50%', background: C.gray100, flexShrink: 0 }} />
+      <div className="vs-shimmer" style={{ width: 52, height: 52, borderRadius: '50%', flexShrink: 0 }} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ height: 14, width: '60%', background: C.gray100, borderRadius: 6 }} />
-        <div style={{ height: 12, width: '80%', background: C.gray100, borderRadius: 6 }} />
-        <div style={{ height: 12, width: '40%', background: C.gray100, borderRadius: 6 }} />
+        <div className="vs-shimmer" style={{ height: 14, width: '60%', borderRadius: 6 }} />
+        <div className="vs-shimmer" style={{ height: 12, width: '80%', borderRadius: 6 }} />
+        <div className="vs-shimmer" style={{ height: 12, width: '40%', borderRadius: 6 }} />
       </div>
       <div style={{ width: 56, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-        <div style={{ height: 16, width: 48, background: C.gray100, borderRadius: 6 }} />
-        <div style={{ height: 24, width: 56, background: C.gray100, borderRadius: 8 }} />
+        <div className="vs-shimmer" style={{ height: 16, width: 48, borderRadius: 6 }} />
+        <div className="vs-shimmer" style={{ height: 24, width: 56, borderRadius: 8 }} />
       </div>
     </div>
   )
@@ -926,9 +926,17 @@ export default function Home() {
           </div>
         )}
 
-        {/* Lista de médicos */}
-        {!loadingDocs && !errorDocs && filteredDocs.map(d => (
-          <DoctorCard key={d.id} doc={d} onBook={handleBook} />
+        {/* Lista de médicos — entrada escalonada */}
+        {!loadingDocs && !errorDocs && filteredDocs.map((d, i) => (
+          <div
+            key={d.id}
+            style={{
+              animation: 'cardIn 0.32s ease both',
+              animationDelay: `${Math.min(i, 6) * 55}ms`,
+            }}
+          >
+            <DoctorCard doc={d} onBook={handleBook} />
+          </div>
         ))}
       </div>
 

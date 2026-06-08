@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
@@ -65,7 +65,20 @@ function isActive(roots, pathname) {
 }
 
 function NavItem({ path, icon, label, roots, navigate, pathname, badge = 0 }) {
-  const active = isActive(roots, pathname)
+  const active     = isActive(roots, pathname)
+  const prevActive = useRef(false)
+  const [bounce, setBounce] = useState(false)
+
+  useEffect(() => {
+    if (active && !prevActive.current) {
+      setBounce(true)
+      prevActive.current = true
+      const t = setTimeout(() => setBounce(false), 420)
+      return () => clearTimeout(t)
+    }
+    if (!active) prevActive.current = false
+  }, [active])
+
   return (
     <button
       onClick={() => navigate(path)}
@@ -88,7 +101,11 @@ function NavItem({ path, icon, label, roots, navigate, pathname, badge = 0 }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'background 0.2s',
       }}>
-        <div style={{ color: active ? C.green600 : C.gray500, display: 'flex', transition: 'color 0.2s' }}>
+        <div style={{
+          color: active ? C.green600 : C.gray500, display: 'flex',
+          transition: 'color 0.2s',
+          animation: bounce ? 'navBounce 0.42s ease' : 'none',
+        }}>
           {icon}
         </div>
         {badge > 0 && (
@@ -174,7 +191,13 @@ export default function BottomNav() {
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     }}>
       {LEFT_ITEMS.map(item => (
-        <NavItem key={item.path} {...item} navigate={navigate} pathname={pathname} />
+        <NavItem
+          key={item.path}
+          {...item}
+          navigate={navigate}
+          pathname={pathname}
+          badge={item.path === '/citas' ? unreadMsgs : 0}
+        />
       ))}
 
       {/* CTA central — sube visualmente sobre los íconos laterales */}

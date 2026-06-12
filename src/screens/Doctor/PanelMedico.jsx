@@ -525,6 +525,16 @@ export default function PanelMedico() {
   const [loadingStats, setLoadingStats] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState({})   // { [appointmentId]: number }
 
+  // ── Formulario "Mi perfil" ────────────────────────────────
+  const perfilRef   = useRef(null)
+  const [perfilOpen,   setPerfilOpen]   = useState(false)
+  const [editNombres,  setEditNombres]  = useState('')
+  const [editApells,   setEditApells]   = useState('')
+  const [editEsp,      setEditEsp]      = useState('')
+  const [editBio,      setEditBio]      = useState('')
+  const [editAnosExp,  setEditAnosExp]  = useState('')
+  const [savingPerfil, setSavingPerfil] = useState(false)
+
   const activeAppt  = useMemo(() => appointments.find(a => a.status === 'active') ?? null, [appointments])
   const hasAnyActive = activeAppt !== null
 
@@ -614,6 +624,12 @@ export default function PanelMedico() {
       statsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [statsOpen])
+
+  useEffect(() => {
+    if (perfilOpen) {
+      perfilRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [perfilOpen])
 
   // Realtime: mensajes nuevos de pacientes → badge + toast
   useEffect(() => {
@@ -705,14 +721,14 @@ export default function PanelMedico() {
     let info = null
     const { data: byId } = await supabase
       .from('doctors')
-      .select('id, activo, especialidad, cmp, profile_id, foto_url, firma_url, precio, precio_propuesto, precio_pendiente_aprobacion, rating, total_reviews')
+      .select('id, activo, nombres, apellidos, especialidad, cmp, bio, anos_experiencia, profile_id, foto_url, firma_url, precio, precio_propuesto, precio_pendiente_aprobacion, rating, total_reviews')
       .eq('id', user.id)
       .maybeSingle()
     info = byId
     if (!info) {
       const { data: byProfile } = await supabase
         .from('doctors')
-        .select('id, activo, especialidad, cmp, profile_id, foto_url, firma_url, precio, precio_propuesto, precio_pendiente_aprobacion, rating, total_reviews')
+        .select('id, activo, nombres, apellidos, especialidad, cmp, bio, anos_experiencia, profile_id, foto_url, firma_url, precio, precio_propuesto, precio_pendiente_aprobacion, rating, total_reviews')
         .eq('profile_id', user.id)
         .maybeSingle()
       info = byProfile
@@ -731,6 +747,11 @@ export default function PanelMedico() {
     setFotoUrl(info.foto_url ?? null)
     setFirmaUrl(info.firma_url ?? null)
     setPrecio(info.precio ?? '')
+    setEditNombres(info.nombres   ?? '')
+    setEditApells(info.apellidos  ?? '')
+    setEditEsp(info.especialidad  ?? '')
+    setEditBio(info.bio           ?? '')
+    setEditAnosExp(info.anos_experiencia != null ? String(info.anos_experiencia) : '')
 
     // Paso 2: citas usando doctors.id (no user.id)
     const [y, mo, d] = selectedDate.split('-').map(Number)
@@ -781,6 +802,39 @@ export default function PanelMedico() {
       counts[m.appointment_id] = (counts[m.appointment_id] ?? 0) + 1
     })
     setUnreadCounts(counts)
+  }
+
+  async function handleSavePerfil() {
+    if (!doctorInfo?.id) return
+    const n = editNombres.trim()
+    const a = editApells.trim()
+    if (!n || !a) { toast.error('Nombres y apellidos son obligatorios'); return }
+    if (editBio.length > 300) { toast.error('La bio no puede superar 300 caracteres'); return }
+    const anosNum = editAnosExp !== '' ? Number(editAnosExp) : null
+    if (editAnosExp !== '' && (isNaN(anosNum) || anosNum < 0 || anosNum > 60)) {
+      toast.error('Años de experiencia debe ser un número entre 0 y 60')
+      return
+    }
+    setSavingPerfil(true)
+    const { data, error } = await supabase
+      .from('doctors')
+      .update({
+        nombres:          n,
+        apellidos:        a,
+        especialidad:     editEsp.trim() || null,
+        bio:              editBio.trim() || null,
+        anos_experiencia: anosNum,
+      })
+      .eq('id', doctorInfo.id)
+      .select()
+      .single()
+    setSavingPerfil(false)
+    if (error) {
+      toast.error('No se pudo guardar el perfil: ' + error.message)
+    } else {
+      setDoctorInfo(prev => ({ ...prev, ...data }))
+      toast.success('✅ Perfil actualizado correctamente', { duration: 4000 })
+    }
   }
 
   async function loadStats() {
@@ -1486,6 +1540,220 @@ export default function PanelMedico() {
                   {uploadingFirma ? 'Subiendo…' : firmaUrl ? 'Cambiar' : 'Subir firma'}
                 </span>
               </label>
+            </div>
+
+            {/* ── Mi perfil — datos personales ─────────────── */}
+            <div
+              ref={perfilRef}
+              style={{
+                background: C.white,
+                border: `1.5px solid ${perfilOpen ? C.green200 : C.gray200}`,
+                borderRadius: 16,
+                transition: 'border-color 0.2s',
+              }}
+            >
+              {/* Cabecera colapsable */}
+              <button
+                type="button"
+                onClick={() => setPerfilOpen(o => !o)}
+                style={{
+                  width: '100%', padding: '12px 14px', background: 'none',
+                  border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>👤</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: C.gray700 }}>
+                    Mi perfil
+                  </span>
+                  {(editNombres || editApells) && !perfilOpen && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, color: C.green700,
+                      background: C.green50, padding: '2px 8px', borderRadius: 10,
+                    }}>
+                      {editNombres} {editApells}
+                    </span>
+                  )}
+                </div>
+                <span style={{
+                  fontSize: 11, color: C.gray400, display: 'inline-block',
+                  transform: perfilOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s',
+                }}>▼</span>
+              </button>
+
+              {/* Cuerpo expandido */}
+              {perfilOpen && (
+                <div style={{
+                  borderTop: `1px solid ${C.gray100}`,
+                  padding: '12px 14px 14px',
+                  display: 'flex', flexDirection: 'column', gap: 12,
+                }}>
+
+                  {/* Nombres y apellidos en fila */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.gray600, display: 'block', marginBottom: 5 }}>
+                        Nombres
+                      </label>
+                      <input
+                        type="text"
+                        value={editNombres}
+                        onChange={e => setEditNombres(e.target.value)}
+                        placeholder="Ej: Carlos"
+                        style={{
+                          width: '100%', padding: '9px 11px',
+                          border: `1.5px solid ${C.gray300}`, borderRadius: 9,
+                          fontSize: 13, color: C.gray900, outline: 'none',
+                          fontFamily: 'inherit', background: C.white,
+                          transition: 'border-color 0.15s',
+                        }}
+                        onFocus={e => { e.target.style.borderColor = C.green500 }}
+                        onBlur={e => { e.target.style.borderColor = C.gray300 }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.gray600, display: 'block', marginBottom: 5 }}>
+                        Apellidos
+                      </label>
+                      <input
+                        type="text"
+                        value={editApells}
+                        onChange={e => setEditApells(e.target.value)}
+                        placeholder="Ej: Rodríguez"
+                        style={{
+                          width: '100%', padding: '9px 11px',
+                          border: `1.5px solid ${C.gray300}`, borderRadius: 9,
+                          fontSize: 13, color: C.gray900, outline: 'none',
+                          fontFamily: 'inherit', background: C.white,
+                          transition: 'border-color 0.15s',
+                        }}
+                        onFocus={e => { e.target.style.borderColor = C.green500 }}
+                        onBlur={e => { e.target.style.borderColor = C.gray300 }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Especialidad */}
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: C.gray600, display: 'block', marginBottom: 5 }}>
+                      Especialidad
+                    </label>
+                    <select
+                      value={editEsp}
+                      onChange={e => setEditEsp(e.target.value)}
+                      style={{
+                        width: '100%', padding: '9px 11px',
+                        border: `1.5px solid ${C.gray300}`, borderRadius: 9,
+                        fontSize: 13, color: editEsp ? C.gray900 : C.gray400,
+                        outline: 'none', fontFamily: 'inherit', background: C.white,
+                        cursor: 'pointer',
+                        appearance: 'none', WebkitAppearance: 'none',
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236B7280'/%3E%3C/svg%3E")`,
+                        backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center',
+                        paddingRight: 32,
+                      }}
+                    >
+                      <option value="">— Selecciona tu especialidad —</option>
+                      {[
+                        'Medicina General','Pediatría','Psicología','Nutrición',
+                        'Cardiología','Odontología','Oftalmología','Traumatología',
+                        'Dermatología','Endocrinología','Neumología','Gastroenterología',
+                        'Ginecología','Urología','Neurología','Reumatología','Oncología',
+                      ].map(esp => (
+                        <option key={esp} value={esp}>{esp}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Bio */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 5 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.gray600 }}>
+                        Presentación / Bio
+                      </label>
+                      <span style={{
+                        fontSize: 10, color: editBio.length > 270 ? (editBio.length > 300 ? '#EF4444' : C.amberText) : C.gray400,
+                        fontWeight: editBio.length > 270 ? 700 : 500,
+                      }}>
+                        {editBio.length}/300
+                      </span>
+                    </div>
+                    <textarea
+                      value={editBio}
+                      onChange={e => setEditBio(e.target.value)}
+                      placeholder="Describe tu experiencia y enfoque de atención. Los pacientes lo verán en tu perfil."
+                      rows={4}
+                      maxLength={300}
+                      style={{
+                        width: '100%', padding: '9px 11px',
+                        border: `1.5px solid ${editBio.length > 300 ? '#EF4444' : C.gray300}`,
+                        borderRadius: 9, fontSize: 12, color: C.gray900,
+                        outline: 'none', resize: 'vertical', fontFamily: 'inherit',
+                        lineHeight: 1.55, background: C.white,
+                        transition: 'border-color 0.15s',
+                        maxHeight: 120,
+                      }}
+                      onFocus={e => { e.target.style.borderColor = C.green500 }}
+                      onBlur={e => { e.target.style.borderColor = editBio.length > 300 ? '#EF4444' : C.gray300 }}
+                    />
+                  </div>
+
+                  {/* Años de experiencia */}
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: C.gray600, display: 'block', marginBottom: 5 }}>
+                      Años de experiencia
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="number"
+                        min={0}
+                        max={60}
+                        value={editAnosExp}
+                        onChange={e => setEditAnosExp(e.target.value)}
+                        placeholder="Ej: 8"
+                        style={{
+                          width: 90, padding: '9px 11px',
+                          border: `1.5px solid ${C.gray300}`, borderRadius: 9,
+                          fontSize: 13, color: C.gray900, outline: 'none',
+                          fontFamily: 'inherit', background: C.white,
+                          transition: 'border-color 0.15s',
+                        }}
+                        onFocus={e => { e.target.style.borderColor = C.green500 }}
+                        onBlur={e => { e.target.style.borderColor = C.gray300 }}
+                      />
+                      <span style={{ fontSize: 12, color: C.gray500 }}>años de práctica clínica</span>
+                    </div>
+                  </div>
+
+                  {/* Botón guardar */}
+                  <button
+                    type="button"
+                    onClick={handleSavePerfil}
+                    disabled={savingPerfil}
+                    style={{
+                      width: '100%', padding: '12px 0',
+                      background: savingPerfil
+                        ? C.green100
+                        : `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
+                      color: savingPerfil ? C.green700 : C.white,
+                      border: 'none', borderRadius: 11,
+                      fontSize: 13, fontWeight: 800,
+                      cursor: savingPerfil ? 'not-allowed' : 'pointer',
+                      boxShadow: savingPerfil ? 'none' : '0 3px 12px rgba(5,150,105,0.28)',
+                      transition: 'all 0.15s', fontFamily: 'inherit',
+                      marginTop: 2,
+                    }}
+                  >
+                    {savingPerfil ? 'Guardando…' : '💾 Guardar cambios'}
+                  </button>
+
+                  <div style={{ fontSize: 10, color: C.gray400, textAlign: 'center' }}>
+                    Los cambios son visibles para pacientes de inmediato
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ── Mi tarifa ────────────────────────────────── */}

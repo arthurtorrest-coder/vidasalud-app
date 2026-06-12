@@ -284,7 +284,7 @@ function SearchResultItem({ doc, onSelect }) {
 function SearchBar({ value, onChange, onFocus, onBlur }) {
   const [focused, setFocused] = useState(false)
   return (
-    <div style={{ position: 'relative', margin: '16px 20px 0' }}>
+    <div data-tour="search" style={{ position: 'relative', margin: '16px 20px 0' }}>
       <span style={{
         position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
         color: focused ? C.green600 : C.gray500, fontSize: 18, pointerEvents: 'none',
@@ -866,6 +866,7 @@ export default function Home() {
       </div>
       <div style={{ padding: '10px 20px 0' }}>
         <button
+          data-tour="especialidades-btn"
           onClick={() => navigate('/especialidades')}
           style={{
             width: '100%', padding: '12px 0',
@@ -930,6 +931,7 @@ export default function Home() {
         {!loadingDocs && !errorDocs && filteredDocs.map((d, i) => (
           <div
             key={d.id}
+            data-tour={i === 0 ? 'doctor-card' : undefined}
             style={{
               animation: 'cardIn 0.32s ease both',
               animationDelay: `${Math.min(i, 6) * 55}ms`,

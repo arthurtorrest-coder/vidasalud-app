@@ -337,6 +337,22 @@ export default function Perfil() {
           </div>
         </div>
 
+        {/* Botón "Ver tutorial" */}
+        <button
+          onClick={() => {
+            localStorage.removeItem('vidasalud_tour_v1')
+            navigate('/inicio')
+          }}
+          style={{
+            width: '100%', background: C.green50, border: `1.5px solid ${C.green100}`,
+            color: C.green700, borderRadius: 14, padding: '14px 0',
+            fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          <span>🎓</span> Ver tutorial de la app
+        </button>
+
         <button
           onClick={() => setShowLogout(true)}
           style={{

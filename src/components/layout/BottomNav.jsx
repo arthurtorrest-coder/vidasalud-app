@@ -64,7 +64,7 @@ function isActive(roots, pathname) {
   return roots.some(r => pathname === r || pathname.startsWith(r + '/'))
 }
 
-function NavItem({ path, icon, label, roots, navigate, pathname, badge = 0 }) {
+function NavItem({ path, icon, label, roots, navigate, pathname, badge = 0, dataTour }) {
   const active     = isActive(roots, pathname)
   const prevActive = useRef(false)
   const [bounce, setBounce] = useState(false)
@@ -82,6 +82,7 @@ function NavItem({ path, icon, label, roots, navigate, pathname, badge = 0 }) {
   return (
     <button
       onClick={() => navigate(path)}
+      data-tour={dataTour}
       style={{
         flex: 1, background: 'none', border: 'none', cursor: 'pointer',
         display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -197,6 +198,7 @@ export default function BottomNav() {
           navigate={navigate}
           pathname={pathname}
           badge={item.path === '/citas' ? unreadMsgs : 0}
+          dataTour={item.path === '/citas' ? 'nav-citas' : undefined}
         />
       ))}
 
@@ -206,6 +208,7 @@ export default function BottomNav() {
         alignItems: 'center', gap: 4, paddingBottom: 12,
       }}>
         <button
+          data-tour="nav-consultar"
           onClick={() => navigate('/especialidades')}
           style={{
             width: 52, height: 52, borderRadius: '50%',

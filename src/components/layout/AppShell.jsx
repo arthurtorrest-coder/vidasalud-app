@@ -1,13 +1,30 @@
+import { useState, useEffect, useRef } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import BottomNav from './BottomNav'
+import TourGuiado, { TOUR_KEY } from '../TourGuiado'
+import BotoAyuda from '../BotoAyuda'
 
 const now = new Date().toLocaleTimeString('es-PE', {
   hour: '2-digit', minute: '2-digit', timeZone: 'America/Lima',
 })
 
 export default function AppShell() {
-  const { pathname } = useLocation()
+  const { pathname }   = useLocation()
+  const containerRef   = useRef(null)
+  const [showTour, setShowTour] = useState(false)
+
+  // Mostrar tour automáticamente la primera vez que el paciente entra al Home
+  useEffect(() => {
+    if (pathname === '/inicio') {
+      const done = localStorage.getItem(TOUR_KEY) === 'true'
+      if (!done) setShowTour(true)
+    } else {
+      // Ocultar si navegamos fuera (sin marcar como completado)
+      // — el tour se retomará cuando vuelva a /inicio
+    }
+  }, [pathname])
+
   return (
     <>
       <style>{`
@@ -84,18 +101,21 @@ export default function AppShell() {
         display: 'flex', justifyContent: 'center',
         minHeight: '100vh', padding: '20px 0',
       }}>
-        <div style={{
-          width: 390,
-          background: '#FFFFFF',
-          borderRadius: 32,
-          overflow: 'hidden',
-          border: '1.5px solid #D1D5DB',
-          display: 'flex',
-          flexDirection: 'column',
-          maxHeight: 780,
-          animation: 'slideDown 0.4s ease',
-          position: 'relative',
-        }}>
+        <div
+          ref={containerRef}
+          style={{
+            width: 390,
+            background: '#FFFFFF',
+            borderRadius: 32,
+            overflow: 'hidden',
+            border: '1.5px solid #D1D5DB',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: 780,
+            animation: 'slideDown 0.4s ease',
+            position: 'relative',
+          }}
+        >
           {/* Status bar */}
           <div style={{
             background: '#065F46', color: '#FFFFFF',
@@ -117,6 +137,17 @@ export default function AppShell() {
           </div>
 
           <BottomNav />
+
+          {/* ── Tour guiado (solo en /inicio si no completado) ── */}
+          {showTour && pathname === '/inicio' && (
+            <TourGuiado
+              containerRef={containerRef}
+              onEnd={() => setShowTour(false)}
+            />
+          )}
+
+          {/* ── Botón de ayuda flotante (visible en todas las rutas) ── */}
+          {!showTour && <BotoAyuda />}
         </div>
       </div>
 

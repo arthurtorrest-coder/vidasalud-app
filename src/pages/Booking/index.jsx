@@ -298,12 +298,170 @@ function ResumenFila({ label, value, grande }) {
   )
 }
 
+/* ── Modal: completa tu perfil antes de reservar ──────────────── */
+function ProfileCompleteModal({ onSaved, onClose }) {
+  const { user, profile, setProfile } = useAuthStore()
+  const [dni,      setDni]      = useState(profile?.dni   ?? '')
+  const [phone,    setPhone]    = useState(profile?.phone ?? '')
+  const [dniErr,   setDniErr]   = useState('')
+  const [phoneErr, setPhoneErr] = useState('')
+  const [saving,   setSaving]   = useState(false)
+
+  async function handleSave() {
+    let ok = true
+    if (!dni || !/^\d{8}$/.test(dni))      { setDniErr('Debe tener 8 dígitos');    ok = false } else setDniErr('')
+    if (!phone || !/^\d{9,}$/.test(phone)) { setPhoneErr('Mínimo 9 dígitos');      ok = false } else setPhoneErr('')
+    if (!ok) return
+
+    setSaving(true)
+    const { data } = await supabase
+      .from('profiles')
+      .update({ dni: dni.trim(), phone: phone.trim() })
+      .eq('id', user.id)
+      .select()
+      .single()
+    if (data) setProfile(data)
+    setSaving(false)
+    onSaved()
+  }
+
+  const inp = (err) => ({
+    width: '100%', padding: '13px 14px',
+    border: `1.5px solid ${err ? C.red600 : C.gray300}`,
+    borderRadius: 12, fontSize: 15, color: C.gray900,
+    background: err ? '#FEF2F2' : C.white,
+    outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.15s',
+  })
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.52)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 390,
+          background: C.white, borderRadius: '22px 22px 0 0',
+          padding: '20px 24px 36px',
+          display: 'flex', flexDirection: 'column', gap: 16,
+          boxShadow: '0 -8px 30px rgba(0,0,0,0.15)',
+          animation: 'slideUp 0.28s cubic-bezier(0.4,0,0.2,1)',
+        }}
+      >
+        {/* Drag handle */}
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: C.gray200, margin: '-4px auto 0' }} />
+
+        {/* Header */}
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 22, marginBottom: 6 }}>📋</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.gray900 }}>
+            ¡Casi listo!
+          </div>
+          <div style={{ fontSize: 13, color: C.gray500, marginTop: 4, lineHeight: 1.5 }}>
+            Necesitamos tu DNI y teléfono para confirmar la cita y enviarte recordatorios.
+          </div>
+        </div>
+
+        {/* DNI */}
+        <div>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.gray700, marginBottom: 6 }}>
+            DNI (8 dígitos)
+          </label>
+          <input
+            type="tel" inputMode="numeric" maxLength={8}
+            value={dni}
+            onChange={e => setDni(e.target.value.replace(/\D/g, ''))}
+            placeholder="12345678"
+            style={inp(dniErr)}
+          />
+          {dniErr && (
+            <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: C.red600, fontWeight: 600 }}>
+              ⚠ {dniErr}
+            </span>
+          )}
+        </div>
+
+        {/* Teléfono */}
+        <div>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.gray700, marginBottom: 6 }}>
+            Teléfono (9 dígitos)
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              padding: '13px 12px', border: `1.5px solid ${C.gray300}`,
+              borderRadius: 12, fontSize: 14, color: C.gray500,
+              background: C.gray100, flexShrink: 0, fontWeight: 600,
+            }}>+51</span>
+            <input
+              type="tel" inputMode="numeric" maxLength={9}
+              value={phone}
+              onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+              placeholder="987654321"
+              style={{ ...inp(phoneErr), flex: 1 }}
+            />
+          </div>
+          {phoneErr && (
+            <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: C.red600, fontWeight: 600 }}>
+              ⚠ {phoneErr}
+            </span>
+          )}
+        </div>
+
+        {/* Privacidad */}
+        <div style={{
+          background: C.green50, border: `1px solid ${C.green100}`,
+          borderRadius: 10, padding: '9px 13px',
+          fontSize: 11, color: C.green700, lineHeight: 1.5,
+          display: 'flex', gap: 8, alignItems: 'flex-start',
+        }}>
+          <span style={{ flexShrink: 0 }}>🔒</span>
+          Datos protegidos bajo Ley 29733. Solo se usan para tu atención médica.
+        </div>
+
+        {/* Botones */}
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            width: '100%', padding: '15px 0',
+            background: saving ? C.green100 : `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
+            color: saving ? C.green700 : C.white,
+            border: 'none', borderRadius: 13,
+            fontSize: 15, fontWeight: 800,
+            cursor: saving ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit', transition: 'all 0.15s',
+            boxShadow: saving ? 'none' : '0 4px 14px rgba(5,150,105,0.3)',
+          }}
+        >
+          {saving ? 'Guardando…' : 'Confirmar datos y reservar →'}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            width: '100%', padding: '13px 0',
+            background: 'none', border: `1.5px solid ${C.gray200}`,
+            borderRadius: 13, color: C.gray500,
+            fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /* ── Página de reserva ───────────────────────────────────────── */
 export default function Booking() {
   const { doctorId } = useParams()
   const navigate     = useNavigate()
-  const { user }     = useAuthStore()
+  const { user, profile, setProfile } = useAuthStore()
 
+  const [needsProfile, setNeedsProfile] = useState(false)
   const [doctor,          setDoctor]          = useState(null)
   const [loadingDoctor,   setLoadingDoctor]   = useState(true)
   const [weekOffset,           setWeekOffset]           = useState(0)
@@ -396,15 +554,11 @@ export default function Booking() {
   }, [selectedDate, doctorId])
 
   /* crear cita y navegar al pago */
-  async function handleConfirm() {
-    if (!selectedTime) { toast.error('Selecciona un horario'); return }
-    if (motivo.trim().length < 10) { toast.error('Describe el motivo (mínimo 10 caracteres)'); return }
-
+  async function proceedWithBooking() {
     setSubmitting(true)
     const scheduledAt = new Date(
       `${format(selectedDate, 'yyyy-MM-dd')}T${selectedTime}:00-05:00`
     )
-
     const { data, error } = await supabase
       .from('appointments')
       .insert({
@@ -417,9 +571,7 @@ export default function Booking() {
       })
       .select('id')
       .single()
-
     setSubmitting(false)
-
     if (error) {
       console.error('[Booking] appointments insert error:', error)
       if (error.code === '23505') {
@@ -432,6 +584,19 @@ export default function Booking() {
       return
     }
     navigate(`/pago/${data.id}`)
+  }
+
+  async function handleConfirm() {
+    if (!selectedTime) { toast.error('Selecciona un horario'); return }
+    if (motivo.trim().length < 10) { toast.error('Describe el motivo (mínimo 10 caracteres)'); return }
+
+    // Si el paciente no tiene DNI o teléfono, pedirlos antes de reservar
+    if (!profile?.dni || !profile?.phone) {
+      setNeedsProfile(true)
+      return
+    }
+
+    await proceedWithBooking()
   }
 
   const readyToSubmit = !!selectedTime && motivo.trim().length >= 10
@@ -700,6 +865,14 @@ export default function Booking() {
         </div>
 
       </div>
+
+      {/* Modal: completar perfil si faltan DNI / teléfono */}
+      {needsProfile && (
+        <ProfileCompleteModal
+          onSaved={() => { setNeedsProfile(false); proceedWithBooking() }}
+          onClose={() => setNeedsProfile(false)}
+        />
+      )}
     </>
   )
 }

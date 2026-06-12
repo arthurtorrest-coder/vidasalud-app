@@ -24,6 +24,7 @@ import Especialidades  from './screens/Especialidades'
 import Calificacion   from './screens/Calificacion'
 import PerfilMedico   from './screens/PerfilMedico'
 import Chat           from './screens/Chat'
+import Onboarding     from './screens/Onboarding'
 
 const C = { green100: '#D1FAE5', green600: '#059669', gray100: '#F3F4F6' }
 
@@ -54,6 +55,15 @@ function PublicRoot() {
   return <Landing />
 }
 
+// Guard: pacientes con onboarding pendiente van a /onboarding antes de entrar al AppShell
+function OnboardingGuardedShell() {
+  const { profile } = useAuthStore()
+  if (profile?.role === 'patient' && profile?.onboarding_completado === false) {
+    return <Navigate to="/onboarding" replace />
+  }
+  return <AppShell />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -75,6 +85,9 @@ export default function App() {
           {/* Médico pendiente de aprobación */}
           <Route path="/espera-aprobacion" element={<EsperaAprobacion />} />
 
+          {/* Onboarding para nuevos pacientes — sin AppShell */}
+          <Route path="/onboarding" element={<Onboarding />} />
+
           {/* Solo médicos */}
           <Route element={<DoctorRoute />}>
             <Route path="/medico/panel"                    element={<PanelMedico />}     />
@@ -86,7 +99,7 @@ export default function App() {
             <Route path="/admin/panel" element={<PanelAdmin />} />
           </Route>
 
-          <Route element={<AppShell />}>
+          <Route element={<OnboardingGuardedShell />}>
             <Route path="/inicio"              element={<Home />}     />
             <Route path="/booking/:doctorId"   element={<Booking />}  />
             <Route path="/pago/:appointmentId" element={<Payment />}  />

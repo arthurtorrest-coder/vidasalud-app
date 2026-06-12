@@ -124,9 +124,10 @@ export default function Register() {
         full_name: fullName,
         phone: telefono,
         dni,
+        onboarding_completado: false,
       })
       toast.success(`¡Bienvenido/a, ${nombre}! 🎉`)
-      navigate('/inicio', { replace: true })
+      navigate('/onboarding', { replace: true })
     } else {
       setLoading(false)
       toast.success('Revisa tu correo para confirmar tu cuenta', { duration: 6000 })

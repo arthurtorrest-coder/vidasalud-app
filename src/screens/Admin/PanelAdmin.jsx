@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
@@ -547,6 +549,296 @@ export default function PanelAdmin() {
     toast.success(`Propuesta de tarifa de ${doc.full_name} rechazada`)
   }
 
+  // ── Exportar PDF ─────────────────────────────────────────
+  async function generatePDF() {
+    if (loading) { toast.error('Espera a que terminen de cargar los datos'); return }
+    const toastId = 'pdf-export'
+    toast.loading('Generando reporte PDF…', { id: toastId })
+    try {
+      const { startOfMonth, endOfMonth, monthLabel } = getMonthRange()
+
+      // Consulta fresca con nombres de paciente (monthAppts no los incluye)
+      const { data: allCitas } = await supabase
+        .from('appointments')
+        .select(`id, scheduled_at, status, duration_minutes, precio_total,
+                 patient:profiles!patient_id(full_name),
+                 doctor:doctors!doctor_id(nombres, apellidos, especialidad)`)
+        .gte('scheduled_at', startOfMonth)
+        .lte('scheduled_at', endOfMonth)
+        .order('scheduled_at', { ascending: true })
+
+      const citas = allCitas ?? []
+
+      // ── Paleta de colores (RGB) ──────────────────────────
+      const GN  = [6, 78, 59]          // green900
+      const GM  = [5, 150, 105]         // green600
+      const GL  = [209, 250, 229]       // green100
+      const GXL = [236, 253, 245]       // green50
+      const WH  = [255, 255, 255]
+      const GY  = [55, 65, 81]          // gray700
+      const GYL = [156, 163, 175]       // gray400
+      const GYX = [249, 250, 251]       // gray50
+      const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+      const PW  = 210
+      const ML  = 18
+      const MR  = 18
+      const TW  = PW - ML - MR         // 174 mm
+
+      const now    = new Date()
+      const genDate = now.toLocaleDateString('es-PE', {
+        timeZone: 'America/Lima', day: '2-digit', month: 'long', year: 'numeric',
+      })
+      const genTime = now.toLocaleTimeString('es-PE', {
+        timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit',
+      })
+
+      // ── Footer reutilizable ──────────────────────────────
+      function drawFooter(pg, tot) {
+        doc.setPage(pg)
+        doc.setDrawColor(...GL)
+        doc.setLineWidth(0.3)
+        doc.line(ML, 284, PW - MR, 284)
+        doc.setFontSize(7.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...GYL)
+        doc.text(`Generado el ${genDate} — ${genTime} por ${adminName}`, ML, 289)
+        doc.text('Confidencial — VIDASALUD', PW - MR, 289, { align: 'right' })
+        doc.text(`Pág. ${pg} / ${tot}`, PW / 2, 289, { align: 'center' })
+      }
+
+      // ─────────────────────────────────────────────────────
+      // P.1 — PORTADA + RESUMEN EJECUTIVO
+      // ─────────────────────────────────────────────────────
+
+      // Banda de cabecera
+      doc.setFillColor(...GN)
+      doc.rect(0, 0, PW, 50, 'F')
+      doc.setFillColor(...GM)
+      doc.rect(0, 44, PW, 6, 'F')
+
+      // Logotipo textual
+      doc.setFontSize(28)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...WH)
+      doc.text('VIDASALUD', ML, 20)
+
+      // Tagline
+      doc.setFontSize(8.5)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(180, 240, 210)
+      doc.text('Telemedicina para todo el Perú  ·  RENIPRESS registrado  ·  Ley 30421', ML, 28)
+
+      // Pill "REPORTE MENSUAL"
+      doc.setFillColor(...GM)
+      doc.roundedRect(ML, 32, 78, 9, 2, 2, 'F')
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...WH)
+      doc.text('REPORTE MENSUAL', ML + 39, 38.5, { align: 'center' })
+
+      // Mes actual
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(200, 245, 220)
+      doc.text(monthLabel.toUpperCase(), ML + 84, 38.5)
+
+      // Cruz decorativa (top-right)
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(24); doc.text('+', PW - 28, 22)
+      doc.setFontSize(14); doc.text('+', PW - 40, 16)
+      doc.setFontSize(10); doc.text('+', PW - 36, 30)
+
+      // Info de generación
+      let y = 56
+      doc.setFontSize(8.5)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...GYL)
+      doc.text(`Emitido por: ${adminName}   ·   ${genDate}   ·   ${genTime}`, ML, y)
+
+      // ── RESUMEN EJECUTIVO ──────────────────────────────
+      y = 65
+      doc.setFontSize(13)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...GN)
+      doc.text('Resumen Ejecutivo', ML, y)
+      doc.setDrawColor(...GL)
+      doc.setLineWidth(0.5)
+      doc.line(ML, y + 2, ML + 52, y + 2)
+      y += 7
+
+      const kpis = [
+        { label: 'Citas del mes',    value: String(monthStats.citasMes),             sub: `${citas.length} total incl. otros estados` },
+        { label: 'Ingresos del mes', value: fmtSoles(monthStats.ingresosMes),         sub: 'de citas completadas'                       },
+        { label: 'Nuevos pacientes', value: String(monthStats.nuevosPacientes),       sub: 'registrados este mes'                       },
+        { label: 'Rating promedio',  value: `${monthStats.avgRating.toFixed(2)} / 5`, sub: `${doctors.length} médicos activos`          },
+      ]
+      const bW = (TW - 9) / 4
+      const bH = 27
+
+      kpis.forEach((k, i) => {
+        const x = ML + i * (bW + 3)
+        doc.setFillColor(...GXL)
+        doc.roundedRect(x, y, bW, bH, 3, 3, 'F')
+        doc.setDrawColor(...GL)
+        doc.setLineWidth(0.35)
+        doc.roundedRect(x, y, bW, bH, 3, 3, 'S')
+        // Barra lateral de acento
+        doc.setFillColor(...GM)
+        doc.rect(x, y, 2.5, bH, 'F')
+        // Valor principal
+        const valFontSize = i === 1 ? 8.5 : 13
+        doc.setFontSize(valFontSize)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...GN)
+        doc.text(k.value, x + bW / 2, y + 11, { align: 'center' })
+        // Etiqueta
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...GY)
+        doc.text(k.label, x + bW / 2, y + 17, { align: 'center' })
+        // Sub-texto
+        doc.setFontSize(6)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...GYL)
+        doc.text(k.sub, x + bW / 2, y + 22, { align: 'center' })
+      })
+
+      y += bH + 10
+
+      // ── TABLA CITAS DEL MES ────────────────────────────
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...GN)
+      doc.text(`Citas del Mes  (${citas.length} registros)`, ML, y)
+      doc.setDrawColor(...GL)
+      doc.setLineWidth(0.4)
+      doc.line(ML, y + 2, ML + 72, y + 2)
+      y += 5
+
+      const citasRows = citas.map(a => [
+        new Date(a.scheduled_at).toLocaleDateString('es-PE', {
+          timeZone: 'America/Lima', day: '2-digit', month: 'short',
+        }),
+        new Date(a.scheduled_at).toLocaleTimeString('es-PE', {
+          timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit',
+        }),
+        a.patient?.full_name ?? '—',
+        a.doctor ? `${a.doctor.nombres ?? ''} ${a.doctor.apellidos ?? ''}`.trim() || '—' : '—',
+        a.doctor?.especialidad ?? '—',
+        `${a.duration_minutes ?? 20}m`,
+        STATUS_CFG[a.status]?.label ?? a.status,
+      ])
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Fecha', 'Hora', 'Paciente', 'Médico', 'Especialidad', 'Dur.', 'Estado']],
+        body: citasRows.length ? citasRows : [['—', '—', 'Sin citas este mes', '—', '—', '—', '—']],
+        theme: 'striped',
+        headStyles: { fillColor: GN, textColor: WH, fontSize: 8, fontStyle: 'bold', cellPadding: 3 },
+        bodyStyles: { fontSize: 7.5, textColor: GY, cellPadding: { top: 2.5, right: 2.5, bottom: 2.5, left: 2.5 } },
+        alternateRowStyles: { fillColor: GYX },
+        columnStyles: {
+          0: { cellWidth: 17 }, 1: { cellWidth: 11 }, 2: { cellWidth: 36 },
+          3: { cellWidth: 34 }, 4: { cellWidth: 27 }, 5: { cellWidth: 10, halign: 'center' },
+          6: { cellWidth: 23 },
+        },
+        margin: { left: ML, right: MR, bottom: 18 },
+        styles: { overflow: 'linebreak', minCellHeight: 6 },
+      })
+
+      // ─────────────────────────────────────────────────────
+      // P.X — TOP 5 MÉDICOS + ESPECIALIDADES
+      // ─────────────────────────────────────────────────────
+      let yNext = (doc.lastAutoTable?.finalY ?? 200) + 12
+
+      if (yNext + 70 > 280) { doc.addPage(); yNext = 22 }
+
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...GN)
+      doc.text('Top 5 Médicos Más Consultados', ML, yNext)
+      doc.setDrawColor(...GL)
+      doc.setLineWidth(0.4)
+      doc.line(ML, yNext + 2, ML + 80, yNext + 2)
+
+      const topRows = topDoctors.map((d, i) => [
+        `#${i + 1}`,
+        `${d.nombres ?? ''} ${d.apellidos ?? ''}`.trim() || '—',
+        d.especialidad ?? '—',
+        String(d.citasMes),
+        d.rating > 0 ? `${Number(d.rating).toFixed(1)} / 5` : '—',
+      ])
+
+      autoTable(doc, {
+        startY: yNext + 5,
+        head: [['#', 'Médico', 'Especialidad', 'Citas', 'Rating']],
+        body: topRows.length ? topRows : [['—', 'Sin datos este mes', '—', '—', '—']],
+        theme: 'striped',
+        headStyles: { fillColor: GN, textColor: WH, fontSize: 9, fontStyle: 'bold', cellPadding: 3 },
+        bodyStyles: { fontSize: 9, textColor: GY, cellPadding: 3 },
+        alternateRowStyles: { fillColor: GYX },
+        columnStyles: {
+          0: { cellWidth: 12, halign: 'center' },
+          1: { cellWidth: 60 }, 2: { cellWidth: 50 },
+          3: { cellWidth: 22, halign: 'center' }, 4: { cellWidth: 22, halign: 'center' },
+        },
+        margin: { left: ML, right: MR, bottom: 18 },
+      })
+
+      let ySpec = (doc.lastAutoTable?.finalY ?? 200) + 12
+      if (ySpec + 55 > 280) { doc.addPage(); ySpec = 22 }
+
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...GN)
+      doc.text('Especialidades Más Demandadas', ML, ySpec)
+      doc.setDrawColor(...GL)
+      doc.setLineWidth(0.4)
+      doc.line(ML, ySpec + 2, ML + 82, ySpec + 2)
+
+      const total = specData.reduce((s, x) => s + x.citas, 0) || 1
+      const specRows = specData.map((s, i) => [
+        String(i + 1),
+        s.especialidad,
+        String(s.citas),
+        `${Math.round(s.citas / total * 100)} %`,
+        // Mini barra proporcional (text-art)
+        '█'.repeat(Math.round(s.citas / specData[0].citas * 10)),
+      ])
+
+      autoTable(doc, {
+        startY: ySpec + 5,
+        head: [['#', 'Especialidad', 'Citas', '% Total', 'Proporción']],
+        body: specRows.length ? specRows : [['—', 'Sin datos este mes', '—', '—', '']],
+        theme: 'striped',
+        headStyles: { fillColor: GN, textColor: WH, fontSize: 9, fontStyle: 'bold', cellPadding: 3 },
+        bodyStyles: { fontSize: 9, textColor: GY, cellPadding: 3 },
+        alternateRowStyles: { fillColor: GYX },
+        columnStyles: {
+          0: { cellWidth: 12, halign: 'center' }, 1: { cellWidth: 72 },
+          2: { cellWidth: 22, halign: 'center' }, 3: { cellWidth: 22, halign: 'center' },
+          4: { cellWidth: 38, textColor: GM },
+        },
+        margin: { left: ML, right: MR, bottom: 18 },
+      })
+
+      // ── Footer en todas las páginas ────────────────────
+      const tot = doc.internal.getNumberOfPages()
+      for (let pg = 1; pg <= tot; pg++) drawFooter(pg, tot)
+
+      // ── Descargar ─────────────────────────────────────
+      const slug = monthLabel
+        .toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/\s+/g, '-')
+      doc.save(`reporte-vidasalud-${slug}.pdf`)
+      toast.success('✅ Reporte descargado correctamente', { id: toastId, duration: 4000 })
+    } catch (err) {
+      console.error('[generatePDF]', err)
+      toast.error('No se pudo generar el reporte PDF', { id: toastId })
+    }
+  }
+
   // ── Skeleton ──────────────────────────────────────────────
   const skeletonBar = (w = '60%', h = 14) => (
     <div style={{ height: h, width: w, background: C.gray200, borderRadius: 6 }} />
@@ -603,6 +895,23 @@ export default function PanelAdmin() {
               Actualizado {fmtLastRefresh(lastRefresh)}
             </span>
           )}
+          <button
+            onClick={generatePDF}
+            disabled={loading}
+            title="Exportar reporte mensual en PDF"
+            style={{
+              background: 'rgba(52,211,153,0.18)', border: '1px solid rgba(52,211,153,0.4)',
+              color: C.white, borderRadius: 8, padding: '6px 14px',
+              fontSize: 12, fontWeight: 700, cursor: loading ? 'default' : 'pointer',
+              fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6,
+              opacity: loading ? 0.5 : 1,
+              transition: 'opacity 0.15s, background 0.15s',
+            }}
+            onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'rgba(52,211,153,0.28)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(52,211,153,0.18)' }}
+          >
+            📥 Exportar PDF
+          </button>
           <button
             onClick={fetchAll}
             disabled={loading}

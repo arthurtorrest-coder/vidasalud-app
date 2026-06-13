@@ -258,7 +258,7 @@ function DoctorCardWithSlots({ doc, slots, isAvailableNow, nextAvailability, onB
               WebkitTapHighlightColor: 'transparent',
             }}
           >
-            {isAvailableNow ? 'Consultar' : 'Reservar'}
+            {isAvailableNow ? 'Reservar ahora' : '📅 Agendar cita'}
           </button>
         </div>
       </div>

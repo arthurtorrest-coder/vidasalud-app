@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore'
 import TriajeBot from '../../components/TriajeBot'
 import VideoRoom from '../../components/VideoRoom'
 import { C } from '../../lib/tokens'
+import { requestPermission, subscribeToPush, saveTokenToSupabase } from '../../lib/pushNotifications'
 
 // Mapa síntoma → especialidad para sugerencias en la búsqueda
 const SYMPTOMS = {
@@ -461,13 +462,13 @@ export default function Home() {
   const [search,          setSearch]          = useState('')
   const [selectedSpec,    setSelectedSpec]    = useState(null)
   const [doctors,         setDoctors]         = useState([])
-  const [schedules,       setSchedules]       = useState([])
   const [availableNowIds, setAvailableNowIds] = useState(new Set())
   const [loadingDocs,     setLoadingDocs]     = useState(true)
   const [errorDocs,       setErrorDocs]       = useState(null)
   const [showTriaje,      setShowTriaje]      = useState(false)
   const [activeAppt,      setActiveAppt]      = useState(null)
   const [videoUrl,        setVideoUrl]        = useState(null)
+  const [showPushBanner,  setShowPushBanner]  = useState(false)
 
   const checkActiveAppt = useCallback(async () => {
     if (!user?.id) return
@@ -510,7 +511,6 @@ export default function Home() {
     const activos = (docs ?? []).filter(d => d.activo !== false && d.aprobado !== false)
     const schedulesData = scheds ?? []
     setDoctors(activos.map(formatDoc))
-    setSchedules(schedulesData)
     setAvailableNowIds(computeAvailableNowIds(schedulesData))
     setLoadingDocs(false)
   }
@@ -530,6 +530,34 @@ export default function Home() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (
+      profile?.role === 'patient' &&
+      'Notification' in window &&
+      Notification.permission === 'default' &&
+      !localStorage.getItem('vs-push-dismissed')
+    ) {
+      const t = setTimeout(() => setShowPushBanner(true), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [profile?.role])
+
+  async function handleActivarPush() {
+    setShowPushBanner(false)
+    localStorage.setItem('vs-push-dismissed', '1')
+    const permission = await requestPermission()
+    if (permission !== 'granted') return
+    const subscription = await subscribeToPush()
+    if (!subscription) return
+    await saveTokenToSupabase(subscription)
+    toast.success('¡Recordatorios de citas activados! 🔔')
+  }
+
+  function handleDismissPush() {
+    setShowPushBanner(false)
+    localStorage.setItem('vs-push-dismissed', '1')
+  }
 
   const handleBook = (doc) => {
     navigate(`/medico/${doc.id}`)
@@ -879,6 +907,60 @@ export default function Home() {
         </div>
         <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 18, flexShrink: 0 }}>›</span>
       </button>
+
+      {/* Banner de notificaciones push */}
+      {showPushBanner && (
+        <div style={{
+          margin: '12px 20px 0',
+          background: `linear-gradient(135deg, ${C.green900}, ${C.green700})`,
+          border: `1px solid ${C.green600}`,
+          borderRadius: 16, padding: '14px 16px',
+          display: 'flex', flexDirection: 'column', gap: 12,
+          boxShadow: '0 4px 20px rgba(6,79,60,0.30)',
+        }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <span style={{
+              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+              background: 'rgba(255,255,255,0.18)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+            }}>🔔</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: C.white }}>
+                ¿Quieres recordatorios de tus citas?
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 3, lineHeight: 1.4 }}>
+                Te avisamos 1 hora antes de cada consulta para que no la olvides.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleActivarPush}
+              style={{
+                flex: 1, padding: '9px 0',
+                background: C.white, color: C.green800,
+                border: 'none', borderRadius: 10,
+                fontSize: 12, fontWeight: 800, cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Sí, activar
+            </button>
+            <button
+              onClick={handleDismissPush}
+              style={{
+                flex: 1, padding: '9px 0',
+                background: 'rgba(255,255,255,0.15)', color: C.white,
+                border: '1px solid rgba(255,255,255,0.3)', borderRadius: 10,
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Ahora no
+            </button>
+          </div>
+        </div>
+      )}
 
       <SectionHeader title="Acciones rápidas" />
       <QuickActions />

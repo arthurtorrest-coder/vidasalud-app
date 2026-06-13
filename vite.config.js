@@ -76,6 +76,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
         cleanupOutdatedCaches: true,
+        importScripts: ['/sw-push.js'],
 
         runtimeCaching: [
           // Google Fonts — cache largo, casi nunca cambian

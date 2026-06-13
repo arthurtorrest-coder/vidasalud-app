@@ -13,6 +13,60 @@ const C = {
 }
 
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+const DIAS_FULL = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+
+function getLimaDateTime() {
+  const now = new Date()
+  const lima = new Date(now.getTime() + (now.getTimezoneOffset() - 300) * 60000)
+  return {
+    diaSemana: lima.getDay(),
+    horaActual: `${String(lima.getHours()).padStart(2,'0')}:${String(lima.getMinutes()).padStart(2,'0')}`,
+  }
+}
+
+function computeAvailableNowIds(schedules) {
+  const { diaSemana, horaActual } = getLimaDateTime()
+  const ids = new Set()
+  for (const s of schedules) {
+    if (
+      s.activo !== false &&
+      s.dia_semana === diaSemana &&
+      (s.hora_inicio ?? '') <= horaActual &&
+      (s.hora_fin ?? '') > horaActual
+    ) {
+      ids.add(s.doctor_id)
+    }
+  }
+  return ids
+}
+
+function formatHora12(hhmm) {
+  const [h, m] = (hhmm ?? '00:00').split(':').map(Number)
+  const suffix = h >= 12 ? 'pm' : 'am'
+  const h12 = h % 12 || 12
+  return `${h12}:${String(m).padStart(2, '0')}${suffix}`
+}
+
+function getNextAvailabilityText(doctorId, allSchedules) {
+  const { diaSemana: diaHoy, horaActual } = getLimaDateTime()
+  const scheds = allSchedules.filter(s => s.doctor_id === doctorId && s.activo !== false)
+  const todayLater = scheds
+    .filter(s => s.dia_semana === diaHoy && (s.hora_inicio ?? '') > horaActual)
+    .sort((a, b) => (a.hora_inicio ?? '').localeCompare(b.hora_inicio ?? ''))
+  if (todayLater.length > 0) {
+    return `🕐 Hoy ${formatHora12(todayLater[0].hora_inicio)}`
+  }
+  for (let i = 1; i <= 6; i++) {
+    const dia = (diaHoy + i) % 7
+    const blocks = scheds
+      .filter(s => s.dia_semana === dia)
+      .sort((a, b) => (a.hora_inicio ?? '').localeCompare(b.hora_inicio ?? ''))
+    if (blocks.length > 0) {
+      return `🕐 ${i === 1 ? 'Mañana' : `El ${DIAS_FULL[dia]}`} ${formatHora12(blocks[0].hora_inicio)}`
+    }
+  }
+  return null
+}
 
 const ESPECIALIDADES = [
   { icon: '🩺', label: 'Medicina General',  precioBase: 35, bg: '#ECFDF5', accent: '#059669', border: '#A7F3D0' },
@@ -62,7 +116,7 @@ function matchesSpec(docSpec, espLabel) {
 }
 
 function getProximosSlots(doctorId, allSchedules) {
-  const diaHoy = new Date().getDay()
+  const { diaSemana: diaHoy } = getLimaDateTime()
   const scheds = allSchedules.filter(s => s.doctor_id === doctorId && s.activo !== false)
   const result = []
   for (let i = 0; i < 7 && result.length < 3; i++) {
@@ -133,7 +187,7 @@ function SpecialtyCard({ esp, onClick }) {
   )
 }
 
-function DoctorCardWithSlots({ doc, slots, onBook }) {
+function DoctorCardWithSlots({ doc, slots, isAvailableNow, nextAvailability, onBook }) {
   const [hov, setHov] = useState(false)
   const hasSlots = slots.length > 0
   return (
@@ -141,12 +195,13 @@ function DoctorCardWithSlots({ doc, slots, onBook }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        background: C.white,
+        background: isAvailableNow ? C.white : C.gray50,
         border: `1.5px solid ${hov ? C.green500 : C.gray200}`,
         borderRadius: 16, padding: '14px 14px 12px',
         transition: 'all 0.16s',
         boxShadow: hov ? '0 6px 20px rgba(16,185,129,0.12)' : '0 1px 4px rgba(0,0,0,0.05)',
         transform: hov ? 'translateY(-2px)' : 'none',
+        opacity: isAvailableNow ? 1 : 0.82,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -164,6 +219,27 @@ function DoctorCardWithSlots({ doc, slots, onBook }) {
               )}
             </div>
           )}
+          <div style={{ marginTop: 6 }}>
+            {isAvailableNow ? (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                background: C.green50, color: C.green700,
+                fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                border: `1px solid ${C.green200}`,
+              }}>
+                🟢 Disponible ahora
+              </span>
+            ) : nextAvailability ? (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center',
+                background: C.gray100, color: C.gray500,
+                fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 20,
+                border: `1px solid ${C.gray200}`,
+              }}>
+                {nextAvailability}
+              </span>
+            ) : null}
+          </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: C.green700 }}>S/. {doc.price || '—'}</div>
@@ -172,43 +248,41 @@ function DoctorCardWithSlots({ doc, slots, onBook }) {
             onClick={() => onBook(doc.id)}
             style={{
               marginTop: 6,
-              background: `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+              background: isAvailableNow
+                ? `linear-gradient(135deg, ${C.green700}, ${C.green500})`
+                : C.gray300,
               color: C.white, border: 'none', borderRadius: 8,
               padding: '6px 12px', fontSize: 11, fontWeight: 800,
               cursor: 'pointer', fontFamily: 'inherit',
-              boxShadow: '0 2px 8px rgba(5,150,105,0.25)',
+              boxShadow: isAvailableNow ? '0 2px 8px rgba(5,150,105,0.25)' : 'none',
               WebkitTapHighlightColor: 'transparent',
             }}
           >
-            Reservar
+            {isAvailableNow ? 'Consultar' : 'Reservar'}
           </button>
         </div>
       </div>
-      <div style={{
-        marginTop: 10, paddingTop: 10,
-        borderTop: `1px solid ${C.gray100}`,
-        display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
-      }}>
-        <span style={{ fontSize: 10, color: C.gray400, fontWeight: 600, flexShrink: 0 }}>📅 Próximos:</span>
-        {hasSlots ? (
-          <>
-            {slots.map((s, i) => (
-              <span key={i} style={{
-                display: 'inline-flex', alignItems: 'center',
-                background: s.esHoy ? C.green50 : C.gray50,
-                border: `1px solid ${s.esHoy ? C.green200 : C.gray200}`,
-                color: s.esHoy ? C.green700 : C.gray500,
-                fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
-              }}>
-                {s.esHoy ? 'Hoy' : s.dia} {s.hora}
-              </span>
-            ))}
-            <span style={{ fontSize: 10, color: C.green600, fontWeight: 600 }}>· más al reservar</span>
-          </>
-        ) : (
-          <span style={{ fontSize: 10, color: C.gray400 }}>Ver disponibilidad al reservar</span>
-        )}
-      </div>
+      {hasSlots && (
+        <div style={{
+          marginTop: 10, paddingTop: 10,
+          borderTop: `1px solid ${C.gray100}`,
+          display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 10, color: C.gray400, fontWeight: 600, flexShrink: 0 }}>📅 Próximos:</span>
+          {slots.map((s, i) => (
+            <span key={i} style={{
+              display: 'inline-flex', alignItems: 'center',
+              background: s.esHoy ? C.green50 : C.gray50,
+              border: `1px solid ${s.esHoy ? C.green200 : C.gray200}`,
+              color: s.esHoy ? C.green700 : C.gray500,
+              fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+            }}>
+              {s.esHoy ? 'Hoy' : s.dia} {s.hora}
+            </span>
+          ))}
+          <span style={{ fontSize: 10, color: C.green600, fontWeight: 600 }}>· más al reservar</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -428,7 +502,7 @@ function FilterBar({
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '9px 12px', borderRadius: 10,
               background: filterDisponible ? C.green50 : C.gray50,
-              border: `1.5px solid ${filterDisponible ? C.green300 : C.gray200}`,
+              border: `1.5px solid ${filterDisponible ? C.green200 : C.gray200}`,
               cursor: 'pointer',
               transition: 'all 0.15s',
             }}
@@ -512,7 +586,7 @@ export default function Especialidades() {
       const [{ data: docs }, { data: scheds }] = await Promise.all([
         supabase.from('doctors').select('*'),
         supabase.from('doctor_schedules')
-          .select('doctor_id, dia_semana, hora_inicio, activo'),
+          .select('doctor_id, dia_semana, hora_inicio, hora_fin, activo'),
       ])
       const activos = (docs ?? []).filter(d => d.activo !== false && d.aprobado !== false)
       setDoctors(activos.map(formatDoc))
@@ -541,13 +615,16 @@ export default function Especialidades() {
 
   // IDs de médicos con horario hoy (para filtro disponible hoy)
   const todayDocIds = useMemo(() => {
-    const diaHoy = new Date().getDay()
+    const { diaSemana: diaHoy } = getLimaDateTime()
     return new Set(
       schedules
         .filter(s => s.dia_semana === diaHoy && s.activo !== false)
         .map(s => s.doctor_id)
     )
   }, [schedules])
+
+  // IDs de médicos disponibles ahora mismo (hora actual en Lima)
+  const availableNowIds = useMemo(() => computeAvailableNowIds(schedules), [schedules])
 
   // Lista final con filtros + ordenamiento aplicados
   const filteredDoctors = useMemo(() => {
@@ -562,12 +639,24 @@ export default function Especialidades() {
 
     if (filterDisponible) docs = docs.filter(d => todayDocIds.has(d.id))
 
-    if (sortBy === 'rating')    docs.sort((a, b) => b.rating - a.rating)
-    if (sortBy === 'price_asc') docs.sort((a, b) => a.price - b.price)
-    if (sortBy === 'price_desc')docs.sort((a, b) => b.price - a.price)
+    if (sortBy === 'rating')     docs.sort((a, b) => {
+      const aNow = availableNowIds.has(a.id) ? 0 : 1
+      const bNow = availableNowIds.has(b.id) ? 0 : 1
+      return aNow - bNow || b.rating - a.rating
+    })
+    if (sortBy === 'price_asc')  docs.sort((a, b) => {
+      const aNow = availableNowIds.has(a.id) ? 0 : 1
+      const bNow = availableNowIds.has(b.id) ? 0 : 1
+      return aNow - bNow || a.price - b.price
+    })
+    if (sortBy === 'price_desc') docs.sort((a, b) => {
+      const aNow = availableNowIds.has(a.id) ? 0 : 1
+      const bNow = availableNowIds.has(b.id) ? 0 : 1
+      return aNow - bNow || b.price - a.price
+    })
 
     return docs
-  }, [doctorsForSpec, filterPrecio, filterRating, filterDisponible, sortBy, todayDocIds])
+  }, [doctorsForSpec, filterPrecio, filterRating, filterDisponible, sortBy, todayDocIds, availableNowIds])
 
   const activeFilterCount = [
     filterPrecio !== null,
@@ -767,6 +856,8 @@ export default function Especialidades() {
                   key={doc.id}
                   doc={doc}
                   slots={getProximosSlots(doc.id, schedules)}
+                  isAvailableNow={availableNowIds.has(doc.id)}
+                  nextAvailability={availableNowIds.has(doc.id) ? null : getNextAvailabilityText(doc.id, schedules)}
                   onBook={id => navigate(`/medico/${id}`)}
                 />
               ))

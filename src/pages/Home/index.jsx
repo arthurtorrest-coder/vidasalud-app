@@ -40,6 +40,31 @@ const STATUS_COLORS = {
   later: { dot: C.gray500,  label: C.gray500,  bg: C.gray100 },
 }
 
+function getLimaDateTime() {
+  const now = new Date()
+  const lima = new Date(now.getTime() + (now.getTimezoneOffset() - 300) * 60000)
+  return {
+    diaSemana: lima.getDay(),
+    horaActual: `${String(lima.getHours()).padStart(2,'0')}:${String(lima.getMinutes()).padStart(2,'0')}`,
+  }
+}
+
+function computeAvailableNowIds(schedules) {
+  const { diaSemana, horaActual } = getLimaDateTime()
+  const ids = new Set()
+  for (const s of schedules) {
+    if (
+      s.activo !== false &&
+      s.dia_semana === diaSemana &&
+      (s.hora_inicio ?? '') <= horaActual &&
+      (s.hora_fin ?? '') > horaActual
+    ) {
+      ids.add(s.doctor_id)
+    }
+  }
+  return ids
+}
+
 // Transforma fila de Supabase al shape que usa la UI.
 // Soporta doctors_seed.sql (nombres/apellidos/especialidad/cmp)
 // y schema.sql legacy (specialty/cmp_code, id=profile uuid).
@@ -433,14 +458,16 @@ export default function Home() {
   const { profile, user } = useAuthStore()
   const firstName   = profile?.full_name?.split(' ')[0] ?? ''
 
-  const [search,       setSearch]       = useState('')
-  const [selectedSpec, setSelectedSpec] = useState(null)
-  const [doctors,      setDoctors]      = useState([])
-  const [loadingDocs,  setLoadingDocs]  = useState(true)
-  const [errorDocs,    setErrorDocs]    = useState(null)
-  const [showTriaje,   setShowTriaje]   = useState(false)
-  const [activeAppt,   setActiveAppt]   = useState(null)
-  const [videoUrl,     setVideoUrl]     = useState(null)
+  const [search,          setSearch]          = useState('')
+  const [selectedSpec,    setSelectedSpec]    = useState(null)
+  const [doctors,         setDoctors]         = useState([])
+  const [schedules,       setSchedules]       = useState([])
+  const [availableNowIds, setAvailableNowIds] = useState(new Set())
+  const [loadingDocs,     setLoadingDocs]     = useState(true)
+  const [errorDocs,       setErrorDocs]       = useState(null)
+  const [showTriaje,      setShowTriaje]      = useState(false)
+  const [activeAppt,      setActiveAppt]      = useState(null)
+  const [videoUrl,        setVideoUrl]        = useState(null)
 
   const checkActiveAppt = useCallback(async () => {
     if (!user?.id) return
@@ -469,21 +496,23 @@ export default function Home() {
     return () => { supabase.removeChannel(channel) }
   }, [user?.id, checkActiveAppt])
 
-  function fetchDoctors() {
-    supabase
-      .from('doctors')
-      .select('*')
-      .order('rating', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('[Home] doctors:', error.message)
-          setErrorDocs(`No se pudo cargar la lista de médicos. (${error.message})`)
-        } else {
-          const activos = (data ?? []).filter(d => d.activo !== false && d.aprobado !== false)
-          setDoctors(activos.map(formatDoc))
-        }
-        setLoadingDocs(false)
-      })
+  async function fetchDoctors() {
+    const [{ data: docs, error }, { data: scheds }] = await Promise.all([
+      supabase.from('doctors').select('*').order('rating', { ascending: false }),
+      supabase.from('doctor_schedules').select('doctor_id, dia_semana, hora_inicio, hora_fin, activo'),
+    ])
+    if (error) {
+      console.error('[Home] doctors:', error.message)
+      setErrorDocs(`No se pudo cargar la lista de médicos. (${error.message})`)
+      setLoadingDocs(false)
+      return
+    }
+    const activos = (docs ?? []).filter(d => d.activo !== false && d.aprobado !== false)
+    const schedulesData = scheds ?? []
+    setDoctors(activos.map(formatDoc))
+    setSchedules(schedulesData)
+    setAvailableNowIds(computeAvailableNowIds(schedulesData))
+    setLoadingDocs(false)
   }
 
   useEffect(() => {
@@ -536,7 +565,8 @@ export default function Home() {
     const q         = search.toLowerCase()
     const specMatch = !selectedSpec || d.spec.toLowerCase().includes(selectedSpec.toLowerCase())
     const txtMatch  = !q || d.name.toLowerCase().includes(q) || d.spec.toLowerCase().includes(q)
-    return specMatch && txtMatch
+    const nowMatch  = selectedSpec ? true : availableNowIds.has(d.id)
+    return specMatch && txtMatch && nowMatch
   })
 
   return (
@@ -615,7 +645,7 @@ export default function Home() {
 
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           {[
-            { n: loadingDocs ? '…' : String(doctors.length), label: 'Médicos online'  },
+            { n: loadingDocs ? '…' : String(doctors.filter(d => availableNowIds.has(d.id)).length), label: 'Médicos online'  },
             { n: '< 5 min',                                   label: 'Espera promedio' },
             { n: 'S/. 20',                                    label: 'Promo hoy'       },
           ].map((s, i) => (

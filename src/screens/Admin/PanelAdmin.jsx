@@ -486,6 +486,27 @@ export default function PanelAdmin() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
+  const [sendingReminders, setSendingReminders] = useState(false)
+
+  async function handleSendReminders() {
+    setSendingReminders(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('enviar-recordatorio')
+      if (error) throw error
+      const sent = data?.sent ?? 0
+      toast.success(
+        sent === 0
+          ? 'No hay citas en las próximas 2 horas'
+          : `🔔 ${sent} recordatorio${sent !== 1 ? 's' : ''} enviado${sent !== 1 ? 's' : ''}`,
+        { duration: 4000 }
+      )
+    } catch (err) {
+      toast.error(`Error al enviar recordatorios: ${err.message ?? err}`)
+    } finally {
+      setSendingReminders(false)
+    }
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut()
     navigate('/login')
@@ -911,6 +932,27 @@ export default function PanelAdmin() {
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(52,211,153,0.18)' }}
           >
             📥 Exportar PDF
+          </button>
+          <button
+            onClick={handleSendReminders}
+            disabled={sendingReminders}
+            title="Enviar recordatorios push a pacientes con citas en las próximas 2 horas"
+            style={{
+              background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.4)',
+              color: '#FDE68A', borderRadius: 8, padding: '6px 14px',
+              fontSize: 12, fontWeight: 700,
+              cursor: sendingReminders ? 'default' : 'pointer',
+              fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6,
+              opacity: sendingReminders ? 0.6 : 1,
+              transition: 'opacity 0.15s, background 0.15s',
+            }}
+            onMouseEnter={e => { if (!sendingReminders) e.currentTarget.style.background = 'rgba(251,191,36,0.28)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(251,191,36,0.18)' }}
+          >
+            <span style={sendingReminders ? { display: 'inline-block', animation: 'pa-spin 0.7s linear infinite' } : {}}>
+              🔔
+            </span>
+            {sendingReminders ? 'Enviando…' : 'Enviar recordatorios'}
           </button>
           <button
             onClick={fetchAll}

@@ -248,13 +248,11 @@ function DoctorCardWithSlots({ doc, slots, isAvailableNow, nextAvailability, onB
             onClick={() => onBook(doc.id)}
             style={{
               marginTop: 6,
-              background: isAvailableNow
-                ? `linear-gradient(135deg, ${C.green700}, ${C.green500})`
-                : C.gray300,
+              background: `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
               color: C.white, border: 'none', borderRadius: 8,
               padding: '6px 12px', fontSize: 11, fontWeight: 800,
               cursor: 'pointer', fontFamily: 'inherit',
-              boxShadow: isAvailableNow ? '0 2px 8px rgba(5,150,105,0.25)' : 'none',
+              boxShadow: '0 2px 8px rgba(5,150,105,0.25)',
               WebkitTapHighlightColor: 'transparent',
             }}
           >

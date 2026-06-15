@@ -24,6 +24,57 @@ function formatScheduledAt(iso) {
   }
 }
 
+function fmtICSDate(date) {
+  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+}
+
+function buildGoogleCalendarUrl(appointment, doctor, codigo) {
+  const start   = new Date(appointment.scheduled_at)
+  const end     = new Date(start.getTime() + 20 * 60 * 1000)
+  const titulo  = doctorTitle(doctor.cmp, doctor.nombres)
+  const docName = `${titulo} ${doctor.nombres} ${doctor.apellidos}`
+  const params  = new URLSearchParams({
+    action:   'TEMPLATE',
+    text:     `Consulta médica VIDASALUD con ${docName}`,
+    dates:    `${fmtICSDate(start)}/${fmtICSDate(end)}`,
+    details:  `Código de cita: ${codigo}. Accede a tu consulta desde la app VIDASALUD.`,
+    location: 'Videollamada VIDASALUD',
+  })
+  return `https://calendar.google.com/calendar/render?${params}`
+}
+
+function downloadICS(appointment, doctor, codigo) {
+  const start   = new Date(appointment.scheduled_at)
+  const end     = new Date(start.getTime() + 20 * 60 * 1000)
+  const titulo  = doctorTitle(doctor.cmp, doctor.nombres)
+  const docName = `${titulo} ${doctor.nombres} ${doctor.apellidos}`
+  const lines   = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//VIDASALUD//Telemedicina Peru//ES',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${codigo}@vidasalud.pe`,
+    `DTSTART:${fmtICSDate(start)}`,
+    `DTEND:${fmtICSDate(end)}`,
+    `SUMMARY:Consulta médica VIDASALUD con ${docName}`,
+    `DESCRIPTION:Código de cita: ${codigo}\\nAccede desde la app VIDASALUD.`,
+    'LOCATION:Videollamada VIDASALUD',
+    'STATUS:CONFIRMED',
+    `CREATED:${fmtICSDate(new Date())}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ]
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' })
+  const url  = URL.createObjectURL(blob)
+  const a    = Object.assign(document.createElement('a'), { href: url, download: `vidasalud-${codigo}.ics` })
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 function fmtCardNum(v) {
   return v.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim()
 }
@@ -320,150 +371,255 @@ function btnStyle(active) {
 }
 
 /* ── Vista: cita confirmada ──────────────────────────────────── */
-function VistaConfirmada({ appointment, doctor, onVerCitas, onInicio }) {
+function VistaConfirmada({ appointment, doctor, onInicio, onMensaje }) {
   const titulo    = doctor ? doctorTitle(doctor.cmp, doctor.nombres) : ''
   const { fecha, hora } = formatScheduledAt(appointment.scheduled_at)
   const codigo    = codigoCita(appointment.id)
+  const docName   = doctor ? `${doctor.nombres} ${doctor.apellidos}` : 'tu médico'
 
   return (
     <div style={{ flex: 1, overflowY: 'auto' }}>
-      {/* Hero confirmación */}
+      <style>{`
+        @keyframes vc-drawCircle { to { stroke-dashoffset: 0 } }
+        @keyframes vc-drawCheck  { to { stroke-dashoffset: 0 } }
+        @keyframes vc-pop   { 0%{transform:scale(0.4);opacity:0} 65%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
+        @keyframes vc-slide { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
+        @keyframes vc-glow  { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0)} 50%{box-shadow:0 0 0 12px rgba(16,185,129,0.18)} }
+      `}</style>
+
+      {/* ── Hero ── */}
       <div style={{
         background: `linear-gradient(160deg, ${C.green900} 0%, ${C.green600} 100%)`,
-        padding: '40px 24px 36px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+        padding: '36px 24px 32px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
         flexShrink: 0,
       }}>
-        <style>{`@keyframes popIn { 0%{transform:scale(0.5);opacity:0} 60%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }`}</style>
-        <div style={{
-          width: 72, height: 72, borderRadius: '50%',
-          background: 'rgba(255,255,255,0.2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 36,
-          animation: 'popIn 0.5s cubic-bezier(.175,.885,.32,1.275) both',
-        }}>
-          ✅
-        </div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: C.white, textAlign: 'center' }}>
-          ¡Cita confirmada!
-        </div>
-        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>
-          Tu médico te está esperando
+        {/* Checkmark animado SVG */}
+        <div style={{ animation: 'vc-pop 0.55s cubic-bezier(.175,.885,.32,1.275) both' }}>
+          <svg width="88" height="88" viewBox="0 0 88 88" style={{ display: 'block', filter: 'drop-shadow(0 4px 20px rgba(16,185,129,0.5))' }}>
+            <circle
+              cx="44" cy="44" r="39"
+              fill="rgba(255,255,255,0.15)"
+              stroke="rgba(255,255,255,0.9)"
+              strokeWidth="4"
+              strokeDasharray="245"
+              strokeDashoffset="245"
+              style={{ animation: 'vc-drawCircle 0.5s ease-out 0.1s forwards' }}
+            />
+            <polyline
+              points="23,46 37,61 65,29"
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="72"
+              strokeDashoffset="72"
+              style={{ animation: 'vc-drawCheck 0.38s ease-out 0.52s forwards' }}
+            />
+          </svg>
         </div>
 
-        {/* Código de cita */}
         <div style={{
-          marginTop: 4,
-          background: 'rgba(255,255,255,0.15)',
-          borderRadius: 12, padding: '10px 24px',
-          textAlign: 'center',
+          fontSize: 24, fontWeight: 900, color: C.white,
+          textAlign: 'center', letterSpacing: -0.3,
+          animation: 'vc-slide 0.4s 0.3s ease both',
         }}>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 700, letterSpacing: 2, marginBottom: 4 }}>
-            CÓDIGO DE CITA
+          ¡Cita confirmada!
+        </div>
+
+        <div style={{
+          fontSize: 13, color: 'rgba(255,255,255,0.78)',
+          textAlign: 'center', lineHeight: 1.5,
+          animation: 'vc-slide 0.4s 0.4s ease both',
+        }}>
+          Tu salud es lo primero.<br />
+          {titulo} {docName} estará listo para atenderte.
+        </div>
+
+        {/* Código grande */}
+        <div style={{
+          marginTop: 6,
+          background: 'rgba(255,255,255,0.14)',
+          border: '1.5px solid rgba(255,255,255,0.25)',
+          borderRadius: 14, padding: '12px 28px',
+          textAlign: 'center',
+          animation: 'vc-slide 0.4s 0.5s ease both',
+        }}>
+          <div style={{
+            fontSize: 10, color: 'rgba(255,255,255,0.55)',
+            fontWeight: 800, letterSpacing: 3, marginBottom: 6,
+            textTransform: 'uppercase',
+          }}>
+            Código de cita
           </div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: C.white, letterSpacing: 2, fontFamily: 'monospace' }}>
+          <div style={{
+            fontSize: 24, fontWeight: 900, color: C.white,
+            letterSpacing: 4, fontFamily: 'monospace',
+            animation: 'vc-glow 3s 1s ease infinite',
+          }}>
             {codigo}
           </div>
         </div>
       </div>
 
-      {/* Detalle de la cita */}
-      <div style={{ padding: '24px 20px 0' }}>
+      <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+        {/* ── Doctor ── */}
+        <div style={{
+          background: C.white, border: `1.5px solid ${C.gray200}`,
+          borderRadius: 16, padding: '14px 16px',
+          display: 'flex', alignItems: 'center', gap: 14,
+          animation: 'vc-slide 0.4s 0.55s ease both',
+        }}>
+          {doctor?.foto_url ? (
+            <img src={doctor.foto_url} alt={docName}
+              style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+          ) : (
+            <div style={{
+              width: 52, height: 52, borderRadius: '50%', flexShrink: 0,
+              background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: C.white, fontWeight: 800, fontSize: 18,
+            }}>
+              {(doctor?.nombres?.[0] ?? '?') + (doctor?.apellidos?.[0] ?? '')}
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 15, color: C.gray900 }}>
+              {titulo} {doctor?.nombres} {doctor?.apellidos}
+            </div>
+            <div style={{ fontSize: 12, color: C.gray500, marginTop: 2 }}>
+              {doctor?.especialidad}
+            </div>
+            {doctor?.cmp && (
+              <span style={{
+                display: 'inline-block', marginTop: 4,
+                fontSize: 10, fontWeight: 700, color: C.green700,
+                background: C.green50, border: `1px solid ${C.green200}`,
+                padding: '2px 8px', borderRadius: 8,
+              }}>
+                {doctor.cmp}
+              </span>
+            )}
+          </div>
+          <span style={{
+            fontSize: 11, fontWeight: 700, color: C.green700,
+            background: C.green50, border: `1px solid ${C.green200}`,
+            padding: '4px 10px', borderRadius: 20, flexShrink: 0,
+          }}>
+            Confirmada
+          </span>
+        </div>
+
+        {/* ── Detalles de la cita ── */}
         <div style={{
           background: C.white, border: `1.5px solid ${C.gray200}`,
           borderRadius: 16, overflow: 'hidden',
+          animation: 'vc-slide 0.4s 0.6s ease both',
         }}>
-
-          {/* Médico */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 14,
-            padding: '16px', borderBottom: `1px solid ${C.gray100}`,
-          }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
-              background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: C.white, fontWeight: 700, fontSize: 16,
-            }}>
-              {doctor ? doctor.nombres[0] + doctor.apellidos[0] : '?'}
-            </div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 15, color: C.gray900 }}>
-                {titulo} {doctor?.nombres} {doctor?.apellidos}
-              </div>
-              <div style={{ fontSize: 12, color: C.gray500, marginTop: 2 }}>
-                {doctor?.especialidad} · {doctor?.cmp}
-              </div>
-            </div>
-          </div>
-
-          {/* Datos */}
           {[
-            ['📅 Fecha',      fecha],
-            ['🕐 Hora',       `${hora} · hora Lima`],
-            ['⏱ Duración',    '20 minutos'],
-            ['📍 Modalidad',  'Videollamada (recibirás el enlace)'],
-          ].map(([lbl, val]) => (
+            ['📅 Fecha',     fecha],
+            ['🕐 Hora',      `${hora} (hora Lima)`],
+            ['⏱️ Duración',  '20 minutos'],
+            ['📍 Modalidad', 'Videollamada'],
+          ].map(([lbl, val], i, arr) => (
             <div key={lbl} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-              padding: '12px 16px', borderBottom: `1px solid ${C.gray100}`,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '11px 16px',
+              borderBottom: i < arr.length - 1 ? `1px solid ${C.gray100}` : 'none',
               fontSize: 13,
             }}>
-              <span style={{ color: C.gray500, flexShrink: 0 }}>{lbl}</span>
-              <span style={{ color: C.gray900, fontWeight: 600, textAlign: 'right', maxWidth: '55%' }}>{val}</span>
+              <span style={{ color: C.gray500 }}>{lbl}</span>
+              <span style={{ color: C.gray900, fontWeight: 700, textAlign: 'right', maxWidth: '58%' }}>{val}</span>
             </div>
           ))}
-
-          {/* Monto pagado */}
           <div style={{
-            padding: '14px 16px',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            background: C.green50,
+            padding: '13px 16px',
+            background: C.green50, borderTop: `1px solid ${C.green100}`,
           }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.green800 }}>✅ Pago confirmado</span>
-            <span style={{ fontSize: 18, fontWeight: 900, color: C.green700 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.green800 }}>✅ Total pagado</span>
+            <span style={{ fontSize: 20, fontWeight: 900, color: C.green700 }}>
               S/. {doctor?.precio}.00
             </span>
           </div>
         </div>
 
-        {/* Aviso receta */}
+        {/* ── Agregar al calendario ── */}
         <div style={{
-          marginTop: 14,
-          background: C.green50, border: `1px solid ${C.green100}`,
-          borderRadius: 12, padding: '12px 14px',
-          fontSize: 11, color: C.green700, fontWeight: 600, lineHeight: 1.6,
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+          animation: 'vc-slide 0.4s 0.65s ease both',
         }}>
-          🛡️ Al terminar la consulta recibirás tu receta electrónica válida según Ley 30421.
+          <a
+            href={buildGoogleCalendarUrl(appointment, doctor, codigo)}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              padding: '11px 8px', borderRadius: 12, textDecoration: 'none',
+              background: '#EFF6FF', border: '1.5px solid #BFDBFE',
+              color: '#1D4ED8', fontSize: 12, fontWeight: 800,
+            }}
+          >
+            📅 Google Calendar
+          </a>
+          <button
+            onClick={() => downloadICS(appointment, doctor, codigo)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              padding: '11px 8px', borderRadius: 12,
+              background: '#F5F3FF', border: '1.5px solid #DDD6FE',
+              color: '#6D28D9', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            💾 Descargar .ics
+          </button>
+        </div>
+
+        {/* ── Aviso receta ── */}
+        <div style={{
+          background: C.green50, border: `1px solid ${C.green100}`,
+          borderRadius: 12, padding: '11px 14px',
+          fontSize: 11, color: C.green700, fontWeight: 600, lineHeight: 1.6,
+          animation: 'vc-slide 0.4s 0.7s ease both',
+        }}>
+          🛡️ Recibirás tu receta electrónica al finalizar la consulta (Ley 30421).
           Guarda el código <strong>{codigo}</strong> para identificar tu cita.
         </div>
-      </div>
 
-      {/* Botones de acción */}
-      <div style={{ padding: '20px 20px 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <button
-          onClick={onVerCitas}
-          style={{
-            width: '100%', padding: '14px 0',
-            background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
-            color: C.white, border: 'none', borderRadius: 12,
-            fontSize: 14, fontWeight: 800, cursor: 'pointer',
-            boxShadow: '0 4px 14px rgba(5,150,105,0.35)',
-          }}
-        >
-          📋 Ver mis citas
-        </button>
-        <button
-          onClick={onInicio}
-          style={{
-            width: '100%', padding: '13px 0',
-            background: C.white, color: C.green700,
-            border: `1.5px solid ${C.green600}`, borderRadius: 12,
-            fontSize: 14, fontWeight: 700, cursor: 'pointer',
-          }}
-        >
-          🏠 Volver al inicio
-        </button>
+        {/* ── Botones de acción ── */}
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 9,
+          paddingBottom: 20,
+          animation: 'vc-slide 0.4s 0.75s ease both',
+        }}>
+          <button
+            onClick={onMensaje}
+            style={{
+              width: '100%', padding: '14px 0',
+              background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
+              color: C.white, border: 'none', borderRadius: 12,
+              fontSize: 14, fontWeight: 800, cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(5,150,105,0.35)', fontFamily: 'inherit',
+            }}
+          >
+            💬 Mensaje al médico
+          </button>
+          <button
+            onClick={onInicio}
+            style={{
+              width: '100%', padding: '13px 0',
+              background: C.white, color: C.green700,
+              border: `1.5px solid ${C.green200}`, borderRadius: 12,
+              fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            🏠 Ir al inicio
+          </button>
+        </div>
+
       </div>
     </div>
   )
@@ -551,8 +707,8 @@ export default function Payment() {
       <VistaConfirmada
         appointment={appointment}
         doctor={doctor}
-        onVerCitas={() => navigate('/citas')}
         onInicio={() => navigate('/inicio')}
+        onMensaje={() => navigate(`/chat/${appointmentId}`)}
       />
     )
   }

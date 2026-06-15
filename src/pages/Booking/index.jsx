@@ -556,9 +556,21 @@ export default function Booking() {
   /* crear cita y navegar al pago */
   async function proceedWithBooking() {
     setSubmitting(true)
-    const scheduledAt = new Date(
-      `${format(selectedDate, 'yyyy-MM-dd')}T${selectedTime}:00-05:00`
-    )
+    const dateStr     = format(selectedDate, 'yyyy-MM-dd')
+    const scheduledAt = new Date(`${dateStr}T${selectedTime}:00-05:00`)
+
+    // Calcular posición en la cola del día
+    const [yy, mm, dd] = dateStr.split('-').map(Number)
+    const dayStart = new Date(Date.UTC(yy, mm - 1, dd,     5,  0,  0)).toISOString()
+    const dayEnd   = new Date(Date.UTC(yy, mm - 1, dd + 1, 4, 59, 59)).toISOString()
+    const { count: colaCount } = await supabase
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('doctor_id', doctorId)
+      .gte('scheduled_at', dayStart)
+      .lte('scheduled_at', dayEnd)
+      .in('status', ['pending', 'paid', 'active', 'done'])
+
     const { data, error } = await supabase
       .from('appointments')
       .insert({
@@ -568,6 +580,8 @@ export default function Booking() {
         scheduled_at:     scheduledAt.toISOString(),
         duration_minutes: 20,
         chief_complaint:  motivo.trim(),
+        posicion_cola:    (colaCount ?? 0) + 1,
+        hora_referencial: selectedTime,
       })
       .select('id')
       .single()

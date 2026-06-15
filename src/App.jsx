@@ -25,6 +25,7 @@ import Calificacion   from './screens/Calificacion'
 import PerfilMedico   from './screens/PerfilMedico'
 import Chat           from './screens/Chat'
 import Onboarding     from './screens/Onboarding'
+import SalaEspera     from './screens/SalaEspera'
 
 const C = { green100: '#D1FAE5', green600: '#059669', gray100: '#F3F4F6' }
 

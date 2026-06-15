@@ -371,7 +371,7 @@ function btnStyle(active) {
 }
 
 /* ── Vista: cita confirmada ──────────────────────────────────── */
-function VistaConfirmada({ appointment, doctor, onInicio, onMensaje }) {
+function VistaConfirmada({ appointment, doctor, onInicio, onMensaje, onCola }) {
   const titulo    = doctor ? doctorTitle(doctor.cmp, doctor.nombres) : ''
   const { fecha, hora } = formatScheduledAt(appointment.scheduled_at)
   const codigo    = codigoCita(appointment.id)
@@ -588,7 +588,7 @@ function VistaConfirmada({ appointment, doctor, onInicio, onMensaje }) {
         {/* ── Botones de acción ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9, paddingBottom: 20 }}>
           <button
-            onClick={onMensaje}
+            onClick={onCola}
             style={{
               width: '100%', padding: '14px 0',
               background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
@@ -597,15 +597,26 @@ function VistaConfirmada({ appointment, doctor, onInicio, onMensaje }) {
               boxShadow: '0 4px 14px rgba(5,150,105,0.35)', fontFamily: 'inherit',
             }}
           >
+            🪑 Ver mi lugar en la cola
+          </button>
+          <button
+            onClick={onMensaje}
+            style={{
+              width: '100%', padding: '13px 0',
+              background: C.white, color: C.green700,
+              border: `1.5px solid ${C.green200}`, borderRadius: 12,
+              fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
             💬 Mensaje al médico
           </button>
           <button
             onClick={onInicio}
             style={{
               width: '100%', padding: '13px 0',
-              background: C.white, color: C.green700,
-              border: `1.5px solid ${C.green200}`, borderRadius: 12,
-              fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+              background: 'none', color: C.gray500,
+              border: 'none', borderRadius: 12,
+              fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
             }}
           >
             🏠 Ir al inicio
@@ -701,6 +712,7 @@ export default function Payment() {
         doctor={doctor}
         onInicio={() => navigate('/inicio')}
         onMensaje={() => navigate(`/chat/${appointmentId}`)}
+        onCola={() => navigate(`/sala-espera/${appointmentId}`)}
       />
     )
   }

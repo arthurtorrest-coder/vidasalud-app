@@ -547,10 +547,7 @@ function VistaConfirmada({ appointment, doctor, onInicio, onMensaje }) {
         </div>
 
         {/* ── Agregar al calendario ── */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
-          animation: 'vc-slide 0.4s 0.65s ease both',
-        }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <a
             href={buildGoogleCalendarUrl(appointment, doctor, codigo)}
             target="_blank"
@@ -583,18 +580,13 @@ function VistaConfirmada({ appointment, doctor, onInicio, onMensaje }) {
           background: C.green50, border: `1px solid ${C.green100}`,
           borderRadius: 12, padding: '11px 14px',
           fontSize: 11, color: C.green700, fontWeight: 600, lineHeight: 1.6,
-          animation: 'vc-slide 0.4s 0.7s ease both',
         }}>
           🛡️ Recibirás tu receta electrónica al finalizar la consulta (Ley 30421).
           Guarda el código <strong>{codigo}</strong> para identificar tu cita.
         </div>
 
         {/* ── Botones de acción ── */}
-        <div style={{
-          display: 'flex', flexDirection: 'column', gap: 9,
-          paddingBottom: 20,
-          animation: 'vc-slide 0.4s 0.75s ease both',
-        }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, paddingBottom: 20 }}>
           <button
             onClick={onMensaje}
             style={{

@@ -110,7 +110,8 @@ export default function App() {
             <Route path="/especialidades"      element={<Especialidades />} />
             <Route path="/calificar/:appointmentId" element={<Calificacion />} />
             <Route path="/medico/:doctorId"         element={<PerfilMedico />} />
-            <Route path="/chat/:appointmentId"      element={<Chat />} />
+            <Route path="/chat/:appointmentId"           element={<Chat />}       />
+            <Route path="/sala-espera/:appointmentId"  element={<SalaEspera />} />
           </Route>
         </Route>
 

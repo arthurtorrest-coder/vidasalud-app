@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { C } from '../../lib/tokens'
+import VideoRoom from '../../components/VideoRoom'
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ export default function SalaEspera() {
   const [loading,    setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [countdown,  setCountdown]  = useState(30)
+  const [videoUrl,   setVideoUrl]   = useState(null)
 
   const loadData = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true)
@@ -186,6 +188,8 @@ export default function SalaEspera() {
         @keyframes se-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
       `}</style>
 
+      {videoUrl && <VideoRoom url={videoUrl} onLeave={() => setVideoUrl(null)} />}
+
       {/* ── Header ── */}
       <div style={{
         background: `linear-gradient(160deg, ${C.green900}, ${C.green700})`,
@@ -290,7 +294,7 @@ export default function SalaEspera() {
                       {titulo} {docName} está listo para atenderte.
                     </div>
                     <button
-                      onClick={() => navigate('/inicio')}
+                      onClick={() => appt?.video_url ? setVideoUrl(appt.video_url) : navigate('/inicio')}
                       style={{
                         marginTop: 18, width: '100%', padding: '15px 0',
                         background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,

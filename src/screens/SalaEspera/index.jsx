@@ -169,7 +169,6 @@ export default function SalaEspera() {
   const horaRef   = fmtHora12(appt?.hora_referencial)
   const esActiva  = appt?.status === 'active'
   const esDone    = ['done', 'cancelled'].includes(appt?.status)
-  const listoCola = appt?.status === 'paid' && adelante === 0
   const minEsp    = adelante * 20
   const myIndex   = Math.max(0, totalCola - adelante - 1)
 
@@ -267,7 +266,7 @@ export default function SalaEspera() {
             {/* Tarjeta de estado */}
             <div style={{
               background: C.white,
-              border: `1.5px solid ${esActiva ? C.green300 : listoCola ? C.green200 : C.gray200}`,
+              border: `1.5px solid ${esActiva ? C.green300 : adelante === 0 ? C.green200 : C.gray200}`,
               borderRadius: 20, overflow: 'hidden',
               animation: 'se-slide 0.4s ease both',
             }}>
@@ -276,15 +275,15 @@ export default function SalaEspera() {
                 height: 5,
                 background: esActiva
                   ? `linear-gradient(90deg, ${C.green500}, ${C.green400})`
-                  : listoCola
+                  : adelante === 0
                     ? `linear-gradient(90deg, ${C.green400}, ${C.green300})`
                     : `linear-gradient(90deg, ${C.amber}, #FDE68A)`,
               }} />
 
               <div style={{ padding: '22px 18px 24px', textAlign: 'center' }}>
 
-                {/* ── Es tu turno ── */}
-                {esActiva && (
+                {/* ── Estado 1: médico llamó al paciente (active + video_url) ── */}
+                {esActiva && appt?.video_url && (
                   <>
                     <div style={{ fontSize: 52, animation: 'se-blink 1.2s step-end infinite' }}>🔔</div>
                     <div style={{ fontSize: 22, fontWeight: 900, color: C.green800, marginTop: 12, letterSpacing: -0.3 }}>
@@ -294,7 +293,7 @@ export default function SalaEspera() {
                       {titulo} {docName} está listo para atenderte.
                     </div>
                     <button
-                      onClick={() => appt?.video_url ? setVideoUrl(appt.video_url) : navigate('/inicio')}
+                      onClick={() => setVideoUrl(appt.video_url)}
                       style={{
                         marginTop: 18, width: '100%', padding: '15px 0',
                         background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
@@ -305,38 +304,53 @@ export default function SalaEspera() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       }}
                     >
-                      📹 Entrar a la consulta
+                      ⚡ Es tu turno · Entrar ahora
                     </button>
                   </>
                 )}
 
-                {/* ── Siguiente en la cola ── */}
-                {!esActiva && listoCola && (
+                {/* ── Estado 2: active pero sin video_url aún (sala creándose) ── */}
+                {esActiva && !appt?.video_url && (
                   <>
-                    <div style={{ fontSize: 48 }}>⚡</div>
+                    <div style={{ fontSize: 52, animation: 'se-blink 1.2s step-end infinite' }}>🔔</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: C.green800, marginTop: 12 }}>
+                      ¡El médico te está llamando!
+                    </div>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      marginTop: 14, color: C.green700, fontSize: 13, fontWeight: 600,
+                    }}>
+                      <Spinner /> Preparando la sala de videoconferencia…
+                    </div>
+                  </>
+                )}
+
+                {/* ── Estado 3: primero en cola pero médico aún no llama (paid, adelante=0) ── */}
+                {!esActiva && adelante === 0 && (
+                  <>
+                    <div style={{ fontSize: 48 }}>🟢</div>
                     <div style={{ fontSize: 20, fontWeight: 900, color: C.green800, marginTop: 10 }}>
-                      ¡Eres el siguiente!
+                      Eres el siguiente
                     </div>
                     <div style={{ fontSize: 13, color: C.green700, marginTop: 6, lineHeight: 1.5 }}>
-                      El médico te llamará en breve.<br />Mantente listo.
+                      El médico te llamará pronto.<br />Mantente pendiente de esta pantalla.
                     </div>
-                    <button
-                      onClick={() => navigate('/inicio')}
-                      style={{
-                        marginTop: 16, width: '100%', padding: '14px 0',
-                        background: `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
-                        color: C.white, border: 'none', borderRadius: 12,
-                        fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
-                        boxShadow: '0 4px 14px rgba(5,150,105,0.35)',
-                      }}
-                    >
-                      ⚡ Entrar ahora
-                    </button>
+                    <div style={{
+                      marginTop: 14, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', gap: 6,
+                      fontSize: 11, color: C.gray500,
+                    }}>
+                      <div style={{
+                        width: 8, height: 8, borderRadius: '50%', background: C.green500,
+                        animation: 'se-pulse 1.8s ease-in-out infinite',
+                      }} />
+                      Esperando que el médico inicie la llamada
+                    </div>
                   </>
                 )}
 
-                {/* ── En espera ── */}
-                {!esActiva && !listoCola && (
+                {/* ── Estado 4: en espera con pacientes delante ── */}
+                {!esActiva && adelante > 0 && (
                   <>
                     <div style={{
                       fontSize: 56, fontWeight: 900, lineHeight: 1,
@@ -371,8 +385,8 @@ export default function SalaEspera() {
               </div>
             </div>
 
-            {/* Tiempo estimado */}
-            {!esActiva && !listoCola && (
+            {/* Tiempo estimado — solo cuando hay pacientes delante */}
+            {!esActiva && adelante > 0 && (
               <div style={{
                 background: C.amberBg, border: `1.5px solid #FDE68A`,
                 borderRadius: 16, padding: '14px 16px',

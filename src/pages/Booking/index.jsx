@@ -459,7 +459,7 @@ function ProfileCompleteModal({ onSaved, onClose }) {
 export default function Booking() {
   const { doctorId } = useParams()
   const navigate     = useNavigate()
-  const { user, profile, setProfile } = useAuthStore()
+  const { user, profile } = useAuthStore()
 
   const [needsProfile, setNeedsProfile] = useState(false)
   const [doctor,          setDoctor]          = useState(null)
@@ -532,7 +532,7 @@ export default function Booking() {
           .eq('doctor_id', doctorId)
           .gte('scheduled_at', dayStart)
           .lte('scheduled_at', dayEnd)
-          .in('status', ['pending', 'paid', 'active', 'done']),
+          .in('status', ['pending', 'paid', 'active']),
       ])
 
       setAvailableSlots(
@@ -569,7 +569,7 @@ export default function Booking() {
       .eq('doctor_id', doctorId)
       .gte('scheduled_at', dayStart)
       .lte('scheduled_at', dayEnd)
-      .in('status', ['pending', 'paid', 'active', 'done'])
+      .in('status', ['pending', 'paid', 'active'])
 
     const { data, error } = await supabase
       .from('appointments')

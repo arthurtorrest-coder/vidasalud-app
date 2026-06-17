@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { C } from '../../lib/tokens'
-import VideoRoom from '../../components/VideoRoom'
+import VideoRoom    from '../../components/VideoRoom'
+import PreCallModal from '../../components/PreCallModal'
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ export default function SalaEspera() {
   const [refreshing, setRefreshing] = useState(false)
   const [countdown,  setCountdown]  = useState(30)
   const [videoUrl,   setVideoUrl]   = useState(null)
+  const [showPreCall, setShowPreCall] = useState(false)
 
   const loadData = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true)
@@ -189,6 +191,13 @@ export default function SalaEspera() {
 
       {videoUrl && <VideoRoom url={videoUrl} onLeave={() => setVideoUrl(null)} />}
 
+      {showPreCall && (
+        <PreCallModal
+          onEnter={() => { setVideoUrl(appt.video_url); setShowPreCall(false) }}
+          onClose={() => setShowPreCall(false)}
+        />
+      )}
+
       {/* ── Header ── */}
       <div style={{
         background: `linear-gradient(160deg, ${C.green900}, ${C.green700})`,
@@ -293,7 +302,7 @@ export default function SalaEspera() {
                       {titulo} {docName} está listo para atenderte.
                     </div>
                     <button
-                      onClick={() => setVideoUrl(appt.video_url)}
+                      onClick={() => setShowPreCall(true)}
                       style={{
                         marginTop: 18, width: '100%', padding: '15px 0',
                         background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,

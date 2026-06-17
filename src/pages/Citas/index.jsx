@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import toast, { Toaster } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
-import VideoRoom from '../../components/VideoRoom'
+import VideoRoom     from '../../components/VideoRoom'
+import PreCallModal  from '../../components/PreCallModal'
 
 const C = {
   green800: '#065F46',
@@ -257,7 +258,8 @@ function AppointmentCard({ appt, onCancel, onJoin, onCalificar, onChat }) {
   const canJoin    = appt.status === 'active' && !!appt.video_url
   const isDone     = appt.status === 'done'
   const canChat    = ['paid','active','done'].includes(appt.status)
-  const [showHowTo, setShowHowTo] = useState(false)
+  const [showHowTo,   setShowHowTo]   = useState(false)
+  const [showPreCall, setShowPreCall] = useState(false)
 
   return (
     <div style={{
@@ -307,10 +309,17 @@ function AppointmentCard({ appt, onCancel, onJoin, onCalificar, onChat }) {
       </div>
 
       {/* Botones de acción — visibles cuando el médico ya inició */}
+      {showPreCall && (
+        <PreCallModal
+          onEnter={() => { onJoin(appt.video_url); setShowPreCall(false) }}
+          onClose={() => setShowPreCall(false)}
+        />
+      )}
+
       {canJoin && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button
-            onClick={() => onJoin(appt.video_url)}
+            onClick={() => setShowPreCall(true)}
             style={{
               width: '100%', padding: '14px 0',
               background: 'linear-gradient(135deg, #1D4ED8, #2563EB)',

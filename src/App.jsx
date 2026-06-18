@@ -25,7 +25,9 @@ import Calificacion   from './screens/Calificacion'
 import PerfilMedico   from './screens/PerfilMedico'
 import Chat           from './screens/Chat'
 import Onboarding     from './screens/Onboarding'
-import SalaEspera     from './screens/SalaEspera'
+import SalaEspera      from './screens/SalaEspera'
+import RegisterFarmacia from './screens/Auth/RegisterFarmacia'
+import Farmacias        from './screens/Farmacias'
 
 const C = { green100: '#D1FAE5', green600: '#059669', gray100: '#F3F4F6' }
 
@@ -78,7 +80,8 @@ export default function App() {
         <Route path="/login"            element={<Login />}            />
         <Route path="/registro"          element={<Register />}         />
         <Route path="/registro-medico"  element={<RegisterMedico />}   />
-        <Route path="/nueva-contrasena" element={<NuevaContrasena />}  />
+        <Route path="/nueva-contrasena"   element={<NuevaContrasena />}    />
+        <Route path="/registro-farmacia" element={<RegisterFarmacia />}  />
 
         {/* Rutas protegidas — redirigen a /login si no hay sesión */}
         <Route element={<ProtectedRoute />}>
@@ -111,7 +114,8 @@ export default function App() {
             <Route path="/calificar/:appointmentId" element={<Calificacion />} />
             <Route path="/medico/:doctorId"         element={<PerfilMedico />} />
             <Route path="/chat/:appointmentId"           element={<Chat />}       />
-            <Route path="/sala-espera/:appointmentId"  element={<SalaEspera />} />
+            <Route path="/sala-espera/:appointmentId"  element={<SalaEspera />}  />
+            <Route path="/farmacias"                   element={<Farmacias />}   />
           </Route>
         </Route>
 

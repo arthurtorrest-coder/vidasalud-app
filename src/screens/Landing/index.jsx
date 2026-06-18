@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom'
 const C = {
   green900: '#064E3B', green800: '#065F46', green700: '#047857',
   green600: '#059669', green500: '#10B981', green400: '#34D399',
-  green200: '#A7F3D0', green100: '#D1FAE5', green50:  '#ECFDF5',
+  green300: '#6EE7B7', green200: '#A7F3D0', green100: '#D1FAE5', green50: '#ECFDF5',
   amber:    '#F59E0B',
   gray900:  '#111827', gray700:  '#374151', gray600:  '#4B5563',
   gray500:  '#6B7280', gray400:  '#9CA3AF', gray300:  '#D1D5DB',
-  gray100:  '#F3F4F6', gray50:   '#F9FAFB', white:    '#FFFFFF',
+  gray200:  '#E5E7EB', gray100:  '#F3F4F6', gray50:   '#F9FAFB', white: '#FFFFFF',
 }
 
 // ─── Datos ────────────────────────────────────────────────────
@@ -586,6 +586,84 @@ export default function Landing() {
             fontSize: 11, color: 'rgba(255,255,255,0.45)',
           }}>
             Verificamos tu CMP o CPsP · Aprobación en 1-2 días hábiles
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════ ¿TIENES UNA BOTICA? ══════════ */}
+      <section style={{ padding: '48px 20px', background: C.white }}>
+        <div style={{
+          background: `linear-gradient(160deg, #064E3B, #065F46)`,
+          borderRadius: 24, padding: '32px 22px',
+          maxWidth: 480, margin: '0 auto',
+          position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute', top: -40, right: -40, width: 140, height: 140,
+            borderRadius: '50%', background: 'rgba(52,211,153,0.08)', pointerEvents: 'none',
+          }} />
+
+          <div style={{
+            display: 'inline-block', fontSize: 11, fontWeight: 700, letterSpacing: 1.2,
+            color: C.green200, background: 'rgba(52,211,153,0.15)',
+            border: '1px solid rgba(167,243,208,0.3)',
+            padding: '4px 12px', borderRadius: 20, marginBottom: 16,
+          }}>
+            PARA BOTICAS Y FARMACIAS
+          </div>
+
+          <h2 style={{
+            fontSize: 24, fontWeight: 900, color: C.white,
+            lineHeight: 1.2, marginBottom: 10, letterSpacing: -0.3,
+          }}>
+            💊 ¿Tienes una botica?
+          </h2>
+          <p style={{
+            fontSize: 13, color: 'rgba(255,255,255,0.72)',
+            lineHeight: 1.6, marginBottom: 22,
+          }}>
+            Únete a la red de boticas aliadas de VIDASALUD y recibe pacientes con recetas electrónicas válidas.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginBottom: 24 }}>
+            {[
+              { icon: '📄', title: 'Recetas electrónicas', desc: 'Los pacientes llegan con receta válida bajo Ley 30421 lista para dispensar.' },
+              { icon: '📍', title: 'Aparece en el mapa', desc: 'Saldrás listada en nuestra app para que los pacientes te encuentren.' },
+              { icon: '💰', title: 'Aumenta tus ventas', desc: 'Red de más de 5,000 pacientes activos en todo el Perú.' },
+            ].map(b => (
+              <div key={b.title} style={{
+                display: 'flex', gap: 12, alignItems: 'flex-start',
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 12, padding: '12px 14px',
+              }}>
+                <span style={{ fontSize: 20, flexShrink: 0 }}>{b.icon}</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: C.white, marginBottom: 2 }}>
+                    {b.title}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>
+                    {b.desc}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={() => navigate('/registro-farmacia')}
+            style={{
+              width: '100%', padding: '15px 24px', border: 'none',
+              background: C.white, color: C.green800, borderRadius: 14,
+              fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            💊 Registrar mi botica
+          </button>
+          <div style={{ marginTop: 10, textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+            Aprobación en 1-2 días hábiles · DIGEMID requerido
           </div>
         </div>
       </section>

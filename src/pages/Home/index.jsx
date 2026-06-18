@@ -965,6 +965,39 @@ export default function Home() {
       <SectionHeader title="Acciones rápidas" />
       <QuickActions />
 
+      {/* Acceso rápido a boticas aliadas */}
+      <div
+        onClick={() => navigate('/farmacias')}
+        style={{
+          margin: '10px 20px 0',
+          background: `linear-gradient(135deg, ${C.green50}, #fff)`,
+          border: `1.5px solid ${C.green200}`,
+          borderRadius: 14, padding: '12px 16px',
+          display: 'flex', alignItems: 'center', gap: 12,
+          cursor: 'pointer',
+          WebkitTapHighlightColor: 'transparent',
+        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => e.key === 'Enter' && navigate('/farmacias')}
+      >
+        <span style={{
+          width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+          background: C.green100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 20,
+        }}>🏪</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.green800 }}>
+            Encuentra una botica aliada
+          </div>
+          <div style={{ fontSize: 11, color: C.green700, marginTop: 2 }}>
+            Recetas electrónicas aceptadas · Cerca de ti
+          </div>
+        </div>
+        <span style={{ color: C.green500, fontSize: 18, flexShrink: 0 }}>›</span>
+      </div>
+
       <SectionHeader title="Especialidades" />
       <div style={{ display: 'flex', gap: 8, padding: '0 20px 4px', overflowX: 'auto' }}>
         {SPECIALTIES.map((s, i) => (

@@ -36,6 +36,13 @@ const ICONS = {
       <line x1="9" y1="16" x2="13" y2="16" />
     </svg>
   ),
+  pharmacy: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <line x1="12" y1="8" x2="12" y2="16" />
+      <line x1="8"  y1="12" x2="16" y2="12" />
+    </svg>
+  ),
   user: (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
@@ -56,8 +63,8 @@ const LEFT_ITEMS = [
   { path: '/citas',     icon: ICONS.calendar, label: 'Citas',     roots: ['/citas'] },
 ]
 const RIGHT_ITEMS = [
-  { path: '/historial', icon: ICONS.clipboard, label: 'Historial', roots: ['/historial'] },
-  { path: '/perfil',    icon: ICONS.user,      label: 'Perfil',    roots: ['/perfil'] },
+  { path: '/farmacias', icon: ICONS.pharmacy, label: 'Boticas', roots: ['/farmacias', '/registro-farmacia'] },
+  { path: '/perfil',    icon: ICONS.user,     label: 'Perfil',  roots: ['/perfil'] },
 ]
 
 function isActive(roots, pathname) {

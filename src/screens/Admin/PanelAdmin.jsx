@@ -281,6 +281,7 @@ export default function PanelAdmin() {
   const [doctors,        setDoctors]        = useState([])
   const [pendingDoctors, setPendingDoctors] = useState([])
   const [pendingTarifas, setPendingTarifas] = useState([])
+  const [pendingBoticas, setPendingBoticas] = useState([])
   const [income,         setIncome]         = useState(null)
   const [sessionLogs,    setSessionLogs]    = useState([])
   const [loading,        setLoading]        = useState(true)
@@ -362,7 +363,7 @@ export default function PanelAdmin() {
     const { start, end, weekStart }                    = getLimaRange()
     const { startOfMonth, endOfMonth, last30Start }    = getMonthRange()
 
-    const [apptRes, weekRes, docRes, payRes, pendingRes, tarifasRes, sessionRes, monthRes, patientRes, thirtyRes] = await Promise.all([
+    const [apptRes, weekRes, docRes, payRes, pendingRes, tarifasRes, sessionRes, monthRes, patientRes, thirtyRes, boticasRes] = await Promise.all([
       supabase
         .from('appointments')
         .select(`
@@ -436,6 +437,13 @@ export default function PanelAdmin() {
         .select('id, precio_total, scheduled_at')
         .eq('status', 'done')
         .gte('scheduled_at', last30Start),
+
+      // Boticas pendientes de aprobación
+      supabase
+        .from('farmacias')
+        .select('id, nombre, codigo_digemid, ciudad, distrito, direccion, telefono, propietario_nombre, email, codigo_referido, comision_porcentaje, profile_id, created_at')
+        .eq('aprobado', false)
+        .order('created_at', { ascending: true }),
     ])
 
     if (apptRes.error)    console.warn('[PanelAdmin] appointments:', apptRes.error.message)
@@ -448,6 +456,7 @@ export default function PanelAdmin() {
     if (monthRes?.error)   console.warn('[PanelAdmin] monthAppts:',  monthRes.error.message)
     if (patientRes?.error) console.warn('[PanelAdmin] newPatients:', patientRes.error.message)
     if (thirtyRes?.error)  console.warn('[PanelAdmin] thirtyDays:',  thirtyRes.error.message)
+    if (boticasRes?.error) console.warn('[PanelAdmin] boticas:',    boticasRes.error.message)
 
     setTodayAppts(apptRes.data ?? [])
     setWeekAppts(weekRes.data ?? [])
@@ -480,6 +489,7 @@ export default function PanelAdmin() {
     if (!monthRes?.error)   setMonthAppts(monthRes?.data ?? [])
     if (!patientRes?.error) setNewPatients(patientRes?.count ?? 0)
     if (!thirtyRes?.error)  setThirtyDayAppts(thirtyRes?.data ?? [])
+    if (!boticasRes?.error) setPendingBoticas(boticasRes?.data ?? [])
     setLastRefresh(new Date())
     setLoading(false)
   }, [])
@@ -539,6 +549,27 @@ export default function PanelAdmin() {
     await supabase.from('doctors').delete().eq('id', doc.id)
     setPendingDoctors(prev => prev.filter(d => d.id !== doc.id))
     toast.success(`Solicitud de ${doc.full_name} rechazada`)
+  }
+
+  async function handleApproveBotica(botica) {
+    const { data: updated, error } = await supabase
+      .from('farmacias')
+      .update({ aprobado: true, activo: true })
+      .eq('id', botica.id)
+      .select('id')
+    if (error || !updated?.length) {
+      toast.error('Error al aprobar botica — verifica las políticas RLS de farmacias')
+      return
+    }
+    setPendingBoticas(prev => prev.filter(b => b.id !== botica.id))
+    toast.success(`${botica.nombre} aprobada y activa`)
+  }
+
+  async function handleRejectBotica(botica) {
+    if (!window.confirm(`¿Rechazar la solicitud de ${botica.nombre}? Se eliminará su registro.`)) return
+    await supabase.from('farmacias').delete().eq('id', botica.id)
+    setPendingBoticas(prev => prev.filter(b => b.id !== botica.id))
+    toast.success(`Solicitud de ${botica.nombre} rechazada`)
   }
 
   async function handleApproveTarifa(doc) {
@@ -1521,6 +1552,120 @@ export default function PanelAdmin() {
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Boticas pendientes de aprobación ── */}
+        {(loading || pendingBoticas.length > 0) && (
+          <div style={{
+            background: C.white, borderRadius: 16,
+            border: `1.5px solid #DDD6FE`,
+            padding: 20, marginBottom: 24,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>🏪</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: C.gray900 }}>
+                  Boticas pendientes de aprobación
+                </span>
+                {!loading && (
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                    background: C.yapeBg, color: C.yape,
+                  }}>
+                    {pendingBoticas.length}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[1, 2].map(i => (
+                  <div key={i} style={{
+                    border: `1px solid ${C.gray200}`, borderRadius: 12, padding: 16,
+                    display: 'flex', alignItems: 'center', gap: 16,
+                  }}>
+                    <div style={{ width: 44, height: 44, borderRadius: '50%', background: C.gray200 }} />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {skeletonBar('40%', 14)}
+                      {skeletonBar('60%', 11)}
+                      {skeletonBar('50%', 11)}
+                    </div>
+                    <div style={{ width: 80, height: 32, background: C.gray200, borderRadius: 8 }} />
+                    <div style={{ width: 80, height: 32, background: C.gray200, borderRadius: 8 }} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {pendingBoticas.map(botica => (
+                  <div key={botica.id} style={{
+                    border: `1px solid #DDD6FE`,
+                    background: C.yapeBg,
+                    borderRadius: 12, padding: '14px 16px',
+                    display: 'flex', alignItems: 'flex-start', gap: 14,
+                  }}>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                      background: `linear-gradient(135deg, ${C.yape}, #4C1D95)`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: C.white, fontWeight: 800, fontSize: 16,
+                    }}>
+                      {(botica.nombre ?? '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: C.gray900 }}>
+                        {botica.nombre}
+                      </div>
+                      <div style={{ fontSize: 12, color: C.yape, marginTop: 2 }}>
+                        DIGEMID: {botica.codigo_digemid ?? '—'}
+                        {' · '}{botica.ciudad ?? '—'}
+                        {botica.distrito ? `, ${botica.distrito}` : ''}
+                      </div>
+                      <div style={{ fontSize: 12, color: C.gray500, marginTop: 3 }}>
+                        📍 {botica.direccion ?? '—'}
+                        {' · '}📞 {botica.telefono ?? '—'}
+                      </div>
+                      <div style={{ fontSize: 12, color: C.gray500, marginTop: 2 }}>
+                        Propietario: <span style={{ fontWeight: 600, color: C.gray700 }}>{botica.propietario_nombre ?? '—'}</span>
+                        {botica.email ? ` · ${botica.email}` : ''}
+                      </div>
+                      <div style={{ fontSize: 11, color: C.gray400, marginTop: 4 }}>
+                        Solicitado: {new Date(botica.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {botica.comision_porcentaje ? ` · Comisión: ${botica.comision_porcentaje}%` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <button
+                        onClick={() => handleApproveBotica(botica)}
+                        style={{
+                          padding: '7px 14px', borderRadius: 8, border: 'none',
+                          background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
+                          color: C.white, fontSize: 12, fontWeight: 700,
+                          cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        ✓ Aprobar
+                      </button>
+                      <button
+                        onClick={() => handleRejectBotica(botica)}
+                        style={{
+                          padding: '7px 14px', borderRadius: 8,
+                          border: `1px solid ${C.red600}`,
+                          background: C.white, color: C.red600,
+                          fontSize: 12, fontWeight: 700,
+                          cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        ✗ Rechazar
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

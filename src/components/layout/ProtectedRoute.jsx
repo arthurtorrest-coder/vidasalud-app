@@ -33,21 +33,34 @@ export default function ProtectedRoute() {
 
   if (!user) return <Navigate to="/login" replace />
 
+  console.log('[ProtectedRoute] evaluando —', {
+    role:             profile?.role     ?? null,
+    doctorAprobado:   doctor?.aprobado  ?? 'n/a',
+    farmaciaAprobado: farmacia?.aprobado ?? 'n/a (farmacia null)',
+    pathname:         location.pathname,
+  })
+
   // Médico con aprobación pendiente → pantalla de espera
   if (
     profile?.role === 'doctor' &&
     doctor?.aprobado === false &&
     location.pathname !== '/espera-aprobacion'
   ) {
+    console.log('[ProtectedRoute] → redirigiendo médico a /espera-aprobacion')
     return <Navigate to="/espera-aprobacion" replace />
   }
 
-  // Farmacia con aprobación pendiente → pantalla de espera
+  // Farmacia pendiente O sin registro cargado → pantalla de espera
+  // farmacia===null significa que el registro no se encontró en la tabla farmacias
   if (
     profile?.role === 'farmacia' &&
-    farmacia?.aprobado === false &&
-    location.pathname !== '/espera-aprobacion-farmacia'
+    location.pathname !== '/espera-aprobacion-farmacia' &&
+    (farmacia === null || farmacia?.aprobado === false)
   ) {
+    console.log('[ProtectedRoute] → redirigiendo farmacia a /espera-aprobacion-farmacia', {
+      farmacia_null: farmacia === null,
+      aprobado: farmacia?.aprobado ?? null,
+    })
     return <Navigate to="/espera-aprobacion-farmacia" replace />
   }
 

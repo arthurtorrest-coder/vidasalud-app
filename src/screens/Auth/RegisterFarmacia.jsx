@@ -29,7 +29,7 @@ const schema = z.object({
   direccion:         z.string().min(5, 'Dirección muy corta'),
   telefono:          z.string().regex(/^\d{7,9}$/, 'Ingresa 7-9 dígitos'),
   propietario_nombre:z.string().min(3, 'Mínimo 3 caracteres'),
-  email:             z.string().email({ message: 'Correo no válido' }),
+  email:             z.email({ error: 'Correo no válido' }),
   password:          z.string().min(6, 'Mínimo 6 caracteres'),
   confirm:           z.string(),
 }).refine(d => d.password === d.confirm, {
@@ -90,6 +90,7 @@ export default function RegisterFarmacia() {
     setSubmitting(true)
     try {
       const codigoReferido = generarCodigoReferido(data.ciudad)
+      console.log('[RegisterFarmacia] iniciando registro —', data.email, '| código:', codigoReferido)
 
       // 1. Crear usuario en Supabase Auth
       const { data: authData, error: authErr } = await supabase.auth.signUp({
@@ -97,19 +98,26 @@ export default function RegisterFarmacia() {
         password: data.password,
         options:  { data: { role: 'farmacia' } },
       })
+      console.log('[RegisterFarmacia] signUp resultado —', {
+        userId:  authData?.user?.id ?? null,
+        session: authData?.session ? 'activa' : 'nula (requiere confirmación de email)',
+        error:   authErr?.message ?? null,
+      })
       if (authErr) throw new Error(authErr.message)
+      if (!authData?.user?.id) throw new Error('signUp no devolvió un usuario')
 
-      // 2. Establecer role='farmacia' en profiles (upsert por si el trigger ya lo creó)
-      if (authData?.user?.id) {
-        await supabase.from('profiles').upsert({
-          id:        authData.user.id,
-          role:      'farmacia',
-          full_name: data.propietario_nombre,
-        }, { onConflict: 'id' })
-      }
+      // 2. Establecer role='farmacia' en profiles
+      const { error: profileErr } = await supabase.from('profiles').upsert({
+        id:        authData.user.id,
+        role:      'farmacia',
+        full_name: data.propietario_nombre,
+      }, { onConflict: 'id' })
+      console.log('[RegisterFarmacia] profiles.upsert —', profileErr?.message ?? 'OK')
+      if (profileErr) console.warn('[RegisterFarmacia] profile upsert falló — role puede quedar como "patient"')
 
-      // 3. Insertar en tabla farmacias
+      // 3. Insertar en tabla farmacias (incluye profile_id para RLS por UID)
       const { error: dbErr } = await supabase.from('farmacias').insert({
+        profile_id:         authData.user.id,
         nombre:             data.nombre,
         codigo_digemid:     data.codigo_digemid,
         ciudad:             data.ciudad,
@@ -122,17 +130,18 @@ export default function RegisterFarmacia() {
         aprobado:           false,
         activo:             false,
       })
+      console.log('[RegisterFarmacia] farmacias.insert —', dbErr?.message ?? 'OK')
       if (dbErr) {
-        if (authData?.user?.id) {
-          await supabase.auth.admin?.deleteUser(authData.user.id).catch(() => null)
-        }
+        await supabase.auth.admin?.deleteUser(authData.user.id).catch(() => null)
         throw new Error(dbErr.message)
       }
 
-      // 4. Redirigir a pantalla de espera (sesión activa)
+      // 4. Redirigir a pantalla de espera
+      console.log('[RegisterFarmacia] registro completo → /espera-aprobacion-farmacia')
       toast.success('¡Botica registrada! Estamos verificando tus datos.', { duration: 4000 })
       navigate('/espera-aprobacion-farmacia', { replace: true })
     } catch (err) {
+      console.error('[RegisterFarmacia] error —', err.message)
       toast.error(err.message ?? 'Error al registrar la botica')
     } finally {
       setSubmitting(false)

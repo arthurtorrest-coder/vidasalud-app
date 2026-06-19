@@ -4,7 +4,7 @@ import { useAuthStore } from '../../stores/authStore'
 const C = { green600: '#059669', green100: '#D1FAE5', gray100: '#F3F4F6', white: '#FFFFFF' }
 
 export default function ProtectedRoute() {
-  const { user, profile, doctor, loading } = useAuthStore()
+  const { user, profile, doctor, farmacia, loading } = useAuthStore()
   const location = useLocation()
 
   if (loading) {
@@ -33,13 +33,22 @@ export default function ProtectedRoute() {
 
   if (!user) return <Navigate to="/login" replace />
 
-  // Médico con aprobación pendiente → pantalla de espera (excepto si ya está en ella)
+  // Médico con aprobación pendiente → pantalla de espera
   if (
     profile?.role === 'doctor' &&
     doctor?.aprobado === false &&
     location.pathname !== '/espera-aprobacion'
   ) {
     return <Navigate to="/espera-aprobacion" replace />
+  }
+
+  // Farmacia con aprobación pendiente → pantalla de espera
+  if (
+    profile?.role === 'farmacia' &&
+    farmacia?.aprobado === false &&
+    location.pathname !== '/espera-aprobacion-farmacia'
+  ) {
+    return <Navigate to="/espera-aprobacion-farmacia" replace />
   }
 
   return <Outlet />

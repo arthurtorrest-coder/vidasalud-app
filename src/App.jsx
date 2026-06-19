@@ -7,7 +7,8 @@ import Login           from './screens/Auth/Login'
 import Register        from './screens/Auth/Register'
 import RegisterMedico  from './screens/Auth/RegisterMedico'
 import NuevaContrasena    from './screens/Auth/NuevaContrasena'
-import EsperaAprobacion  from './screens/Auth/EsperaAprobacion'
+import EsperaAprobacion          from './screens/Auth/EsperaAprobacion'
+import EsperaAprobacionFarmacia  from './screens/Auth/EsperaAprobacionFarmacia'
 import DoctorRoute     from './components/layout/DoctorRoute'
 import AdminRoute      from './components/layout/AdminRoute'
 import PanelMedico      from './screens/Doctor/PanelMedico'
@@ -87,7 +88,8 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
 
           {/* Médico pendiente de aprobación */}
-          <Route path="/espera-aprobacion" element={<EsperaAprobacion />} />
+          <Route path="/espera-aprobacion"          element={<EsperaAprobacion />}         />
+          <Route path="/espera-aprobacion-farmacia" element={<EsperaAprobacionFarmacia />} />
 
           {/* Onboarding para nuevos pacientes — sin AppShell */}
           <Route path="/onboarding" element={<Onboarding />} />

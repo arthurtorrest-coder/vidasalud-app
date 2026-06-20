@@ -64,5 +64,15 @@ export default function ProtectedRoute() {
     return <Navigate to="/espera-aprobacion-farmacia" replace />
   }
 
+  // Farmacia aprobada fuera de su área → panel farmacia
+  if (
+    profile?.role === 'farmacia' &&
+    farmacia?.aprobado === true &&
+    !location.pathname.startsWith('/farmacia')
+  ) {
+    console.log('[ProtectedRoute] → redirigiendo farmacia aprobada a /farmacia/panel')
+    return <Navigate to="/farmacia/panel" replace />
+  }
+
   return <Outlet />
 }

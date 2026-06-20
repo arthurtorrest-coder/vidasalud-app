@@ -107,6 +107,11 @@ export default function App() {
             <Route path="/admin/panel" element={<PanelAdmin />} />
           </Route>
 
+          {/* Solo farmacias aprobadas */}
+          <Route element={<FarmaciaRoute />}>
+            <Route path="/farmacia/panel" element={<PanelFarmacia />} />
+          </Route>
+
           <Route element={<OnboardingGuardedShell />}>
             <Route path="/inicio"              element={<Home />}     />
             <Route path="/booking/:doctorId"   element={<Booking />}  />

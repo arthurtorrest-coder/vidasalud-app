@@ -117,6 +117,15 @@ export default function PanelFarmacia() {
   const [registering,    setRegistering]    = useState(false)
   const [lastRegistered, setLastRegistered] = useState(null)
 
+  // Modal: reservar consulta en nombre de un paciente
+  const [bookingState,      setBookingState]      = useState(null)   // null | { patientId, patientName }
+  const [bookingDoctors,    setBookingDoctors]     = useState([])
+  const [bookingDoctor,     setBookingDoctor]      = useState(null)
+  const [doctorSearch,      setDoctorSearch]       = useState('')
+  const [bookingDatetime,   setBookingDatetime]    = useState('')
+  const [bookingStep,       setBookingStep]        = useState(1)      // 1=médico 2=fecha/hora
+  const [bookingSubmitting, setBookingSubmitting]  = useState(false)
+
   const loadData = useCallback(async () => {
     if (!farmacia?.id) return
     setLoading(true)
@@ -204,7 +213,7 @@ export default function PanelFarmacia() {
       })
       if (error || !data?.ok) throw new Error(data?.error ?? error?.message ?? 'Error desconocido')
 
-      setLastRegistered(data)
+      setLastRegistered({ ...data, nombre: form.nombre.trim() })
       setForm({ nombre: '', dni: '', telefono: '', email: '' })
       toast.success(`Paciente registrado correctamente`)
       loadData()
@@ -212,6 +221,56 @@ export default function PanelFarmacia() {
       toast.error(`Error: ${err.message}`)
     } finally {
       setRegistering(false)
+    }
+  }
+
+  async function openBooking(patientId, patientName) {
+    setBookingState({ patientId, patientName })
+    setBookingStep(1)
+    setBookingDoctor(null)
+    setBookingDatetime('')
+    setDoctorSearch('')
+    if (bookingDoctors.length === 0) {
+      const { data } = await supabase
+        .from('doctors')
+        .select('id, nombres, apellidos, especialidad, precio')
+        .eq('aprobado', true)
+        .eq('activo', true)
+        .order('nombres')
+      setBookingDoctors(data ?? [])
+    }
+  }
+
+  function closeBooking() {
+    setBookingState(null)
+    setBookingDoctor(null)
+    setBookingDatetime('')
+    setDoctorSearch('')
+    setBookingStep(1)
+  }
+
+  async function handleCreateCita() {
+    if (!bookingDoctor || !bookingDatetime) {
+      toast.error('Selecciona médico y fecha/hora')
+      return
+    }
+    setBookingSubmitting(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('crear-cita-farmacia', {
+        body: {
+          patient_id:   bookingState.patientId,
+          doctor_id:    bookingDoctor.id,
+          scheduled_at: new Date(bookingDatetime).toISOString(),
+        },
+      })
+      if (error || !data?.ok) throw new Error(data?.error ?? error?.message ?? 'Error al crear cita')
+      toast.success('Cita registrada correctamente')
+      closeBooking()
+      loadData()
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setBookingSubmitting(false)
     }
   }
 
@@ -394,6 +453,19 @@ export default function PanelFarmacia() {
                 <div style={{ marginTop: 8, fontSize: 11, color: C.gray500, lineHeight: 1.5 }}>
                   Entrega estos datos al paciente para que pueda acceder a VIDASALUD y gestionar sus citas.
                 </div>
+                {lastRegistered.patient_id && (
+                  <button
+                    onClick={() => openBooking(lastRegistered.patient_id, lastRegistered.nombre)}
+                    style={{
+                      marginTop: 12, width: '100%', padding: '11px 0', border: 'none', borderRadius: 10,
+                      background: `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+                      color: C.white, fontSize: 13, fontWeight: 800, cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    🩺 Reservar consulta para este paciente
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -443,9 +515,22 @@ export default function PanelFarmacia() {
                         Registrado: {fmtDate(p.created_at)}
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: C.green700 }}>{apptCount}</div>
-                      <div style={{ fontSize: 9, color: C.gray400, fontWeight: 600 }}>CONSULTAS</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                      <div>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: C.green700, textAlign: 'right' }}>{apptCount}</div>
+                        <div style={{ fontSize: 9, color: C.gray400, fontWeight: 600 }}>CONSULTAS</div>
+                      </div>
+                      <button
+                        onClick={() => openBooking(p.id, p.full_name)}
+                        style={{
+                          padding: '6px 10px', border: 'none', borderRadius: 8,
+                          background: `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+                          color: C.white, fontSize: 11, fontWeight: 800,
+                          cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        🩺 Reservar
+                      </button>
                     </div>
                   </div>
                 )
@@ -536,6 +621,212 @@ export default function PanelFarmacia() {
           </div>
         )}
       </div>
+
+      {/* ── Modal: Reservar consulta ── */}
+      {bookingState && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 300,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'flex-end',
+          }}
+          onClick={closeBooking}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', background: C.white,
+              borderRadius: '20px 20px 0 0',
+              maxHeight: '85vh', display: 'flex', flexDirection: 'column',
+            }}
+          >
+            {/* Cabecera del modal */}
+            <div style={{
+              padding: '16px 18px 14px',
+              borderBottom: `1px solid ${C.gray100}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              flexShrink: 0,
+            }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: C.gray900 }}>🩺 Reservar consulta</div>
+                <div style={{ fontSize: 11, color: C.gray500, marginTop: 2 }}>
+                  Para: <strong>{bookingState.patientName}</strong>
+                </div>
+              </div>
+              <button
+                onClick={closeBooking}
+                style={{
+                  background: C.gray100, border: 'none', borderRadius: '50%',
+                  width: 30, height: 30, cursor: 'pointer', fontSize: 14,
+                  color: C.gray600, fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >✕</button>
+            </div>
+
+            {/* Indicador de pasos */}
+            <div style={{ display: 'flex', gap: 6, padding: '10px 18px', flexShrink: 0 }}>
+              {['1. Médico', '2. Fecha y hora'].map((label, i) => (
+                <div key={i} style={{
+                  flex: 1, padding: '5px 0', textAlign: 'center', borderRadius: 20,
+                  fontSize: 11, fontWeight: 700,
+                  background: bookingStep === i + 1 ? C.green700 : C.gray100,
+                  color:      bookingStep === i + 1 ? C.white    : C.gray400,
+                }}>
+                  {label}
+                </div>
+              ))}
+            </div>
+
+            {/* Paso 1 — Seleccionar médico */}
+            {bookingStep === 1 && (
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ padding: '0 18px 10px', flexShrink: 0 }}>
+                  <input
+                    placeholder="Buscar por nombre o especialidad…"
+                    value={doctorSearch}
+                    onChange={e => setDoctorSearch(e.target.value)}
+                    style={{
+                      width: '100%', padding: '9px 13px', boxSizing: 'border-box',
+                      border: `1.5px solid ${C.gray300}`, borderRadius: 10,
+                      fontSize: 13, fontFamily: 'inherit', outline: 'none', color: C.gray900,
+                    }}
+                    onFocus={e  => { e.target.style.borderColor = C.green500 }}
+                    onBlur={e   => { e.target.style.borderColor = C.gray300  }}
+                  />
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 24px' }}>
+                  {bookingDoctors.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 0', color: C.gray400 }}>
+                      <div style={{ fontSize: 32 }}>👨‍⚕️</div>
+                      <div style={{ fontSize: 12, marginTop: 8 }}>Cargando médicos…</div>
+                    </div>
+                  ) : (
+                    bookingDoctors
+                      .filter(d => {
+                        const q = doctorSearch.toLowerCase()
+                        return !q ||
+                          `${d.nombres} ${d.apellidos}`.toLowerCase().includes(q) ||
+                          (d.especialidad ?? '').toLowerCase().includes(q)
+                      })
+                      .map(d => (
+                        <div
+                          key={d.id}
+                          onClick={() => { setBookingDoctor(d); setBookingStep(2) }}
+                          style={{
+                            padding: '11px 13px', borderRadius: 12, marginBottom: 8,
+                            border: `1.5px solid ${C.gray200}`,
+                            background: C.white, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: 12,
+                          }}
+                        >
+                          <div style={{
+                            width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                            background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: C.white, fontWeight: 800, fontSize: 14,
+                          }}>
+                            {(d.nombres ?? '?').charAt(0).toUpperCase()}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900 }}>
+                              {d.nombres} {d.apellidos}
+                            </div>
+                            <div style={{ fontSize: 11, color: C.gray500, marginTop: 1 }}>
+                              {d.especialidad ?? '—'}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: C.green700, flexShrink: 0 }}>
+                            S/. {d.precio ?? '—'}
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Paso 2 — Fecha y hora */}
+            {bookingStep === 2 && (
+              <div style={{ padding: '16px 18px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Resumen del médico seleccionado */}
+                <div style={{
+                  background: C.green50, border: `1.5px solid ${C.green200}`,
+                  borderRadius: 12, padding: '10px 14px',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.green800 }}>
+                      {bookingDoctor?.nombres} {bookingDoctor?.apellidos}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.green700 }}>
+                      {bookingDoctor?.especialidad} · S/. {bookingDoctor?.precio}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setBookingStep(1); setBookingDoctor(null) }}
+                    style={{
+                      background: 'none', border: 'none', color: C.green700,
+                      fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    Cambiar
+                  </button>
+                </div>
+
+                <div>
+                  <label style={{
+                    display: 'block', fontSize: 11, fontWeight: 700, color: C.gray600,
+                    marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5,
+                  }}>
+                    Fecha y hora de la cita
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={bookingDatetime}
+                    onChange={e => setBookingDatetime(e.target.value)}
+                    min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+                    style={{
+                      width: '100%', padding: '11px 13px', boxSizing: 'border-box',
+                      border: `1.5px solid ${C.gray300}`, borderRadius: 10,
+                      fontSize: 14, fontFamily: 'inherit', outline: 'none', color: C.gray900,
+                    }}
+                    onFocus={e => { e.target.style.borderColor = C.green500 }}
+                    onBlur={e  => { e.target.style.borderColor = C.gray300  }}
+                  />
+                </div>
+
+                <button
+                  onClick={handleCreateCita}
+                  disabled={!bookingDatetime || bookingSubmitting}
+                  style={{
+                    width: '100%', padding: '13px 0', border: 'none', borderRadius: 12,
+                    background: !bookingDatetime || bookingSubmitting
+                      ? C.gray200
+                      : `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+                    color: !bookingDatetime || bookingSubmitting ? C.gray400 : C.white,
+                    fontSize: 14, fontWeight: 800,
+                    cursor: !bookingDatetime || bookingSubmitting ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}
+                >
+                  {bookingSubmitting ? (
+                    <>
+                      <div style={{
+                        width: 15, height: 15, borderRadius: '50%',
+                        border: `2px solid ${C.gray300}`, borderTopColor: C.gray500,
+                        animation: 'pf-spin 0.7s linear infinite',
+                      }} />
+                      Creando cita…
+                    </>
+                  ) : '✅ Confirmar cita'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

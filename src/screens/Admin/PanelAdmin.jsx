@@ -360,11 +360,15 @@ export default function PanelAdmin() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
+    try {
     const { start, end, weekStart }                    = getLimaRange()
     const { startOfMonth, endOfMonth, last30Start }    = getMonthRange()
 
+    // Wrapper que evita que una query individual rechace el Promise.all completo
+    const safe = (q) => Promise.resolve(q).catch(err => ({ data: null, error: err }))
+
     const [apptRes, weekRes, docRes, payRes, pendingRes, tarifasRes, sessionRes, monthRes, patientRes, thirtyRes, boticasRes] = await Promise.all([
-      supabase
+      safe(supabase
         .from('appointments')
         .select(`
           id, scheduled_at, status, duration_minutes,
@@ -373,39 +377,39 @@ export default function PanelAdmin() {
         `)
         .gte('scheduled_at', start)
         .lte('scheduled_at', end)
-        .order('scheduled_at', { ascending: true }),
+        .order('scheduled_at', { ascending: true })),
 
-      supabase
+      safe(supabase
         .from('appointments')
         .select('scheduled_at, status')
         .gte('scheduled_at', weekStart)
-        .lte('scheduled_at', end),
+        .lte('scheduled_at', end)),
 
-      supabase
+      safe(supabase
         .from('doctors')
         .select('id, nombres, apellidos, especialidad, cmp, precio, rating, total_reviews, activo, aprobado')
         .eq('aprobado', true)
-        .order('rating', { ascending: false }),
+        .order('rating', { ascending: false })),
 
-      supabase
+      safe(supabase
         .from('payments')
         .select('amount, monto')
         .gte('created_at', start)
-        .lte('created_at', end),
+        .lte('created_at', end)),
 
-      supabase
+      safe(supabase
         .from('doctors')
         .select('id, nombres, apellidos, especialidad, cmp, anos_experiencia, bio, precio, profile_id, created_at')
         .eq('aprobado', false)
-        .order('created_at', { ascending: true }),
+        .order('created_at', { ascending: true })),
 
-      supabase
+      safe(supabase
         .from('doctors')
         .select('id, nombres, apellidos, especialidad, cmp, precio, precio_propuesto')
         .eq('precio_pendiente_aprobacion', true)
-        .order('nombres', { ascending: true }),
+        .order('nombres', { ascending: true })),
 
-      supabase
+      safe(supabase
         .from('session_logs')
         .select(`
           id, inicio_sesion, fin_sesion, duracion_minutos, estado,
@@ -413,37 +417,37 @@ export default function PanelAdmin() {
           patient:profiles!patient_id ( full_name )
         `)
         .order('inicio_sesion', { ascending: false })
-        .limit(20),
+        .limit(20)),
 
       // Citas completadas del mes (con datos del médico para rankings)
-      supabase
+      safe(supabase
         .from('appointments')
         .select('id, precio_total, scheduled_at, doctor:doctors!doctor_id(id, nombres, apellidos, especialidad, rating, foto_url, cmp)')
         .eq('status', 'done')
         .gte('scheduled_at', startOfMonth)
-        .lte('scheduled_at', endOfMonth),
+        .lte('scheduled_at', endOfMonth)),
 
       // Nuevos pacientes registrados este mes
-      supabase
+      safe(supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
         .eq('role', 'patient')
         .gte('created_at', startOfMonth)
-        .lte('created_at', endOfMonth),
+        .lte('created_at', endOfMonth)),
 
       // Citas completadas últimos 30 días (tendencia de ingresos)
-      supabase
+      safe(supabase
         .from('appointments')
         .select('id, precio_total, scheduled_at')
         .eq('status', 'done')
-        .gte('scheduled_at', last30Start),
+        .gte('scheduled_at', last30Start)),
 
       // Boticas pendientes de aprobación
-      supabase
+      safe(supabase
         .from('farmacias')
         .select('id, nombre, codigo_digemid, ciudad, distrito, direccion, telefono, propietario_nombre, email, codigo_referido, comision_porcentaje, profile_id, created_at')
         .eq('aprobado', false)
-        .order('created_at', { ascending: true }),
+        .order('created_at', { ascending: true })),
     ])
 
     if (apptRes.error)    console.warn('[PanelAdmin] appointments:', apptRes.error.message)
@@ -491,7 +495,12 @@ export default function PanelAdmin() {
     if (!thirtyRes?.error)  setThirtyDayAppts(thirtyRes?.data ?? [])
     if (!boticasRes?.error) setPendingBoticas(boticasRes?.data ?? [])
     setLastRefresh(new Date())
-    setLoading(false)
+    } catch (err) {
+      console.error('[PanelAdmin] fetchAll error inesperado:', err)
+      toast.error('Error al cargar el panel. Intenta actualizar.')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])

@@ -187,7 +187,7 @@ function slotToLocalDatetime(slot) {
 
 export default function PanelFarmacia() {
   const navigate      = useNavigate()
-  const { profile, farmacia } = useAuthStore()
+  const { farmacia } = useAuthStore()
 
   const [tab,         setTab]         = useState('registrar')
   const [loading,     setLoading]     = useState(true)
@@ -326,6 +326,12 @@ export default function PanelFarmacia() {
           .from('doctor_schedules')
           .select('doctor_id, dia_semana, hora_inicio, hora_fin, activo'),
       ])
+      console.log('[PanelFarmacia] openBooking fetch:', {
+        doctores:  docs?.length  ?? 'null',
+        horarios:  scheds?.length ?? 'null',
+        sampleDoc:  docs?.[0]    ?? null,
+        sampleSched: scheds?.[0] ?? null,
+      })
       setBookingDoctors(docs ?? [])
       setBookingSchedules(scheds ?? [])
     }
@@ -780,6 +786,18 @@ export default function PanelFarmacia() {
               )
               const disponibles = filtered.filter(d => availableNowIds.has(d.id))
               const otros       = filtered.filter(d => !availableNowIds.has(d.id))
+
+              const { diaSemana, horaActual } = getLimaDateTime()
+              console.log('[PanelFarmacia] booking paso1:', {
+                doctores:      bookingDoctors.length,
+                horarios:      bookingSchedules.length,
+                disponibles:   disponibles.length,
+                otros:         otros.length,
+                horaLima:      horaActual,
+                diaLima:       diaSemana,
+                sampleSchedule: bookingSchedules[0] ?? null,
+                sampleDoctor:   bookingDoctors[0]   ?? null,
+              })
 
               const DoctorRow = ({ d, isNow }) => {
                 const nextText = !isNow ? getNextAvailabilityText(d.id, bookingSchedules) : null

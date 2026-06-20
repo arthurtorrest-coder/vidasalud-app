@@ -209,6 +209,7 @@ export default function PanelFarmacia() {
   const [bookingStep,       setBookingStep]        = useState(1)      // 1=médico 2=fecha/hora
   const [bookingSubmitting, setBookingSubmitting]  = useState(false)
   const [bookingSchedules,  setBookingSchedules]   = useState([])
+  const [openSpecs,         setOpenSpecs]          = useState(new Set())
 
   const loadData = useCallback(async () => {
     if (!farmacia?.id) return
@@ -239,6 +240,18 @@ export default function PanelFarmacia() {
       .eq('status', 'done')
       .order('scheduled_at', { ascending: false })
 
+    // 2b. Recetas para el botón "Descargar receta"
+    const apptIds = (appts ?? []).map(a => a.id)
+    let prescMap = {}
+    if (apptIds.length > 0) {
+      const { data: prescs } = await supabase
+        .from('prescriptions')
+        .select('appointment_id, pdf_url')
+        .in('appointment_id', apptIds)
+        .not('pdf_url', 'is', null)
+      ;(prescs ?? []).forEach(p => { prescMap[p.appointment_id] = p.pdf_url })
+    }
+
     const pct    = Number(farmacia.comision_porcentaje ?? 5)
     const patMap = Object.fromEntries((pats ?? []).map(p => [p.id, p.full_name]))
 
@@ -250,6 +263,7 @@ export default function PanelFarmacia() {
       monto:      Number(a.precio_total ?? 0),
       comision:   Number(a.precio_total ?? 0) * pct / 100,
       pagada:     a.comision_pagada ?? false,
+      pdfUrl:     prescMap[a.id] ?? null,
     }))
     setComisiones(rows)
 
@@ -343,6 +357,7 @@ export default function PanelFarmacia() {
     setBookingDatetime('')
     setDoctorSearch('')
     setBookingStep(1)
+    setOpenSpecs(new Set())
   }
 
   async function handleCreateCita() {
@@ -361,9 +376,9 @@ export default function PanelFarmacia() {
         },
       })
       if (error || !data?.ok) throw new Error(data?.error ?? error?.message ?? 'Error al crear cita')
-      toast.success('Cita registrada correctamente')
+      toast.success('Cita creada — procesando pago…')
       closeBooking()
-      loadData()
+      navigate(`/pago/${data.appointment_id}`)
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -466,9 +481,10 @@ export default function PanelFarmacia() {
 
       {/* ── Tabs ── */}
       <div style={{ display: 'flex', margin: '14px 16px 0', background: C.white, borderRadius: 12, overflow: 'hidden', border: `1.5px solid ${C.gray200}` }}>
-        <TabBtn id="registrar"  active={tab === 'registrar'}  label="➕ Registrar" onPress={setTab} />
-        <TabBtn id="pacientes"  active={tab === 'pacientes'}  label="👥 Pacientes" onPress={setTab} />
-        <TabBtn id="comisiones" active={tab === 'comisiones'} label="💰 Comisiones" onPress={setTab} />
+        <TabBtn id="registrar"  active={tab === 'registrar'}  label="➕ Registrar"  onPress={setTab} />
+        <TabBtn id="pacientes"  active={tab === 'pacientes'}  label="👥 Pacientes"  onPress={setTab} />
+        <TabBtn id="comisiones" active={tab === 'comisiones'} label="💰 Comisión"   onPress={setTab} />
+        <TabBtn id="historial"  active={tab === 'historial'}  label="📋 Historial"  onPress={setTab} />
       </div>
 
       {/* ── Contenido de tabs ── */}
@@ -717,6 +733,73 @@ export default function PanelFarmacia() {
             )}
           </div>
         )}
+
+        {/* ── Tab: Historial de atenciones ── */}
+        {tab === 'historial' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {loading ? (
+              [1, 2, 3].map(i => (
+                <div key={i} style={{ background: C.white, borderRadius: 12, padding: 14, border: `1.5px solid ${C.gray200}` }}>
+                  <div style={{ height: 12, width: '55%', background: C.gray100, borderRadius: 6, marginBottom: 8 }} />
+                  <div style={{ height: 10, width: '75%', background: C.gray100, borderRadius: 6, marginBottom: 6 }} />
+                  <div style={{ height: 10, width: '40%', background: C.gray100, borderRadius: 6 }} />
+                </div>
+              ))
+            ) : comisiones.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '36px 20px', color: C.gray500 }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>Sin atenciones registradas</div>
+                <div style={{ fontSize: 12, marginTop: 6 }}>Las consultas completadas de tus pacientes aparecerán aquí.</div>
+              </div>
+            ) : (
+              comisiones.map(c => (
+                <div key={c.id} style={{
+                  background: C.white, border: `1.5px solid ${C.gray200}`,
+                  borderRadius: 14, padding: '13px 16px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.paciente}
+                      </div>
+                      <div style={{ fontSize: 11, color: C.gray500, marginTop: 2 }}>
+                        {c.medico}
+                      </div>
+                      <div style={{ fontSize: 10, color: C.gray400, marginTop: 2 }}>
+                        {fmtDate(c.fecha)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: C.green700 }}>
+                        {fmtSoles(c.monto)}
+                      </div>
+                      <div style={{ fontSize: 10, color: C.gray400, marginTop: 1 }}>
+                        Comisión: {fmtSoles(c.comision)}
+                      </div>
+                    </div>
+                  </div>
+                  {c.pdfUrl && (
+                    <a
+                      href={c.pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        marginTop: 10,
+                        padding: '7px 14px', borderRadius: 8,
+                        background: C.green50, border: `1.5px solid ${C.green200}`,
+                        color: C.green700, fontSize: 12, fontWeight: 700,
+                        textDecoration: 'none',
+                      }}
+                    >
+                      📄 Descargar receta
+                    </a>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Modal: Reservar consulta ── */}
@@ -880,18 +963,72 @@ export default function PanelFarmacia() {
                           {disponibles.map(d => <DoctorRow key={d.id} d={d} isNow={true} />)}
                         </>
                       )}
-                      {otros.length > 0 && (
-                        <>
-                          <div style={{
-                            fontSize: 10, fontWeight: 800, color: C.gray500,
-                            letterSpacing: 0.6, textTransform: 'uppercase',
-                            padding: `${disponibles.length > 0 ? '10px' : '6px'} 0 8px`,
-                          }}>
-                            🕐 Agendar para otro momento
-                          </div>
-                          {otros.map(d => <DoctorRow key={d.id} d={d} isNow={false} />)}
-                        </>
-                      )}
+                      {otros.length > 0 && (() => {
+                        const specGroups = {}
+                        otros.forEach(d => {
+                          const k = d.especialidad?.trim() || 'Otras especialidades'
+                          if (!specGroups[k]) specGroups[k] = []
+                          specGroups[k].push(d)
+                        })
+                        const specEntries = Object.entries(specGroups)
+                          .sort(([a], [b]) => a.localeCompare(b))
+                        return (
+                          <>
+                            <div style={{
+                              fontSize: 10, fontWeight: 800, color: C.gray500,
+                              letterSpacing: 0.6, textTransform: 'uppercase',
+                              padding: `${disponibles.length > 0 ? '10px' : '6px'} 0 8px`,
+                            }}>
+                              🕐 Agendar para otro momento
+                            </div>
+                            {specEntries.map(([spec, docs]) => {
+                              const isOpen = openSpecs.has(spec)
+                              return (
+                                <div key={spec} style={{ marginBottom: 6 }}>
+                                  {/* Cabecera del acordeón */}
+                                  <div
+                                    onClick={() => setOpenSpecs(prev => {
+                                      const n = new Set(prev)
+                                      n.has(spec) ? n.delete(spec) : n.add(spec)
+                                      return n
+                                    })}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                      padding: '9px 13px', borderRadius: isOpen ? '10px 10px 0 0' : 10,
+                                      background: C.gray50, border: `1.5px solid ${C.gray200}`,
+                                      cursor: 'pointer', userSelect: 'none',
+                                    }}
+                                  >
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: C.gray700 }}>
+                                      {spec}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <span style={{
+                                        fontSize: 10, fontWeight: 700, color: C.green700,
+                                        background: C.green50, padding: '2px 8px', borderRadius: 20,
+                                      }}>
+                                        {docs.length} médico{docs.length !== 1 ? 's' : ''}
+                                      </span>
+                                      <span style={{ fontSize: 11, color: C.gray400, fontWeight: 700 }}>
+                                        {isOpen ? '▲' : '▼'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {/* Cuerpo del acordeón */}
+                                  {isOpen && (
+                                    <div style={{
+                                      border: `1.5px solid ${C.gray200}`, borderTop: 'none',
+                                      borderRadius: '0 0 10px 10px', overflow: 'hidden',
+                                    }}>
+                                      {docs.map(d => <DoctorRow key={d.id} d={d} isNow={false} />)}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </>
+                        )
+                      })()}
                       {filtered.length === 0 && (
                         <div style={{ textAlign: 'center', padding: '28px 0', color: C.gray400, fontSize: 12 }}>
                           Sin resultados para "{doctorSearch}"

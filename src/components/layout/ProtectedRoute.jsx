@@ -65,10 +65,12 @@ export default function ProtectedRoute() {
   }
 
   // Farmacia aprobada fuera de su área → panel farmacia
+  // Excepción: /pago/* para que la botica pueda cobrar presencialmente
   if (
     profile?.role === 'farmacia' &&
     farmacia?.aprobado === true &&
-    !location.pathname.startsWith('/farmacia')
+    !location.pathname.startsWith('/farmacia') &&
+    !location.pathname.startsWith('/pago')
   ) {
     console.log('[ProtectedRoute] → redirigiendo farmacia aprobada a /farmacia/panel')
     return <Navigate to="/farmacia/panel" replace />

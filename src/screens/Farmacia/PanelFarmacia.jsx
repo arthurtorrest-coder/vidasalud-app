@@ -100,6 +100,89 @@ function Input({ value, onChange, placeholder, type = 'text', inputMode }) {
   )
 }
 
+// ─── Disponibilidad de médicos (igual que Home y Especialidades) ─
+
+const DIAS      = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+const DIAS_FULL = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+
+function getLimaDateTime() {
+  const now  = new Date()
+  const lima = new Date(now.getTime() + (now.getTimezoneOffset() - 300) * 60000)
+  return {
+    diaSemana:  lima.getDay(),
+    horaActual: `${String(lima.getHours()).padStart(2,'0')}:${String(lima.getMinutes()).padStart(2,'0')}`,
+  }
+}
+
+function computeAvailableNowIds(schedules) {
+  const { diaSemana, horaActual } = getLimaDateTime()
+  const ids = new Set()
+  for (const s of schedules) {
+    if (
+      s.activo !== false &&
+      s.dia_semana === diaSemana &&
+      (s.hora_inicio ?? '') <= horaActual &&
+      (s.hora_fin    ?? '') >  horaActual
+    ) ids.add(s.doctor_id)
+  }
+  return ids
+}
+
+function formatHora12(hhmm) {
+  const [h, m] = (hhmm ?? '00:00').split(':').map(Number)
+  return `${h % 12 || 12}:${String(m).padStart(2,'0')}${h >= 12 ? 'pm' : 'am'}`
+}
+
+function getNextAvailabilityText(doctorId, allSchedules) {
+  const { diaSemana: diaHoy, horaActual } = getLimaDateTime()
+  const scheds     = allSchedules.filter(s => s.doctor_id === doctorId && s.activo !== false)
+  const todayLater = scheds
+    .filter(s => s.dia_semana === diaHoy && (s.hora_inicio ?? '') > horaActual)
+    .sort((a, b) => (a.hora_inicio ?? '').localeCompare(b.hora_inicio ?? ''))
+  if (todayLater.length > 0) return `Hoy ${formatHora12(todayLater[0].hora_inicio)}`
+  for (let i = 1; i <= 6; i++) {
+    const dia    = (diaHoy + i) % 7
+    const blocks = scheds
+      .filter(s => s.dia_semana === dia)
+      .sort((a, b) => (a.hora_inicio ?? '').localeCompare(b.hora_inicio ?? ''))
+    if (blocks.length > 0)
+      return `${i === 1 ? 'Mañana' : DIAS_FULL[dia]} ${formatHora12(blocks[0].hora_inicio)}`
+  }
+  return null
+}
+
+function getProximosSlots(doctorId, allSchedules) {
+  const { diaSemana: diaHoy } = getLimaDateTime()
+  const scheds = allSchedules.filter(s => s.doctor_id === doctorId && s.activo !== false)
+  const result = []
+  for (let i = 0; i < 7 && result.length < 3; i++) {
+    const dia     = (diaHoy + i) % 7
+    const bloques = scheds
+      .filter(s => s.dia_semana === dia)
+      .sort((a, b) => (a.hora_inicio ?? '').localeCompare(b.hora_inicio ?? ''))
+    if (bloques.length > 0)
+      result.push({ dia: DIAS[dia], hora: (bloques[0].hora_inicio ?? '00:00').slice(0,5), esHoy: i === 0 })
+  }
+  return result
+}
+
+// Convierte un slot {dia, hora, esHoy} al valor "YYYY-MM-DDTHH:MM" para datetime-local
+function slotToLocalDatetime(slot) {
+  const today    = new Date()
+  const todayDay = today.getDay()
+  const slotDay  = DIAS.indexOf(slot.dia)
+  const daysAhead = ((slotDay - todayDay + 7) % 7) || (slot.esHoy ? 0 : 7)
+  const d = new Date(today)
+  d.setDate(today.getDate() + daysAhead)
+  const [h, m] = slot.hora.split(':').map(Number)
+  d.setHours(h, m, 0, 0)
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2,'0'),
+    String(d.getDate()).padStart(2,'0'),
+  ].join('-') + 'T' + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0')
+}
+
 // ─── Panel principal ──────────────────────────────────────────
 
 export default function PanelFarmacia() {
@@ -125,6 +208,7 @@ export default function PanelFarmacia() {
   const [bookingDatetime,   setBookingDatetime]    = useState('')
   const [bookingStep,       setBookingStep]        = useState(1)      // 1=médico 2=fecha/hora
   const [bookingSubmitting, setBookingSubmitting]  = useState(false)
+  const [bookingSchedules,  setBookingSchedules]   = useState([])
 
   const loadData = useCallback(async () => {
     if (!farmacia?.id) return
@@ -231,13 +315,19 @@ export default function PanelFarmacia() {
     setBookingDatetime('')
     setDoctorSearch('')
     if (bookingDoctors.length === 0) {
-      const { data } = await supabase
-        .from('doctors')
-        .select('id, nombres, apellidos, especialidad, precio')
-        .eq('aprobado', true)
-        .eq('activo', true)
-        .order('nombres')
-      setBookingDoctors(data ?? [])
+      const [{ data: docs }, { data: scheds }] = await Promise.all([
+        supabase
+          .from('doctors')
+          .select('id, nombres, apellidos, especialidad, precio')
+          .eq('aprobado', true)
+          .eq('activo', true)
+          .order('nombres'),
+        supabase
+          .from('doctor_schedules')
+          .select('doctor_id, dia_semana, hora_inicio, hora_fin, activo'),
+      ])
+      setBookingDoctors(docs ?? [])
+      setBookingSchedules(scheds ?? [])
     }
   }
 
@@ -250,7 +340,8 @@ export default function PanelFarmacia() {
   }
 
   async function handleCreateCita() {
-    if (!bookingDoctor || !bookingDatetime) {
+    const isNow = computeAvailableNowIds(bookingSchedules).has(bookingDoctor?.id)
+    if (!bookingDoctor || (!isNow && !bookingDatetime)) {
       toast.error('Selecciona médico y fecha/hora')
       return
     }
@@ -260,7 +351,7 @@ export default function PanelFarmacia() {
         body: {
           patient_id:   bookingState.patientId,
           doctor_id:    bookingDoctor.id,
-          scheduled_at: new Date(bookingDatetime).toISOString(),
+          scheduled_at: isNow ? new Date().toISOString() : new Date(bookingDatetime).toISOString(),
         },
       })
       if (error || !data?.ok) throw new Error(data?.error ?? error?.message ?? 'Error al crear cita')
@@ -679,77 +770,129 @@ export default function PanelFarmacia() {
             </div>
 
             {/* Paso 1 — Seleccionar médico */}
-            {bookingStep === 1 && (
-              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '0 18px 10px', flexShrink: 0 }}>
-                  <input
-                    placeholder="Buscar por nombre o especialidad…"
-                    value={doctorSearch}
-                    onChange={e => setDoctorSearch(e.target.value)}
+            {bookingStep === 1 && (() => {
+              const availableNowIds = computeAvailableNowIds(bookingSchedules)
+              const q        = doctorSearch.toLowerCase()
+              const filtered = bookingDoctors.filter(d =>
+                !q ||
+                `${d.nombres} ${d.apellidos}`.toLowerCase().includes(q) ||
+                (d.especialidad ?? '').toLowerCase().includes(q)
+              )
+              const disponibles = filtered.filter(d => availableNowIds.has(d.id))
+              const otros       = filtered.filter(d => !availableNowIds.has(d.id))
+
+              const DoctorRow = ({ d, isNow }) => {
+                const nextText = !isNow ? getNextAvailabilityText(d.id, bookingSchedules) : null
+                return (
+                  <div
+                    key={d.id}
+                    onClick={() => { setBookingDoctor(d); setBookingStep(2) }}
                     style={{
-                      width: '100%', padding: '9px 13px', boxSizing: 'border-box',
-                      border: `1.5px solid ${C.gray300}`, borderRadius: 10,
-                      fontSize: 13, fontFamily: 'inherit', outline: 'none', color: C.gray900,
+                      padding: '11px 13px', borderRadius: 12, marginBottom: 8, cursor: 'pointer',
+                      border: `1.5px solid ${isNow ? C.green200 : C.gray200}`,
+                      background: isNow ? C.green50 : C.white,
+                      display: 'flex', alignItems: 'center', gap: 12,
                     }}
-                    onFocus={e  => { e.target.style.borderColor = C.green500 }}
-                    onBlur={e   => { e.target.style.borderColor = C.gray300  }}
-                  />
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 24px' }}>
+                  >
+                    <div style={{
+                      width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                      background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: C.white, fontWeight: 800, fontSize: 14,
+                    }}>
+                      {(d.nombres ?? '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900 }}>
+                        {d.nombres} {d.apellidos}
+                      </div>
+                      <div style={{ fontSize: 11, color: isNow ? C.green700 : C.gray500, marginTop: 1 }}>
+                        {d.especialidad ?? '—'}
+                        {isNow && <span style={{ marginLeft: 6, fontWeight: 700 }}>· Disponible ahora</span>}
+                        {!isNow && nextText && <span style={{ marginLeft: 4 }}>· 🕐 {nextText}</span>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.green700 }}>
+                        S/. {d.precio ?? '—'}
+                      </div>
+                      {isNow && (
+                        <div style={{ fontSize: 9, fontWeight: 700, color: C.green700, marginTop: 2 }}>
+                          RESERVAR AHORA →
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
+                <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ padding: '0 18px 10px', flexShrink: 0 }}>
+                    <input
+                      placeholder="Buscar por nombre o especialidad…"
+                      value={doctorSearch}
+                      onChange={e => setDoctorSearch(e.target.value)}
+                      style={{
+                        width: '100%', padding: '9px 13px', boxSizing: 'border-box',
+                        border: `1.5px solid ${C.gray300}`, borderRadius: 10,
+                        fontSize: 13, fontFamily: 'inherit', outline: 'none', color: C.gray900,
+                      }}
+                      onFocus={e => { e.target.style.borderColor = C.green500 }}
+                      onBlur={e  => { e.target.style.borderColor = C.gray300  }}
+                    />
+                  </div>
+
                   {bookingDoctors.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '32px 0', color: C.gray400 }}>
                       <div style={{ fontSize: 32 }}>👨‍⚕️</div>
                       <div style={{ fontSize: 12, marginTop: 8 }}>Cargando médicos…</div>
                     </div>
                   ) : (
-                    bookingDoctors
-                      .filter(d => {
-                        const q = doctorSearch.toLowerCase()
-                        return !q ||
-                          `${d.nombres} ${d.apellidos}`.toLowerCase().includes(q) ||
-                          (d.especialidad ?? '').toLowerCase().includes(q)
-                      })
-                      .map(d => (
-                        <div
-                          key={d.id}
-                          onClick={() => { setBookingDoctor(d); setBookingStep(2) }}
-                          style={{
-                            padding: '11px 13px', borderRadius: 12, marginBottom: 8,
-                            border: `1.5px solid ${C.gray200}`,
-                            background: C.white, cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', gap: 12,
-                          }}
-                        >
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 24px' }}>
+                      {disponibles.length > 0 && (
+                        <>
                           <div style={{
-                            width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-                            background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: C.white, fontWeight: 800, fontSize: 14,
+                            fontSize: 10, fontWeight: 800, color: C.green700,
+                            letterSpacing: 0.6, textTransform: 'uppercase',
+                            padding: '6px 0 8px',
                           }}>
-                            {(d.nombres ?? '?').charAt(0).toUpperCase()}
+                            🟢 Disponibles ahora
                           </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900 }}>
-                              {d.nombres} {d.apellidos}
-                            </div>
-                            <div style={{ fontSize: 11, color: C.gray500, marginTop: 1 }}>
-                              {d.especialidad ?? '—'}
-                            </div>
+                          {disponibles.map(d => <DoctorRow key={d.id} d={d} isNow={true} />)}
+                        </>
+                      )}
+                      {otros.length > 0 && (
+                        <>
+                          <div style={{
+                            fontSize: 10, fontWeight: 800, color: C.gray500,
+                            letterSpacing: 0.6, textTransform: 'uppercase',
+                            padding: `${disponibles.length > 0 ? '10px' : '6px'} 0 8px`,
+                          }}>
+                            🕐 Agendar para otro momento
                           </div>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: C.green700, flexShrink: 0 }}>
-                            S/. {d.precio ?? '—'}
-                          </div>
+                          {otros.map(d => <DoctorRow key={d.id} d={d} isNow={false} />)}
+                        </>
+                      )}
+                      {filtered.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '28px 0', color: C.gray400, fontSize: 12 }}>
+                          Sin resultados para "{doctorSearch}"
                         </div>
-                      ))
+                      )}
+                    </div>
                   )}
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
-            {/* Paso 2 — Fecha y hora */}
-            {bookingStep === 2 && (
-              <div style={{ padding: '16px 18px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Resumen del médico seleccionado */}
+            {/* Paso 2 — Confirmar (disponible ahora) o elegir fecha (otro momento) */}
+            {bookingStep === 2 && (() => {
+              const isNow  = computeAvailableNowIds(bookingSchedules).has(bookingDoctor?.id)
+              const slots  = isNow ? [] : getProximosSlots(bookingDoctor?.id, bookingSchedules)
+              const canSubmit = isNow || (!!bookingDatetime && !bookingSubmitting)
+
+              // Resumen del médico — compartido entre ambos modos
+              const DoctorSummary = () => (
                 <div style={{
                   background: C.green50, border: `1.5px solid ${C.green200}`,
                   borderRadius: 12, padding: '10px 14px',
@@ -773,57 +916,113 @@ export default function PanelFarmacia() {
                     Cambiar
                   </button>
                 </div>
+              )
 
-                <div>
-                  <label style={{
-                    display: 'block', fontSize: 11, fontWeight: 700, color: C.gray600,
-                    marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5,
-                  }}>
-                    Fecha y hora de la cita
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={bookingDatetime}
-                    onChange={e => setBookingDatetime(e.target.value)}
-                    min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
-                    style={{
-                      width: '100%', padding: '11px 13px', boxSizing: 'border-box',
-                      border: `1.5px solid ${C.gray300}`, borderRadius: 10,
-                      fontSize: 14, fontFamily: 'inherit', outline: 'none', color: C.gray900,
-                    }}
-                    onFocus={e => { e.target.style.borderColor = C.green500 }}
-                    onBlur={e  => { e.target.style.borderColor = C.gray300  }}
-                  />
-                </div>
+              return (
+                <div style={{ padding: '16px 18px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <DoctorSummary />
 
-                <button
-                  onClick={handleCreateCita}
-                  disabled={!bookingDatetime || bookingSubmitting}
-                  style={{
-                    width: '100%', padding: '13px 0', border: 'none', borderRadius: 12,
-                    background: !bookingDatetime || bookingSubmitting
-                      ? C.gray200
-                      : `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
-                    color: !bookingDatetime || bookingSubmitting ? C.gray400 : C.white,
-                    fontSize: 14, fontWeight: 800,
-                    cursor: !bookingDatetime || bookingSubmitting ? 'not-allowed' : 'pointer',
-                    fontFamily: 'inherit',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  }}
-                >
-                  {bookingSubmitting ? (
+                  {isNow ? (
+                    /* ── Modo "reservar ahora" ── */
+                    <div style={{
+                      background: C.green50, border: `1.5px solid ${C.green200}`,
+                      borderRadius: 12, padding: '14px 16px',
+                      display: 'flex', alignItems: 'center', gap: 12,
+                    }}>
+                      <span style={{ fontSize: 28 }}>🟢</span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: C.green800 }}>
+                          El médico está disponible ahora
+                        </div>
+                        <div style={{ fontSize: 11, color: C.green700, marginTop: 2 }}>
+                          La cita se agendará para este momento:{' '}
+                          <strong>{formatHora12(getLimaDateTime().horaActual)} Lima</strong>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── Modo "agendar para otro momento" ── */
                     <>
-                      <div style={{
-                        width: 15, height: 15, borderRadius: '50%',
-                        border: `2px solid ${C.gray300}`, borderTopColor: C.gray500,
-                        animation: 'pf-spin 0.7s linear infinite',
-                      }} />
-                      Creando cita…
+                      {slots.length > 0 && (
+                        <div>
+                          <div style={{
+                            fontSize: 10, fontWeight: 800, color: C.gray500,
+                            letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8,
+                          }}>
+                            Próximos horarios disponibles
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {slots.map((s, i) => (
+                              <button
+                                key={i}
+                                onClick={() => setBookingDatetime(slotToLocalDatetime(s))}
+                                style={{
+                                  padding: '7px 14px', borderRadius: 20, cursor: 'pointer',
+                                  fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
+                                  border: `1.5px solid ${C.green200}`,
+                                  background: bookingDatetime === slotToLocalDatetime(s) ? C.green700 : C.green50,
+                                  color:      bookingDatetime === slotToLocalDatetime(s) ? C.white    : C.green700,
+                                }}
+                              >
+                                {s.esHoy ? 'Hoy' : s.dia} {formatHora12(s.hora)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <label style={{
+                          display: 'block', fontSize: 11, fontWeight: 700, color: C.gray600,
+                          marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5,
+                        }}>
+                          O elige fecha y hora manualmente
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={bookingDatetime}
+                          onChange={e => setBookingDatetime(e.target.value)}
+                          min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+                          style={{
+                            width: '100%', padding: '11px 13px', boxSizing: 'border-box',
+                            border: `1.5px solid ${C.gray300}`, borderRadius: 10,
+                            fontSize: 14, fontFamily: 'inherit', outline: 'none', color: C.gray900,
+                          }}
+                          onFocus={e => { e.target.style.borderColor = C.green500 }}
+                          onBlur={e  => { e.target.style.borderColor = C.gray300  }}
+                        />
+                      </div>
                     </>
-                  ) : '✅ Confirmar cita'}
-                </button>
-              </div>
-            )}
+                  )}
+
+                  <button
+                    onClick={handleCreateCita}
+                    disabled={!canSubmit || bookingSubmitting}
+                    style={{
+                      width: '100%', padding: '13px 0', border: 'none', borderRadius: 12,
+                      background: canSubmit && !bookingSubmitting
+                        ? `linear-gradient(135deg, ${C.green700}, ${C.green500})`
+                        : C.gray200,
+                      color:  canSubmit && !bookingSubmitting ? C.white : C.gray400,
+                      cursor: canSubmit && !bookingSubmitting ? 'pointer' : 'not-allowed',
+                      fontSize: 14, fontWeight: 800, fontFamily: 'inherit',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    }}
+                  >
+                    {bookingSubmitting ? (
+                      <>
+                        <div style={{
+                          width: 15, height: 15, borderRadius: '50%',
+                          border: `2px solid ${C.gray300}`, borderTopColor: C.gray500,
+                          animation: 'pf-spin 0.7s linear infinite',
+                        }} />
+                        Creando cita…
+                      </>
+                    ) : isNow ? '🟢 Reservar ahora' : '✅ Confirmar cita'}
+                  </button>
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}

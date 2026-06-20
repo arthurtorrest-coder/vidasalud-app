@@ -378,7 +378,7 @@ export default function PanelFarmacia() {
       if (error || !data?.ok) throw new Error(data?.error ?? error?.message ?? 'Error al crear cita')
       toast.success('Cita creada — procesando pago…')
       closeBooking()
-      navigate(`/pago/${data.appointment_id}`)
+      navigate(`/farmacia/pago/${data.appointment_id}`)
     } catch (err) {
       toast.error(err.message)
     } finally {

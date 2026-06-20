@@ -109,7 +109,8 @@ export default function App() {
 
           {/* Solo farmacias aprobadas */}
           <Route element={<FarmaciaRoute />}>
-            <Route path="/farmacia/panel" element={<PanelFarmacia />} />
+            <Route path="/farmacia/panel"                    element={<PanelFarmacia />} />
+            <Route path="/farmacia/pago/:appointmentId"      element={<Payment />}       />
           </Route>
 
           <Route element={<OnboardingGuardedShell />}>

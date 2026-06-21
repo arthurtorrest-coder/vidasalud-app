@@ -212,15 +212,31 @@ export default function PanelFarmacia() {
   const [openSpecs,         setOpenSpecs]          = useState(new Set())
 
   const loadData = useCallback(async () => {
-    if (!farmacia?.id) return
+    console.log('[PanelFarmacia] loadData — farmacia:', {
+      id:       farmacia?.id      ?? 'UNDEFINED',
+      nombre:   farmacia?.nombre  ?? 'UNDEFINED',
+      aprobado: farmacia?.aprobado ?? 'UNDEFINED',
+    })
+    if (!farmacia?.id) {
+      console.warn('[PanelFarmacia] loadData abortado: farmacia.id no disponible')
+      return
+    }
     setLoading(true)
 
     // 1. Todos los pacientes referidos
-    const { data: pats } = await supabase
+    const { data: pats, error: patsError } = await supabase
       .from('profiles')
       .select('id, full_name, dni, phone, created_at')
       .eq('farmacia_referente_id', farmacia.id)
       .order('created_at', { ascending: false })
+
+    console.log('[PanelFarmacia] query profiles:', {
+      farmacia_id:   farmacia.id,
+      pats_count:    pats?.length  ?? 'null',
+      pats_sample:   pats?.[0]     ?? null,
+      error:         patsError?.message ?? null,
+      error_code:    patsError?.code    ?? null,
+    })
 
     const patIds = (pats ?? []).map(p => p.id)
     setPatients(pats ?? [])

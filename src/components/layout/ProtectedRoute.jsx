@@ -65,12 +65,13 @@ export default function ProtectedRoute() {
   }
 
   // Farmacia aprobada fuera de su área → panel farmacia
-  // Excepción: /pago/* para que la botica pueda cobrar presencialmente
+  // Excepciones: /pago/* (cobro presencial) y /sala-espera/* (seguimiento de cita creada)
   if (
     profile?.role === 'farmacia' &&
     farmacia?.aprobado === true &&
     !location.pathname.startsWith('/farmacia') &&
-    !location.pathname.startsWith('/pago')
+    !location.pathname.startsWith('/pago') &&
+    !location.pathname.startsWith('/sala-espera')
   ) {
     console.log('[ProtectedRoute] → redirigiendo farmacia aprobada a /farmacia/panel')
     return <Navigate to="/farmacia/panel" replace />

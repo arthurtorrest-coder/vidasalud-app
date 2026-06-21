@@ -672,15 +672,24 @@ export default function Payment() {
 
     // En producción: llamar a una Edge Function de Supabase que procese
     // el cargo con Culqi y devuelva confirmación antes de este UPDATE.
-    const { error } = await supabase
+    // .select('id') es necesario para detectar si RLS bloqueó silenciosamente
+    // el UPDATE (0 filas actualizadas sin error HTTP).
+    const { data: updated, error } = await supabase
       .from('appointments')
       .update({ status: 'paid' })
       .eq('id', appointmentId)
+      .select('id')
 
     setProcessing(false)
 
     if (error) {
+      console.error('[Payment] handlePay error:', error)
       toast.error('Error al confirmar el pago. Inténtalo de nuevo.')
+      return
+    }
+    if (!updated?.length) {
+      console.error('[Payment] handlePay: 0 filas actualizadas — posible bloqueo RLS', { appointmentId })
+      toast.error('No se pudo confirmar el pago. Verifica permisos o contacta soporte.')
       return
     }
     setConfirmed(true)

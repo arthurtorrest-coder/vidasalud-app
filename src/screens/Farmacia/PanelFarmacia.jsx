@@ -260,11 +260,18 @@ export default function PanelFarmacia() {
     const apptIds = (appts ?? []).map(a => a.id)
     let prescMap = {}
     if (apptIds.length > 0) {
-      const { data: prescs } = await supabase
+      const { data: prescs, error: prescsError } = await supabase
         .from('prescriptions')
         .select('appointment_id, pdf_url')
         .in('appointment_id', apptIds)
         .not('pdf_url', 'is', null)
+      console.log('[PanelFarmacia] query prescriptions:', {
+        apptIds_count: apptIds.length,
+        prescs_count:  prescs?.length ?? 'null',
+        prescs_sample: prescs?.[0]    ?? null,
+        error:         prescsError?.message ?? null,
+        error_code:    prescsError?.code    ?? null,
+      })
       ;(prescs ?? []).forEach(p => { prescMap[p.appointment_id] = p.pdf_url })
     }
 
@@ -273,6 +280,7 @@ export default function PanelFarmacia() {
 
     const rows = (appts ?? []).map(a => ({
       id:         a.id,
+      patient_id: a.patient_id,          // necesario para filtrar en tab Pacientes
       fecha:      a.scheduled_at,
       paciente:   patMap[a.patient_id] ?? '—',
       medico:     a.doctor ? `${a.doctor.nombres ?? ''} ${a.doctor.apellidos ?? ''}`.trim() : '—',
@@ -408,6 +416,10 @@ export default function PanelFarmacia() {
   }
 
   if (!farmacia) return null
+
+  // Pacientes sin ninguna consulta completada (aparecen en tab Pacientes)
+  const patientsWithDone = new Set(comisiones.map(c => c.patient_id))
+  const pendingPatients  = patients.filter(p => !patientsWithDone.has(p.id))
 
   return (
     <div style={{
@@ -600,7 +612,7 @@ export default function PanelFarmacia() {
           </div>
         )}
 
-        {/* ── Tab: Pacientes referidos ── */}
+        {/* ── Tab: Pacientes referidos (sin consultas completadas aún) ── */}
         {tab === 'pacientes' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {loading ? (
@@ -610,60 +622,61 @@ export default function PanelFarmacia() {
                   <div style={{ height: 10, width: '70%', background: C.gray100, borderRadius: 6 }} />
                 </div>
               ))
-            ) : patients.length === 0 ? (
+            ) : pendingPatients.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '36px 20px', color: C.gray500 }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>👥</div>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>Sin pacientes registrados</div>
-                <div style={{ fontSize: 12, marginTop: 6 }}>Los pacientes que registres aparecerán aquí.</div>
+                {patients.length === 0 ? (
+                  <>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>Sin pacientes registrados</div>
+                    <div style={{ fontSize: 12, marginTop: 6 }}>Los pacientes que registres aparecerán aquí.</div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>¡Todos con consulta completada!</div>
+                    <div style={{ fontSize: 12, marginTop: 6 }}>Todos tus pacientes referidos ya completaron al menos una consulta. Revisa el Historial.</div>
+                  </>
+                )}
               </div>
             ) : (
-              patients.map(p => {
-                const apptCount = comisiones.filter(c => c.paciente === p.full_name).length
-                return (
-                  <div key={p.id} style={{
-                    background: C.white, border: `1.5px solid ${C.gray200}`,
-                    borderRadius: 14, padding: '13px 16px',
-                    display: 'flex', alignItems: 'center', gap: 12,
+              pendingPatients.map(p => (
+                <div key={p.id} style={{
+                  background: C.white, border: `1.5px solid ${C.gray200}`,
+                  borderRadius: 14, padding: '13px 16px',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                    background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: C.white, fontWeight: 800, fontSize: 15,
                   }}>
-                    <div style={{
-                      width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-                      background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: C.white, fontWeight: 800, fontSize: 15,
-                    }}>
-                      {(p.full_name ?? '?').charAt(0).toUpperCase()}
+                    {(p.full_name ?? '?').charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.full_name ?? 'Sin nombre'}
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {p.full_name ?? 'Sin nombre'}
-                      </div>
-                      <div style={{ fontSize: 11, color: C.gray500, marginTop: 2 }}>
-                        DNI: {p.dni ?? '—'} · {p.phone ?? '—'}
-                      </div>
-                      <div style={{ fontSize: 10, color: C.gray400, marginTop: 2 }}>
-                        Registrado: {fmtDate(p.created_at)}
-                      </div>
+                    <div style={{ fontSize: 11, color: C.gray500, marginTop: 2 }}>
+                      DNI: {p.dni ?? '—'} · {p.phone ?? '—'}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                      <div>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: C.green700, textAlign: 'right' }}>{apptCount}</div>
-                        <div style={{ fontSize: 9, color: C.gray400, fontWeight: 600 }}>CONSULTAS</div>
-                      </div>
-                      <button
-                        onClick={() => openBooking(p.id, p.full_name)}
-                        style={{
-                          padding: '6px 10px', border: 'none', borderRadius: 8,
-                          background: `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
-                          color: C.white, fontSize: 11, fontWeight: 800,
-                          cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-                        }}
-                      >
-                        🩺 Reservar
-                      </button>
+                    <div style={{ fontSize: 10, color: C.gray400, marginTop: 2 }}>
+                      Registrado: {fmtDate(p.created_at)}
                     </div>
                   </div>
-                )
-              })
+                  <button
+                    onClick={() => openBooking(p.id, p.full_name)}
+                    style={{
+                      padding: '7px 12px', border: 'none', borderRadius: 8,
+                      background: `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+                      color: C.white, fontSize: 11, fontWeight: 800,
+                      cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                  >
+                    🩺 Reservar
+                  </button>
+                </div>
+              ))
             )}
           </div>
         )}

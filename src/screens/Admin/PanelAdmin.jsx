@@ -80,7 +80,7 @@ function StatusBadge({ status }) {
   )
 }
 
-function NavCard({ icon, label, sub, to, accent = C.green700, bg = C.green50, onClick }) {
+function NavCard({ icon, label, sub, accent = C.green700, bg = C.green50, onClick }) {
   const [hov, setHov] = useState(false)
   return (
     <div
@@ -403,11 +403,12 @@ export default function PanelAdmin() {
         {/* ── Menú de navegación ── */}
         <div style={{ marginBottom: 28 }}>
           <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, marginBottom: 14 }}>Gestión</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-            <NavCard icon="🩺" label="Médicos"  sub="Lista, filtros y tarifas"  onClick={() => navigate('/admin/medicos')}  accent={C.green700} bg={C.green50} />
-            <NavCard icon="🏪" label="Boticas"  sub="Lista y detalles"          onClick={() => navigate('/admin/boticas')}  accent='#6D28D9'    bg='#F5F3FF'  />
-            <NavCard icon="📅" label="Consultas" sub="Historial de citas"        onClick={() => toast('Próximamente')}       accent={C.blueText} bg={C.blueBg} />
-            <NavCard icon="💰" label="Finanzas"  sub="Ingresos y comisiones"    onClick={() => toast('Próximamente')}       accent={C.amberText} bg={C.amberBg} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
+            <NavCard icon="🩺" label="Médicos"   sub="Lista, filtros y tarifas"  onClick={() => navigate('/admin/medicos')}   accent={C.green700}  bg={C.green50} />
+            <NavCard icon="🏪" label="Boticas"   sub="Lista y detalles"          onClick={() => navigate('/admin/boticas')}   accent='#6D28D9'     bg='#F5F3FF'  />
+            <NavCard icon="📊" label="Cobertura" sub="Disponibilidad por hora"   onClick={() => navigate('/admin/cobertura')} accent={C.blueText}  bg={C.blueBg} />
+            <NavCard icon="📅" label="Consultas" sub="Historial de citas"        onClick={() => toast('Próximamente')}        accent={C.amberText} bg={C.amberBg} />
+            <NavCard icon="💰" label="Finanzas"  sub="Ingresos y comisiones"     onClick={() => toast('Próximamente')}        accent={C.green700}  bg={C.green50} />
           </div>
         </div>
 

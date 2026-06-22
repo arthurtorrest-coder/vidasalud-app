@@ -14,6 +14,8 @@ import AdminRoute      from './components/layout/AdminRoute'
 import FarmaciaRoute   from './components/layout/FarmaciaRoute'
 import PanelMedico      from './screens/Doctor/PanelMedico'
 import PanelAdmin       from './screens/Admin/PanelAdmin'
+import AdminMedicos     from './screens/Admin/AdminMedicos'
+import AdminBoticas     from './screens/Admin/AdminBoticas'
 import HistoriaClinica  from './screens/HistoriaClinica'
 import Landing         from './screens/Landing'
 import Home            from './pages/Home'
@@ -104,7 +106,9 @@ export default function App() {
 
           {/* Solo admins */}
           <Route element={<AdminRoute />}>
-            <Route path="/admin/panel" element={<PanelAdmin />} />
+            <Route path="/admin/panel"   element={<PanelAdmin />}   />
+            <Route path="/admin/medicos" element={<AdminMedicos />} />
+            <Route path="/admin/boticas" element={<AdminBoticas />} />
           </Route>
 
           {/* Solo farmacias aprobadas */}

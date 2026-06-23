@@ -201,6 +201,11 @@ export default function PanelFarmacia() {
   const [lastRegistered, setLastRegistered] = useState(null)
 
   // Modal: reservar consulta en nombre de un paciente
+  // Disponibilidad de médicos (independiente de datos de la farmacia)
+  const [dispDoctors,   setDispDoctors]   = useState([])
+  const [dispSchedules, setDispSchedules] = useState([])
+  const [dispLoading,   setDispLoading]   = useState(true)
+
   const [bookingState,      setBookingState]      = useState(null)   // null | { patientId, patientName }
   const [bookingDoctors,    setBookingDoctors]     = useState([])
   const [bookingDoctor,     setBookingDoctor]      = useState(null)
@@ -307,6 +312,26 @@ export default function PanelFarmacia() {
   }, [farmacia?.id, farmacia?.comision_porcentaje])
 
   useEffect(() => { loadData() }, [loadData])
+
+  useEffect(() => {
+    async function loadDispDoctors() {
+      const [{ data: docs }, { data: scheds }] = await Promise.all([
+        supabase
+          .from('doctors')
+          .select('id, nombres, apellidos, especialidad, foto_url, cmp')
+          .eq('aprobado', true)
+          .eq('activo', true)
+          .order('nombres'),
+        supabase
+          .from('doctor_schedules')
+          .select('doctor_id, dia_semana, hora_inicio, hora_fin, activo'),
+      ])
+      setDispDoctors(docs ?? [])
+      setDispSchedules((scheds ?? []).filter(s => s.activo !== false))
+      setDispLoading(false)
+    }
+    loadDispDoctors()
+  }, [])
 
   function setField(k, v) {
     setForm(f => ({ ...f, [k]: v }))
@@ -506,6 +531,143 @@ export default function PanelFarmacia() {
         <StatCard icon="💰" value={loading ? '…' : fmtSoles(stats.comisionMes)} label="Comisión del mes" color={C.green600} />
         <StatCard icon="👤" value={loading ? '…' : stats.pacientes}    label="Total referidos" />
       </div>
+
+      {/* ── Disponibilidad de médicos hoy ── */}
+      {(() => {
+        const { diaSemana, horaActual } = getLimaDateTime()
+        const todayScheds = dispSchedules.filter(s => s.dia_semana === diaSemana)
+
+        // Médicos con horario hoy
+        const docsHoy = dispDoctors
+          .map(d => {
+            const bloques = todayScheds
+              .filter(s => s.doctor_id === d.id)
+              .sort((a, b) => (a.hora_inicio ?? '').localeCompare(b.hora_inicio ?? ''))
+            if (bloques.length === 0) return null
+            const activo = bloques.some(s =>
+              (s.hora_inicio ?? '') <= horaActual && (s.hora_fin ?? '') > horaActual
+            )
+            // Próximo bloque que aún no empezó
+            const proximo = bloques.find(s => (s.hora_inicio ?? '') > horaActual)
+            const isCPsP = (d.cmp ?? '').startsWith('CPsP')
+            const nombre = [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico'
+            return { ...d, bloques, activo, proximo, isCPsP, nombre }
+          })
+          .filter(Boolean)
+          // Activos primero, luego por hora_inicio del primer bloque
+          .sort((a, b) => {
+            if (a.activo !== b.activo) return a.activo ? -1 : 1
+            return (a.bloques[0]?.hora_inicio ?? '').localeCompare(b.bloques[0]?.hora_inicio ?? '')
+          })
+
+        return (
+          <div style={{ margin: '14px 16px 0' }}>
+            <div style={{
+              background: C.white, border: `1.5px solid ${C.gray200}`,
+              borderRadius: 14, overflow: 'hidden',
+            }}>
+              <div style={{
+                padding: '11px 14px 10px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                borderBottom: docsHoy.length > 0 ? `1px solid ${C.gray100}` : 'none',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 14 }}>📅</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.gray900 }}>
+                    Disponibilidad de médicos hoy
+                  </span>
+                </div>
+                {!dispLoading && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color: C.green700,
+                    background: C.green50, padding: '2px 8px', borderRadius: 20,
+                  }}>
+                    {docsHoy.filter(d => d.activo).length} en línea
+                  </span>
+                )}
+              </div>
+
+              {dispLoading ? (
+                <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[1, 2, 3].map(i => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: C.gray100, flexShrink: 0 }} />
+                      <div style={{ flex: 1, height: 10, background: C.gray100, borderRadius: 6 }} />
+                      <div style={{ width: 60, height: 18, background: C.gray100, borderRadius: 20 }} />
+                    </div>
+                  ))}
+                </div>
+              ) : docsHoy.length === 0 ? (
+                <div style={{ padding: '16px 14px', fontSize: 12, color: C.gray400, textAlign: 'center' }}>
+                  Sin médicos con horario configurado para hoy
+                </div>
+              ) : (
+                <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                  {docsHoy.map(d => (
+                    <div key={d.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 14px',
+                      borderBottom: `1px solid ${C.gray100}`,
+                    }}>
+                      {/* Avatar */}
+                      {d.foto_url ? (
+                        <img src={d.foto_url} alt={d.nombre}
+                          style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                      ) : (
+                        <div style={{
+                          width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                          background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: C.white, fontWeight: 800, fontSize: 12,
+                        }}>
+                          {d.nombre.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+
+                      {/* Info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: C.gray900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {d.isCPsP ? 'Psic.' : 'Dr(a).'} {d.nombre}
+                        </div>
+                        <div style={{ fontSize: 10, color: C.gray500, marginTop: 1 }}>
+                          {d.especialidad ?? '—'} · {d.bloques.map(b => `${formatHora12(b.hora_inicio)}–${formatHora12(b.hora_fin)}`).join(', ')}
+                        </div>
+                      </div>
+
+                      {/* Badge */}
+                      {d.activo ? (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, flexShrink: 0,
+                          background: C.green50, color: C.green700, border: `1px solid ${C.green200}`,
+                          whiteSpace: 'nowrap',
+                        }}>
+                          🟢 Ahora
+                        </span>
+                      ) : d.proximo ? (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, flexShrink: 0,
+                          background: C.gray100, color: C.gray500, border: `1px solid ${C.gray200}`,
+                          whiteSpace: 'nowrap',
+                        }}>
+                          🕐 {formatHora12(d.proximo.hora_inicio)}
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 20, flexShrink: 0,
+                          background: C.gray100, color: C.gray400,
+                          whiteSpace: 'nowrap',
+                        }}>
+                          Terminó
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Tabs ── */}
       <div style={{ display: 'flex', margin: '14px 16px 0', background: C.white, borderRadius: 12, overflow: 'hidden', border: `1.5px solid ${C.gray200}` }}>

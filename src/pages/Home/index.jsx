@@ -66,6 +66,45 @@ function computeAvailableNowIds(schedules) {
   return ids
 }
 
+// Próximos médicos disponibles hoy (o mañana si no hay más hoy)
+function getProximosDisponibles(allSchedules, allDoctors, limit = 5) {
+  const { diaSemana, horaActual } = getLimaDateTime()
+  const results = []
+  for (let offset = 0; offset <= 1 && results.length < limit; offset++) {
+    const dia     = (diaSemana + offset) % 7
+    const isToday = offset === 0
+    const blocks  = allSchedules
+      .filter(s =>
+        s.activo !== false &&
+        s.dia_semana === dia &&
+        (!isToday || (s.hora_inicio ?? '') > horaActual)
+      )
+      .sort((a, b) => (a.hora_inicio ?? '').localeCompare(b.hora_inicio ?? ''))
+    for (const block of blocks) {
+      if (results.length >= limit) break
+      const doc = allDoctors.find(d => d.id === block.doctor_id)
+      if (!doc) continue
+      if (results.some(r => r.docId === doc.id)) continue
+      results.push({
+        docId:    doc.id,
+        name:     doc.name,
+        spec:     doc.spec,
+        fotoUrl:  doc.fotoUrl,
+        initials: doc.initials,
+        hora:     block.hora_inicio,
+        esManana: !isToday,
+      })
+    }
+  }
+  return results
+}
+
+function formatHora12(hhmm) {
+  if (!hhmm) return ''
+  const [h, m] = hhmm.split(':').map(Number)
+  return `${h % 12 || 12}:${String(m).padStart(2,'0')}${h >= 12 ? 'pm' : 'am'}`
+}
+
 // Transforma fila de Supabase al shape que usa la UI.
 // Soporta doctors_seed.sql (nombres/apellidos/especialidad/cmp)
 // y schema.sql legacy (specialty/cmp_code, id=profile uuid).
@@ -463,6 +502,7 @@ export default function Home() {
   const [selectedSpec,    setSelectedSpec]    = useState(null)
   const [doctors,         setDoctors]         = useState([])
   const [availableNowIds, setAvailableNowIds] = useState(new Set())
+  const [schedules,       setSchedules]       = useState([])
   const [loadingDocs,     setLoadingDocs]     = useState(true)
   const [errorDocs,       setErrorDocs]       = useState(null)
   const [showTriaje,      setShowTriaje]      = useState(false)
@@ -511,6 +551,7 @@ export default function Home() {
     const activos = (docs ?? []).filter(d => d.activo !== false && d.aprobado !== false)
     const schedulesData = scheds ?? []
     setDoctors(activos.map(formatDoc))
+    setSchedules(schedulesData)
     setAvailableNowIds(computeAvailableNowIds(schedulesData))
     setLoadingDocs(false)
   }
@@ -588,6 +629,13 @@ export default function Home() {
       : []
     return [...byName, ...bySymptom].slice(0, 7)
   }, [search, doctors, symptomSpec])
+
+  const proximosDisponibles = useMemo(
+    () => (availableNowIds.size === 0 && !search.trim() && !selectedSpec)
+      ? getProximosDisponibles(schedules, doctors)
+      : [],
+    [schedules, doctors, availableNowIds, search, selectedSpec]
+  )
 
   const filteredDocs = doctors.filter(d => {
     const q         = search.toLowerCase()
@@ -1064,8 +1112,72 @@ export default function Home() {
           </div>
         )}
 
+        {/* 🕐 Próximos médicos disponibles hoy — aparece cuando no hay nadie en línea ahora */}
+        {!loadingDocs && !errorDocs && proximosDisponibles.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '4px 20px 10px',
+            }}>
+              <span style={{ fontSize: 13 }}>🕐</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.gray700 }}>
+                Próximos médicos disponibles hoy
+              </span>
+            </div>
+            <div style={{
+              display: 'flex', gap: 10,
+              overflowX: 'auto', padding: '0 20px 4px',
+              scrollbarWidth: 'none',
+            }}>
+              {proximosDisponibles.map(d => (
+                <div
+                  key={d.docId}
+                  onClick={() => navigate(`/medico/${d.docId}`)}
+                  style={{
+                    flexShrink: 0, width: 130,
+                    background: C.white,
+                    border: `1.5px solid ${C.gray200}`,
+                    borderRadius: 14, padding: '12px 12px 10px',
+                    cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                  }}
+                >
+                  {d.fotoUrl ? (
+                    <img src={d.fotoUrl} alt={d.name}
+                      style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{
+                      width: 44, height: 44, borderRadius: '50%',
+                      background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: C.white, fontWeight: 800, fontSize: 15,
+                    }}>
+                      {d.initials}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.gray900, textAlign: 'center', lineHeight: 1.3, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {d.name}
+                  </div>
+                  <div style={{ fontSize: 10, color: C.gray500, textAlign: 'center', lineHeight: 1.3 }}>
+                    {d.spec}
+                  </div>
+                  <div style={{
+                    marginTop: 2, fontSize: 10, fontWeight: 700,
+                    color: C.green700, background: C.green50,
+                    border: `1px solid ${C.green200}`,
+                    padding: '3px 8px', borderRadius: 20, textAlign: 'center', whiteSpace: 'nowrap',
+                  }}>
+                    {d.esManana ? 'Mañana ' : ''}{formatHora12(d.hora)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Estado: sin resultados del filtro */}
-        {!loadingDocs && !errorDocs && filteredDocs.length === 0 && (
+        {!loadingDocs && !errorDocs && filteredDocs.length === 0 && proximosDisponibles.length === 0 && (
           <div style={{ textAlign: 'center', padding: 24, color: C.gray500, fontSize: 13 }}>
             No se encontraron médicos
             {search && ` para "${search}"`}

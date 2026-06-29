@@ -126,6 +126,7 @@ export default function PanelAdmin() {
   const [pendingDoctors, setPendingDoctors] = useState([])
   const [pendingBoticas, setPendingBoticas] = useState([])
   const [thirtyDayAppts, setThirtyDayAppts] = useState([])
+  const [sessionLogs,    setSessionLogs]    = useState([])
   const [loading,        setLoading]        = useState(true)
   const [lastRefresh,    setLastRefresh]    = useState(null)
   const [sendingReminders, setSendingReminders] = useState(false)
@@ -165,7 +166,7 @@ export default function PanelAdmin() {
       const { last30Start }  = getMonthRange()
       const safe = q => Promise.resolve(q).catch(err => ({ data: null, error: err }))
 
-      const [apptRes, payRes, pendingRes, boticasRes, thirtyRes] = await Promise.all([
+      const [apptRes, payRes, pendingRes, boticasRes, thirtyRes, sessionRes] = await Promise.all([
         safe(supabase
           .from('appointments')
           .select(`id, scheduled_at, status, duration_minutes,
@@ -198,6 +199,14 @@ export default function PanelAdmin() {
           .select('id, precio_total, scheduled_at')
           .eq('status', 'done')
           .gte('scheduled_at', last30Start)),
+
+        safe(supabase
+          .from('session_logs')
+          .select(`id, inicio_sesion, fin_sesion, duracion_minutos, estado,
+            doctor:doctors!doctor_id ( nombres, apellidos ),
+            patient:profiles!patient_id ( full_name )`)
+          .order('inicio_sesion', { ascending: false })
+          .limit(20)),
       ])
 
       if (apptRes.error)    console.warn('[PanelAdmin] appointments:', apptRes.error.message)
@@ -205,13 +214,15 @@ export default function PanelAdmin() {
       if (pendingRes.error) console.warn('[PanelAdmin] pending:',      pendingRes.error.message)
       if (boticasRes.error) console.warn('[PanelAdmin] boticas:',      boticasRes.error.message)
       if (thirtyRes.error)  console.warn('[PanelAdmin] thirtyDays:',   thirtyRes.error.message)
+      if (sessionRes.error) console.warn('[PanelAdmin] sessions:',     sessionRes.error.message)
 
       setTodayAppts(apptRes.data ?? [])
       setPendingDoctors((pendingRes.data ?? []).map(d => ({
         ...d, full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
       })))
       setPendingBoticas(boticasRes.data ?? [])
-      if (!thirtyRes.error) setThirtyDayAppts(thirtyRes.data ?? [])
+      if (!thirtyRes.error)  setThirtyDayAppts(thirtyRes.data ?? [])
+      if (!sessionRes.error) setSessionLogs(sessionRes.data ?? [])
 
       if (!payRes.error && payRes.data?.length) {
         setIncome(payRes.data.reduce((s, p) => {
@@ -614,6 +625,89 @@ export default function PanelAdmin() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, justifyContent: 'center' }}>
             <div style={{ width: 20, height: 2, background: C.green600, borderRadius: 1 }} />
             <span style={{ fontSize: 11, color: C.gray400 }}>Ingresos diarios de citas completadas</span>
+          </div>
+        </div>
+
+        {/* ── Registro de sesiones (Ley 30421) ── */}
+        <div style={{
+          background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`,
+          padding: 20, marginBottom: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 18 }}>🛡️</span>
+              <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, margin: 0 }}>
+                Registro de sesiones
+              </h2>
+              <span style={{
+                fontSize: 10, fontWeight: 700, color: C.green700,
+                background: C.green50, padding: '3px 8px', borderRadius: 20, letterSpacing: 0.4,
+              }}>LEY 30421</span>
+            </div>
+            {!loading && (
+              <span style={{ fontSize: 12, fontWeight: 700, color: C.green700, background: C.green50, padding: '3px 10px', borderRadius: 20 }}>
+                {sessionLogs.length} recientes
+              </span>
+            )}
+          </div>
+          <div style={{ overflowY: 'auto', maxHeight: 380 }}>
+            <table>
+              <thead>
+                <tr>
+                  {['Fecha / Hora inicio', 'Médico', 'Paciente', 'Duración', 'Estado'].map((h, i) => (
+                    <th key={h} style={{
+                      padding: '10px 14px', textAlign: i === 3 ? 'right' : 'left',
+                      fontSize: 11, fontWeight: 700, color: C.gray500,
+                      background: C.gray50, borderBottom: `1.5px solid ${C.gray200}`, whiteSpace: 'nowrap',
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  [1,2,3,4,5].map(i => (
+                    <tr key={i}>
+                      {[1,2,3,4,5].map(j => (
+                        <td key={j} style={{ padding: '12px 14px', borderBottom: `1px solid ${C.gray100}` }}>
+                          <div style={{ height: 12, width: j === 4 ? '40px' : '75%', background: C.gray200, borderRadius: 6 }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : sessionLogs.length === 0 ? (
+                  <tr><td colSpan={5} style={{ padding: '28px 16px', textAlign: 'center', color: C.gray400, fontSize: 13 }}>Sin sesiones registradas aún</td></tr>
+                ) : sessionLogs.map(s => {
+                  const doctorName  = s.doctor  ? [s.doctor.nombres, s.doctor.apellidos].filter(Boolean).join(' ') || '—' : '—'
+                  const patientName = s.patient?.full_name ?? '—'
+                  const fechaHora   = s.inicio_sesion
+                    ? new Date(s.inicio_sesion).toLocaleString('es-PE', {
+                        timeZone: 'America/Lima', day: '2-digit', month: 'short',
+                        year: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })
+                    : '—'
+                  const estadoCfg = {
+                    iniciada:     { bg: C.blueBg,  color: C.blueText, label: '⬤ Iniciada'     },
+                    completada:   { bg: C.green50,  color: C.green700, label: '✓ Completada'   },
+                    interrumpida: { bg: C.redBg,    color: C.red600,   label: '✗ Interrumpida' },
+                  }[s.estado] ?? { bg: C.gray100, color: C.gray500, label: s.estado }
+                  return (
+                    <tr key={s.id}>
+                      <td style={{ padding: '11px 14px', fontSize: 13, color: C.gray500, borderBottom: `1px solid ${C.gray100}` }}>{fechaHora}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 13, color: C.gray900, borderBottom: `1px solid ${C.gray100}` }}>{doctorName}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 13, color: C.gray500, borderBottom: `1px solid ${C.gray100}` }}>{patientName}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 13, color: C.gray500, borderBottom: `1px solid ${C.gray100}`, textAlign: 'right' }}>
+                        {s.duracion_minutos != null ? `${s.duracion_minutos} min` : '—'}
+                      </td>
+                      <td style={{ padding: '11px 14px', borderBottom: `1px solid ${C.gray100}` }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: estadoCfg.bg, color: estadoCfg.color, whiteSpace: 'nowrap' }}>
+                          {estadoCfg.label}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
 

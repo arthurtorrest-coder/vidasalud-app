@@ -204,7 +204,7 @@ export default function PanelAdmin() {
           .from('session_logs')
           .select(`id, inicio_sesion, fin_sesion, duracion_minutos, estado,
             doctor:doctors!doctor_id ( nombres, apellidos ),
-            patient:profiles!patient_id ( full_name )`)
+            patient:profiles!patient_id ( full_name, dni )`)
           .order('inicio_sesion', { ascending: false })
           .limit(20)),
       ])
@@ -654,7 +654,7 @@ export default function PanelAdmin() {
             <table>
               <thead>
                 <tr>
-                  {['Fecha / Hora inicio', 'Médico', 'Paciente', 'Duración', 'Estado'].map((h, i) => (
+                  {['Fecha / Hora inicio', 'Médico', 'Paciente / DNI', 'Duración', 'Estado'].map((h, i) => (
                     <th key={h} style={{
                       padding: '10px 14px', textAlign: i === 3 ? 'right' : 'left',
                       fontSize: 11, fontWeight: 700, color: C.gray500,
@@ -678,7 +678,8 @@ export default function PanelAdmin() {
                   <tr><td colSpan={5} style={{ padding: '28px 16px', textAlign: 'center', color: C.gray400, fontSize: 13 }}>Sin sesiones registradas aún</td></tr>
                 ) : sessionLogs.map(s => {
                   const doctorName  = s.doctor  ? [s.doctor.nombres, s.doctor.apellidos].filter(Boolean).join(' ') || '—' : '—'
-                  const patientName = s.patient?.full_name ?? '—'
+                  const patientName = s.patient?.full_name ?? null
+                  const patientDni  = s.patient?.dni       ?? null
                   const fechaHora   = s.inicio_sesion
                     ? new Date(s.inicio_sesion).toLocaleString('es-PE', {
                         timeZone: 'America/Lima', day: '2-digit', month: 'short',
@@ -694,7 +695,16 @@ export default function PanelAdmin() {
                     <tr key={s.id}>
                       <td style={{ padding: '11px 14px', fontSize: 13, color: C.gray500, borderBottom: `1px solid ${C.gray100}` }}>{fechaHora}</td>
                       <td style={{ padding: '11px 14px', fontSize: 13, color: C.gray900, borderBottom: `1px solid ${C.gray100}` }}>{doctorName}</td>
-                      <td style={{ padding: '11px 14px', fontSize: 13, color: C.gray500, borderBottom: `1px solid ${C.gray100}` }}>{patientName}</td>
+                      <td style={{ padding: '11px 14px', borderBottom: `1px solid ${C.gray100}` }}>
+                        <div style={{ fontSize: 13, color: patientName ? C.gray900 : C.gray400 }}>
+                          {patientName ?? <span style={{ fontStyle: 'italic', color: C.gray400 }}>Sin nombre — ver RLS en profiles</span>}
+                        </div>
+                        {patientDni && (
+                          <div style={{ fontSize: 11, color: C.gray500, marginTop: 2 }}>
+                            DNI: {patientDni}
+                          </div>
+                        )}
+                      </td>
                       <td style={{ padding: '11px 14px', fontSize: 13, color: C.gray500, borderBottom: `1px solid ${C.gray100}`, textAlign: 'right' }}>
                         {s.duracion_minutos != null ? `${s.duracion_minutos} min` : '—'}
                       </td>

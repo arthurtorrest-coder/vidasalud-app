@@ -418,8 +418,8 @@ export default function PanelAdmin() {
             <NavCard icon="🩺" label="Médicos"   sub="Lista, filtros y tarifas"  onClick={() => navigate('/admin/medicos')}   accent={C.green700}  bg={C.green50} />
             <NavCard icon="🏪" label="Boticas"   sub="Lista y detalles"          onClick={() => navigate('/admin/boticas')}   accent='#6D28D9'     bg='#F5F3FF'  />
             <NavCard icon="📊" label="Cobertura" sub="Disponibilidad por hora"   onClick={() => navigate('/admin/cobertura')} accent={C.blueText}  bg={C.blueBg} />
-            <NavCard icon="📅" label="Consultas" sub="Historial de citas"        onClick={() => toast('Próximamente')}        accent={C.amberText} bg={C.amberBg} />
-            <NavCard icon="💰" label="Finanzas"  sub="Ingresos y comisiones"     onClick={() => toast('Próximamente')}        accent={C.green700}  bg={C.green50} />
+            <NavCard icon="📅" label="Consultas" sub="Historial de citas"        onClick={() => navigate('/admin/consultas')} accent={C.amberText} bg={C.amberBg} />
+            <NavCard icon="💰" label="Finanzas"  sub="Ingresos y comisiones"     onClick={() => navigate('/admin/finanzas')}  accent={C.green700}  bg={C.green50} />
           </div>
         </div>
 

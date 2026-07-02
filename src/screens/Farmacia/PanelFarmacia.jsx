@@ -280,17 +280,16 @@ export default function PanelFarmacia() {
       ;(prescs ?? []).forEach(p => { prescMap[p.appointment_id] = p.pdf_url })
     }
 
-    const pct    = Number(farmacia.comision_porcentaje ?? 5)
     const patMap = Object.fromEntries((pats ?? []).map(p => [p.id, p.full_name]))
 
     const rows = (appts ?? []).map(a => ({
       id:         a.id,
-      patient_id: a.patient_id,          // necesario para filtrar en tab Pacientes
+      patient_id: a.patient_id,
       fecha:      a.scheduled_at,
       paciente:   patMap[a.patient_id] ?? '—',
       medico:     a.doctor ? `${a.doctor.nombres ?? ''} ${a.doctor.apellidos ?? ''}`.trim() : '—',
       monto:      Number(a.precio_total ?? 0),
-      comision:   Number(a.precio_total ?? 0) * pct / 100,
+      comision:   5,
       pagada:     a.comision_pagada ?? false,
       pdfUrl:     prescMap[a.id] ?? null,
     }))
@@ -309,7 +308,7 @@ export default function PanelFarmacia() {
       pacientesMes: patsEsteMes,
     })
     setLoading(false)
-  }, [farmacia?.id, farmacia?.comision_porcentaje])
+  }, [farmacia?.id])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -862,10 +861,10 @@ export default function PanelFarmacia() {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>
-                  Comisión aplicada
+                  Por consulta referida
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: C.green300 }}>
-                  {farmacia.comision_porcentaje ?? 5}%
+                  S/. 5.00
                 </div>
               </div>
             </div>

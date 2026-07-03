@@ -32,6 +32,10 @@ function fmtSoles(n) {
   return `S/. ${Number(n ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function getPrecio(a) {
+  return Number(a.precio_total ?? a.doctor?.precio ?? 0)
+}
+
 // ─── Sub-componentes ──────────────────────────────────────────
 
 function StatCard({ icon, value, label, sub, accent = C.green700, bg = C.green50, pill }) {
@@ -92,7 +96,7 @@ export default function AdminFinanzas() {
     const [apptsRes, farmRes] = await Promise.all([
       safe(supabase
         .from('appointments')
-        .select('id, precio_total, scheduled_at, farmacia_referente_id, doctor:doctors!doctor_id(especialidad)')
+        .select('id, precio_total, scheduled_at, farmacia_referente_id, doctor:doctors!doctor_id(especialidad, precio)')
         .eq('status', 'done')
         .gte('scheduled_at', last30Start)),
       safe(supabase
@@ -121,7 +125,7 @@ export default function AdminFinanzas() {
     const conFarm            = monthAppts.filter(a => a.farmacia_referente_id)
     const sinFarm            = monthAppts.filter(a => !a.farmacia_referente_id)
     const ingresosClinica    = conFarm.length * 10 + sinFarm.length * 15
-    const comisionesMedicos  = monthAppts.reduce((s, a) => s + Math.max(0, Number(a.precio_total ?? 0) - 15), 0)
+    const comisionesMedicos  = monthAppts.reduce((s, a) => s + Math.max(0, getPrecio(a) - 15), 0)
     const comisionesBoticas  = conFarm.length * 5
     const consultas          = monthAppts.length
     return { ingresosClinica, comisionesMedicos, comisionesBoticas, consultas }
@@ -137,7 +141,7 @@ export default function AdminFinanzas() {
       const next = new Date(day); next.setDate(next.getDate() + 1)
       const ing = appts
         .filter(a => { const t = new Date(a.scheduled_at); return t >= day && t < next })
-        .reduce((s, a) => s + Number(a.precio_total ?? 0), 0)
+        .reduce((s, a) => s + getPrecio(a), 0)
       const label = i % 7 === 0 || i === 29
         ? day.toLocaleDateString('es-PE', { day: 'numeric', month: 'short', timeZone: 'America/Lima' })
         : ''
@@ -395,7 +399,7 @@ export default function AdminFinanzas() {
             </h2>
             {!loading && (
               <span style={{ fontSize: 12, fontWeight: 800, color: C.green700, background: C.green50, padding: '4px 14px', borderRadius: 20 }}>
-                Total: {fmtSoles(appts.reduce((s, a) => s + Number(a.precio_total ?? 0), 0))}
+                Total: {fmtSoles(appts.reduce((s, a) => s + getPrecio(a), 0))}
               </span>
             )}
           </div>

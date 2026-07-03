@@ -509,6 +509,7 @@ export default function Booking() {
 
   /* cargar horarios del médico y turnos ocupados al cambiar la fecha */
   useEffect(() => {
+    let cancelled = false
     setSelectedTime(null)
     setLoadingSlots(true)
 
@@ -519,7 +520,7 @@ export default function Booking() {
       const dayStart   = new Date(Date.UTC(y, mo - 1, d,     5, 0,  0)).toISOString()
       const dayEnd     = new Date(Date.UTC(y, mo - 1, d + 1, 4, 59, 59)).toISOString()
 
-      const [{ data: scheduleData }, { data: apptData }] = await Promise.all([
+      const [{ data: bloques }, { data: apptData }] = await Promise.all([
         supabase
           .from('doctor_schedules')
           .select('hora_inicio, hora_fin')
@@ -535,22 +536,28 @@ export default function Booking() {
           .in('status', ['pending', 'paid', 'active']),
       ])
 
-      setAvailableSlots(
-        (scheduleData ?? []).flatMap(b => generateSlots(b.hora_inicio, b.hora_fin))
+      if (cancelled) return
+
+      // Slots estrictamente dentro de los bloques configurados para este día
+      const slotsEnHorario = (bloques ?? []).flatMap(
+        b => generateSlots(b.hora_inicio, b.hora_fin)
       )
+      const slotsSet = new Set(slotsEnHorario)
 
-      setBooked(new Set(
-        (apptData ?? []).map(a => {
-          // Convertir UTC → hora Lima (UTC-5)
-          const t = new Date(new Date(a.scheduled_at).getTime() - 5 * 3600000)
-          return `${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}`
-        })
-      ))
+      // Convertir citas UTC → hora Lima; solo las que caen en un slot del horario
+      // se mostrarán como "Ocupado" (las fuera de horario no tienen slot visible)
+      const bookedTimes = (apptData ?? []).map(a => {
+        const t = new Date(new Date(a.scheduled_at).getTime() - 5 * 3600000)
+        return `${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}`
+      }).filter(slot => slotsSet.has(slot))
 
+      setAvailableSlots(slotsEnHorario)
+      setBooked(new Set(bookedTimes))
       setLoadingSlots(false)
     }
 
     loadSlots()
+    return () => { cancelled = true }
   }, [selectedDate, doctorId])
 
   /* crear cita y navegar al pago */

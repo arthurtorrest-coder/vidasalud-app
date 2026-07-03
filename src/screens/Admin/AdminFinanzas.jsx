@@ -96,7 +96,7 @@ export default function AdminFinanzas() {
     const [apptsRes, farmRes] = await Promise.all([
       safe(supabase
         .from('appointments')
-        .select('id, precio_total, scheduled_at, farmacia_referente_id, doctor:doctors!doctor_id(especialidad, precio)')
+        .select('id, precio_total, scheduled_at, farmacia_referente_id, doctor:doctors!doctor_id(id, nombres, apellidos, especialidad, precio, foto_url)')
         .eq('status', 'done')
         .gte('scheduled_at', last30Start)),
       safe(supabase
@@ -174,6 +174,30 @@ export default function AdminFinanzas() {
     }
     return Object.values(map).sort((a, b) => b.comision - a.comision)
   }, [appts, farmacias])
+
+  // ── Comisiones por médico (mes actual) ──────────────────────
+  const medicosData = useMemo(() => {
+    const map = {}
+    for (const a of monthAppts) {
+      const doc = a.doctor
+      if (!doc?.id) continue
+      if (!map[doc.id]) {
+        map[doc.id] = {
+          id:           doc.id,
+          nombres:      doc.nombres   ?? '',
+          apellidos:    doc.apellidos ?? '',
+          especialidad: doc.especialidad ?? '—',
+          foto_url:     doc.foto_url  ?? null,
+          precio:       Number(doc.precio ?? 0),
+          consultas:    0,
+          comision:     0,
+        }
+      }
+      map[doc.id].consultas++
+      map[doc.id].comision += Math.max(0, getPrecio(a) - 15)
+    }
+    return Object.values(map).sort((a, b) => b.comision - a.comision)
+  }, [monthAppts])
 
   // ── Exportar PDF ─────────────────────────────────────────────
   async function exportPDF() {
@@ -288,6 +312,37 @@ export default function AdminFinanzas() {
         columnStyles: {
           0: { cellWidth: 55 }, 1: { cellWidth: 30 }, 2: { cellWidth: 14, halign: 'center' },
           3: { cellWidth: 22, halign: 'center' }, 4: { cellWidth: 35, halign: 'right' },
+        },
+        margin: { left: ML, right: MR, bottom: 18 },
+      })
+
+      // Tabla comisiones médicos
+      let yMed = (doc.lastAutoTable?.finalY ?? 200) + 12
+      if (yMed + 50 > 280) { doc.addPage(); yMed = 22 }
+
+      doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.setTextColor(...GN)
+      doc.text('Comisiones por médico', ML, yMed)
+      doc.setDrawColor(...GL); doc.setLineWidth(0.4); doc.line(ML, yMed + 2, ML + 70, yMed + 2)
+
+      const medRows = medicosData.map(m => [
+        [m.nombres, m.apellidos].filter(Boolean).join(' ') || '—',
+        m.especialidad,
+        String(m.consultas),
+        fmtSoles(m.precio),
+        fmtSoles(m.comision),
+      ])
+
+      autoTable(doc, {
+        startY: yMed + 5,
+        head: [['Médico', 'Especialidad', 'Citas', 'Precio', 'Comisión']],
+        body: medRows.length ? medRows : [['Sin consultas este mes', '—', '—', '—', '—']],
+        theme: 'striped',
+        headStyles: { fillColor: GN, textColor: WH, fontSize: 8, fontStyle: 'bold', cellPadding: 3 },
+        bodyStyles: { fontSize: 8, textColor: GY, cellPadding: 2.5 },
+        alternateRowStyles: { fillColor: GYX },
+        columnStyles: {
+          0: { cellWidth: 50 }, 1: { cellWidth: 38 }, 2: { cellWidth: 14, halign: 'center' },
+          3: { cellWidth: 25, halign: 'right'     }, 4: { cellWidth: 29, halign: 'right'   },
         },
         margin: { left: ML, right: MR, bottom: 18 },
       })
@@ -512,6 +567,112 @@ export default function AdminFinanzas() {
                   <td style={{ borderTop: `2px solid ${C.green200}` }} />
                   <td style={{ padding: '11px 14px', fontSize: 14, fontWeight: 900, color: C.green700, textAlign: 'right', borderTop: `2px solid ${C.green200}` }}>
                     {fmtSoles(boticasData.reduce((s, b) => s + b.comision, 0))}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Comisiones por médico ── */}
+        <div style={{
+          background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`,
+          padding: 20, marginTop: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, margin: 0 }}>
+              👨‍⚕️ Comisiones por médico — {monthLabel}
+            </h2>
+            {!loading && (
+              <span style={{ fontSize: 12, fontWeight: 700, color: C.blueText, background: C.blueBg, padding: '3px 10px', borderRadius: 20 }}>
+                {medicosData.length} médico{medicosData.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <table>
+            <thead>
+              <tr>
+                {[
+                  { label: 'Médico',           w: undefined             },
+                  { label: 'Especialidad',      w: 160                   },
+                  { label: 'Consultas',         w: 100, right: true      },
+                  { label: 'Precio consulta',   w: 130, right: true      },
+                  { label: 'Comisión',          w: 130, right: true      },
+                ].map(({ label, w, right }) => (
+                  <th key={label} style={{
+                    padding: '10px 14px', width: w, textAlign: right ? 'right' : 'left',
+                    fontSize: 11, fontWeight: 700, color: C.gray500,
+                    background: C.gray50, borderBottom: `1.5px solid ${C.gray200}`, whiteSpace: 'nowrap',
+                  }}>{label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                [1,2,3].map(i => (
+                  <tr key={i}>
+                    {[1,2,3,4,5].map(j => (
+                      <td key={j} style={{ padding: '12px 14px', borderBottom: `1px solid ${C.gray100}` }}>
+                        {skeletonBar(j > 1 ? '60px' : '70%', 12)}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : medicosData.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ padding: '40px 16px', textAlign: 'center', color: C.gray400, fontSize: 13 }}>
+                    👨‍⚕️ Sin consultas completadas este mes
+                  </td>
+                </tr>
+              ) : medicosData.map(m => {
+                const nombre  = [m.nombres, m.apellidos].filter(Boolean).join(' ') || '—'
+                const inicial = nombre.charAt(0).toUpperCase()
+                return (
+                  <tr key={m.id}>
+                    <td style={{ padding: '11px 14px', borderBottom: `1px solid ${C.gray100}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {m.foto_url ? (
+                          <img src={m.foto_url} alt={nombre} style={{
+                            width: 34, height: 34, borderRadius: '50%',
+                            objectFit: 'cover', flexShrink: 0,
+                          }} />
+                        ) : (
+                          <div style={{
+                            width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                            background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: C.white, fontWeight: 800, fontSize: 13,
+                          }}>{inicial}</div>
+                        )}
+                        <span style={{ fontSize: 13, fontWeight: 700, color: C.gray900 }}>{nombre}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '11px 14px', fontSize: 13, color: C.gray500, borderBottom: `1px solid ${C.gray100}` }}>
+                      {m.especialidad}
+                    </td>
+                    <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600, color: C.gray900, borderBottom: `1px solid ${C.gray100}`, textAlign: 'right' }}>
+                      {m.consultas}
+                    </td>
+                    <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: C.gray700, borderBottom: `1px solid ${C.gray100}`, textAlign: 'right' }}>
+                      {fmtSoles(m.precio)}
+                    </td>
+                    <td style={{ padding: '11px 14px', fontSize: 14, fontWeight: 900, color: C.blueText, borderBottom: `1px solid ${C.gray100}`, textAlign: 'right' }}>
+                      {fmtSoles(m.comision)}
+                    </td>
+                  </tr>
+                )
+              })}
+              {!loading && medicosData.length > 0 && (
+                <tr style={{ background: C.blueBg }}>
+                  <td colSpan={2} style={{ padding: '11px 14px', fontSize: 13, fontWeight: 800, color: C.blueText, borderTop: `2px solid #BFDBFE` }}>
+                    TOTAL
+                  </td>
+                  <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 800, color: C.blueText, textAlign: 'right', borderTop: `2px solid #BFDBFE` }}>
+                    {medicosData.reduce((s, m) => s + m.consultas, 0)}
+                  </td>
+                  <td style={{ borderTop: `2px solid #BFDBFE` }} />
+                  <td style={{ padding: '11px 14px', fontSize: 14, fontWeight: 900, color: C.blueText, textAlign: 'right', borderTop: `2px solid #BFDBFE` }}>
+                    {fmtSoles(medicosData.reduce((s, m) => s + m.comision, 0))}
                   </td>
                 </tr>
               )}

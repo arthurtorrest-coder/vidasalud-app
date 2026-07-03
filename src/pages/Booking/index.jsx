@@ -539,9 +539,10 @@ export default function Booking() {
       if (cancelled) return
 
       // Slots estrictamente dentro de los bloques configurados para este día
-      const slotsEnHorario = (bloques ?? []).flatMap(
-        b => generateSlots(b.hora_inicio, b.hora_fin)
-      )
+      // Deduplicados (bloques solapados) y ordenados cronológicamente
+      const slotsEnHorario = [...new Set(
+        (bloques ?? []).flatMap(b => generateSlots(b.hora_inicio, b.hora_fin))
+      )].sort()
       const slotsSet = new Set(slotsEnHorario)
 
       // Convertir citas UTC → hora Lima; solo las que caen en un slot del horario

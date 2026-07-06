@@ -381,7 +381,7 @@ function SearchBar({ value, onChange, onSearch, dropdownOpen, onFocus, onBlur })
         }}>
           <button
             type="button"
-            onPointerDown={e => { e.preventDefault(); onSearch?.() }}
+            onClick={() => onSearch?.()}
             aria-label="Buscar"
             style={{
               background: C.green700, border: 'none', borderRadius: 8,
@@ -630,6 +630,7 @@ export default function Home() {
   }
 
   function handleSearch() {
+    console.log('[Home] handleSearch — search:', JSON.stringify(search), '| showDropdown:', showDropdown)
     if (search.trim()) setShowDropdown(false)
   }
 

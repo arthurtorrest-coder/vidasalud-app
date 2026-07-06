@@ -346,7 +346,7 @@ function SearchResultItem({ doc, onSelect }) {
   )
 }
 
-function SearchBar({ value, onChange, onFocus, onBlur }) {
+function SearchBar({ value, onChange, onSearch, dropdownOpen, onFocus, onBlur }) {
   const [focused, setFocused] = useState(false)
   return (
     <div data-tour="search" style={{ position: 'relative', margin: '16px 20px 0' }}>
@@ -360,12 +360,14 @@ function SearchBar({ value, onChange, onFocus, onBlur }) {
         placeholder="Buscar médico, síntoma o especialidad..."
         value={value}
         onChange={e => onChange(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onSearch?.() } }}
         onFocus={() => { setFocused(true); onFocus?.() }}
         onBlur={() => { setFocused(false); onBlur?.() }}
         style={{
-          width: '100%', padding: '12px 40px 12px 44px',
+          width: '100%',
+          padding: value ? '12px 100px 12px 44px' : '12px 14px 12px 44px',
           border: `1.5px solid ${focused ? C.green500 : C.gray300}`,
-          borderRadius: focused && value ? '12px 12px 0 0' : 12,
+          borderRadius: dropdownOpen ? '12px 12px 0 0' : 12,
           fontSize: 13, outline: 'none',
           background: C.white, color: C.gray900,
           boxShadow: focused ? '0 0 0 3px rgba(16,185,129,0.12)' : 'none',
@@ -373,20 +375,37 @@ function SearchBar({ value, onChange, onFocus, onBlur }) {
         }}
       />
       {value && (
-        <button
-          type="button"
-          onPointerDown={e => { e.preventDefault(); onChange('') }}
-          style={{
-            position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-            background: C.gray200, border: 'none', borderRadius: '50%',
-            width: 20, height: 20, cursor: 'pointer', padding: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, color: C.gray500, lineHeight: 1,
-            WebkitTapHighlightColor: 'transparent',
-          }}
-        >
-          ×
-        </button>
+        <div style={{
+          position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          <button
+            type="button"
+            onPointerDown={e => { e.preventDefault(); onSearch?.() }}
+            aria-label="Buscar"
+            style={{
+              background: C.green700, border: 'none', borderRadius: 8,
+              padding: '5px 10px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+              fontSize: 12, fontWeight: 700, color: C.white, lineHeight: 1,
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            🔍 Buscar
+          </button>
+          <button
+            type="button"
+            onPointerDown={e => { e.preventDefault(); onChange('') }}
+            aria-label="Limpiar búsqueda"
+            style={{
+              background: C.gray200, border: 'none', borderRadius: '50%',
+              width: 20, height: 20, cursor: 'pointer', padding: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, color: C.gray500, lineHeight: 1,
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >×</button>
+        </div>
       )}
     </div>
   )
@@ -499,6 +518,7 @@ export default function Home() {
   const firstName   = profile?.full_name?.split(' ')[0] ?? ''
 
   const [search,          setSearch]          = useState('')
+  const [showDropdown,    setShowDropdown]    = useState(false)
   const [selectedSpec,    setSelectedSpec]    = useState(null)
   const [doctors,         setDoctors]         = useState([])
   const [availableNowIds, setAvailableNowIds] = useState(new Set())
@@ -604,6 +624,15 @@ export default function Home() {
     navigate(`/medico/${doc.id}`)
   }
 
+  function handleSearchChange(val) {
+    setSearch(val)
+    setShowDropdown(!!val.trim())
+  }
+
+  function handleSearch() {
+    if (search.trim()) setShowDropdown(false)
+  }
+
   // Especialidad sugerida cuando el texto coincide con un síntoma conocido
   const symptomSpec = useMemo(() => {
     if (!search.trim()) return null
@@ -641,7 +670,9 @@ export default function Home() {
     const q         = search.toLowerCase()
     const specMatch = !selectedSpec || d.spec.toLowerCase().includes(selectedSpec.toLowerCase())
     const txtMatch  = !q || d.name.toLowerCase().includes(q) || d.spec.toLowerCase().includes(q)
-    const nowMatch  = selectedSpec ? true : availableNowIds.has(d.id)
+    // Con búsqueda activa o especialidad seleccionada mostramos todos los que coincidan,
+    // sin exigir disponibilidad ahora
+    const nowMatch  = (q || selectedSpec) ? true : availableNowIds.has(d.id)
     return specMatch && txtMatch && nowMatch
   })
 
@@ -805,10 +836,15 @@ export default function Home() {
         </button>
       )}
 
-      <SearchBar value={search} onChange={setSearch} />
+      <SearchBar
+        value={search}
+        onChange={handleSearchChange}
+        onSearch={handleSearch}
+        dropdownOpen={showDropdown}
+      />
 
       {/* ── Panel de búsqueda en tiempo real ── */}
-      {search.trim().length > 0 && (
+      {search.trim().length > 0 && showDropdown && (
         <div style={{
           margin: '0 20px',
           background: C.white,
@@ -908,7 +944,7 @@ export default function Home() {
               <button
                 type="button"
                 onPointerDown={e => { e.preventDefault() }}
-                onClick={() => setSearch(search)}
+                onClick={handleSearch}
                 style={{
                   width: '100%', padding: '7px 0',
                   background: 'none',
@@ -1075,7 +1111,7 @@ export default function Home() {
       </div>
 
       <SectionHeader
-        title={selectedSpec ?? 'Disponibles ahora'}
+        title={selectedSpec ?? (search.trim() ? `Resultados para "${search}"` : 'Disponibles ahora')}
         actionLabel="Ver todos"
         onAction={() => {}}
       />

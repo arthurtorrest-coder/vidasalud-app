@@ -393,10 +393,6 @@ export default function Home() {
           0%,100% { opacity: 1; }
           50%      { opacity: 0; }
         }
-        @keyframes agendarPulse {
-          0%,100% { box-shadow: 0 4px 20px rgba(5,150,105,0.4); }
-          50%      { box-shadow: 0 6px 32px rgba(5,150,105,0.7); }
-        }
       `}</style>
 
       {videoUrl && <VideoRoom url={videoUrl} onLeave={() => setVideoUrl(null)} />}
@@ -467,57 +463,36 @@ export default function Home() {
       )}
 
       {/* ── Acciones rápidas ── */}
-      <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* Botón principal: Agendar cita */}
-        <button
-          onClick={() => navigate('/especialidades')}
-          style={{
-            width: '100%', padding: '16px 20px',
-            background: `linear-gradient(135deg, ${C.green900}, ${C.green700})`,
-            border: '2px solid #6EE7B7', borderRadius: 16, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            boxShadow: '0 4px 20px rgba(5,150,105,0.4)',
-            fontFamily: 'inherit',
-            animation: 'agendarPulse 2.8s ease-in-out infinite',
-            WebkitTapHighlightColor: 'transparent',
-            transition: 'transform 0.12s',
-          }}
-          onPointerDown={e => { e.currentTarget.style.transform = 'scale(0.97)' }}
-          onPointerUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
-          onPointerLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
-        >
-          <span style={{ fontSize: 24 }}>📹</span>
-          <span style={{ fontSize: 16, fontWeight: 800, color: C.white }}>Agendar cita</span>
-          <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', marginLeft: 2 }}>→</span>
-        </button>
-
-        {/* 3 acciones secundarias */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-          {[
-            { icon: '📅', label: 'Mis\ncitas',      bg: '#EFF6FF', border: '#BFDBFE', action: () => navigate('/citas') },
-            { icon: '💊', label: 'Receta\ndigital', bg: '#FFF7ED', border: '#FED7AA', action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
-            { icon: '📋', label: 'Mi\nhistorial',   bg: '#F5F3FF', border: '#DDD6FE', action: () => navigate('/historial') },
-          ].map((a, i) => (
-            <button
-              key={i}
-              onClick={a.action}
-              style={{
-                background: a.bg, border: `1.5px solid ${a.border}`,
-                borderRadius: 14, padding: '12px 6px', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
-              }}
-              onPointerDown={e => { e.currentTarget.style.transform = 'scale(0.93)' }}
-              onPointerUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
-              onPointerLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
-            >
-              <span style={{ fontSize: 22 }}>{a.icon}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: C.gray700, textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.3 }}>
-                {a.label}
-              </span>
-            </button>
-          ))}
-        </div>
+      <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {[
+          { icon: '📹', label: 'Agendar cita',   bg: '#059669', border: '#34D399', color: '#FFFFFF', action: () => navigate('/especialidades') },
+          { icon: '📅', label: 'Mis citas',       bg: '#065F46', border: '#065F46', color: '#FFFFFF', action: () => navigate('/citas') },
+          { icon: '💊', label: 'Receta digital',  bg: '#FFFFFF', border: '#D1FAE5', color: '#065F46', action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
+          { icon: '📋', label: 'Mi historial',    bg: '#FFFFFF', border: '#D1FAE5', color: '#065F46', action: () => navigate('/historial') },
+        ].map((a, i) => (
+          <button
+            key={i}
+            onClick={a.action}
+            style={{
+              width: '100%', height: 40,
+              background: a.bg, border: `1.5px solid ${a.border}`,
+              borderRadius: 12, cursor: 'pointer',
+              display: 'flex', alignItems: 'center',
+              padding: '0 14px', gap: 10,
+              fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
+              transition: 'opacity 0.1s',
+            }}
+            onPointerDown={e => { e.currentTarget.style.opacity = '0.75' }}
+            onPointerUp={e => { e.currentTarget.style.opacity = '1' }}
+            onPointerLeave={e => { e.currentTarget.style.opacity = '1' }}
+          >
+            <span style={{ fontSize: 18, flexShrink: 0 }}>{a.icon}</span>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: a.color, textAlign: 'left' }}>
+              {a.label}
+            </span>
+            <span style={{ fontSize: 16, color: a.color, opacity: 0.6, flexShrink: 0 }}>›</span>
+          </button>
+        ))}
       </div>
 
       {/* ── Botica aliada ── */}

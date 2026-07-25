@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import BottomNav from './BottomNav'
+import BottomNav, { TopBar } from './BottomNav'
 import TourGuiado, { TOUR_KEY } from '../TourGuiado'
 import BotoAyuda from '../BotoAyuda'
 
@@ -124,9 +124,10 @@ export default function AppShell() {
             flexShrink: 0,
           }}>
             <span style={{ fontSize: 12, fontWeight: 700 }}>{now}</span>
-            <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.3 }}>VIDASALUD</span>
             <span style={{ fontSize: 12 }}>▲ ● ■</span>
           </div>
+
+          <TopBar />
 
           {/* Page content — key fuerza remount en cada ruta, disparando fadeUp */}
           <div

@@ -1,14 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
-import TriajeBot from '../../components/TriajeBot'
 import VideoRoom from '../../components/VideoRoom'
 import { C } from '../../lib/tokens'
-import { requestPermission, subscribeToPush, saveTokenToSupabase } from '../../lib/pushNotifications'
 
-// Mapa síntoma → especialidad para sugerencias en la búsqueda
+// ─── Mapa síntoma → especialidad ─────────────────────────────
 const SYMPTOMS = {
   'fiebre': 'General', 'gripe': 'General', 'resfriado': 'General', 'cefalea': 'General',
   'dolor cabeza': 'General', 'dolor de cabeza': 'General',
@@ -27,7 +24,7 @@ const SYMPTOMS = {
 }
 
 const SPECIALTIES = [
-  { icon: '🩺', label: 'General',     price: 35 },
+  { icon: '🩺', label: 'General',     price: 25 },
   { icon: '👶', label: 'Pediatría',   price: 45 },
   { icon: '🧠', label: 'Psicología',  price: 50 },
   { icon: '🥗', label: 'Nutrición',   price: 40 },
@@ -36,16 +33,18 @@ const SPECIALTIES = [
 ]
 
 const STATUS_COLORS = {
-  now:   { dot: C.green600, label: C.green700, bg: C.green50 },
-  soon:  { dot: C.amber,    label: '#B45309',  bg: '#FFFBEB' },
-  later: { dot: C.gray500,  label: C.gray500,  bg: C.gray100 },
+  now:   { dot: C.green600, label: C.green700, bg: C.green50  },
+  soon:  { dot: C.amber,    label: '#B45309',  bg: '#FFFBEB'  },
+  later: { dot: C.gray500,  label: C.gray500,  bg: C.gray100  },
 }
 
+// ─── Helpers ──────────────────────────────────────────────────
+
 function getLimaDateTime() {
-  const now = new Date()
+  const now  = new Date()
   const lima = new Date(now.getTime() + (now.getTimezoneOffset() - 300) * 60000)
   return {
-    diaSemana: lima.getDay(),
+    diaSemana:  lima.getDay(),
     horaActual: `${String(lima.getHours()).padStart(2,'0')}:${String(lima.getMinutes()).padStart(2,'0')}`,
   }
 }
@@ -58,15 +57,12 @@ function computeAvailableNowIds(schedules) {
       s.activo !== false &&
       s.dia_semana === diaSemana &&
       (s.hora_inicio ?? '') <= horaActual &&
-      (s.hora_fin ?? '') > horaActual
-    ) {
-      ids.add(s.doctor_id)
-    }
+      (s.hora_fin    ?? '') >  horaActual
+    ) ids.add(s.doctor_id)
   }
   return ids
 }
 
-// Próximos médicos disponibles hoy (o mañana si no hay más hoy)
 function getProximosDisponibles(allSchedules, allDoctors, limit = 5) {
   const { diaSemana, horaActual } = getLimaDateTime()
   const results = []
@@ -74,26 +70,14 @@ function getProximosDisponibles(allSchedules, allDoctors, limit = 5) {
     const dia     = (diaSemana + offset) % 7
     const isToday = offset === 0
     const blocks  = allSchedules
-      .filter(s =>
-        s.activo !== false &&
-        s.dia_semana === dia &&
-        (!isToday || (s.hora_inicio ?? '') > horaActual)
-      )
+      .filter(s => s.activo !== false && s.dia_semana === dia && (!isToday || (s.hora_inicio ?? '') > horaActual))
       .sort((a, b) => (a.hora_inicio ?? '').localeCompare(b.hora_inicio ?? ''))
     for (const block of blocks) {
       if (results.length >= limit) break
       const doc = allDoctors.find(d => d.id === block.doctor_id)
       if (!doc) continue
       if (results.some(r => r.docId === doc.id)) continue
-      results.push({
-        docId:    doc.id,
-        name:     doc.name,
-        spec:     doc.spec,
-        fotoUrl:  doc.fotoUrl,
-        initials: doc.initials,
-        hora:     block.hora_inicio,
-        esManana: !isToday,
-      })
+      results.push({ docId: doc.id, name: doc.name, spec: doc.spec, fotoUrl: doc.fotoUrl, initials: doc.initials, hora: block.hora_inicio, esManana: !isToday })
     }
   }
   return results
@@ -105,9 +89,6 @@ function formatHora12(hhmm) {
   return `${h % 12 || 12}:${String(m).padStart(2,'0')}${h >= 12 ? 'pm' : 'am'}`
 }
 
-// Transforma fila de Supabase al shape que usa la UI.
-// Soporta doctors_seed.sql (nombres/apellidos/especialidad/cmp)
-// y schema.sql legacy (specialty/cmp_code, id=profile uuid).
 function formatDoc(row) {
   const nombres    = row.nombres   ?? row.full_name ?? '?'
   const apellidos  = row.apellidos ?? ''
@@ -117,18 +98,15 @@ function formatDoc(row) {
   const isCPsP     = cmp.startsWith('CPsP')
   const esFemenino = nombres.trimEnd().endsWith('a')
   const titulo     = isCPsP ? 'Psic.' : esFemenino ? 'Dra.' : 'Dr.'
-  const primerNombre   = nombres[0]?.toUpperCase()   ?? '?'
-  const primerApellido = apellidos[0]?.toUpperCase() ?? '?'
   return {
-    id:          row.id,
-    initials:    primerNombre + primerApellido,
-    name:        `${titulo} ${nombres} ${apellidos}`.trim(),
-    spec,
-    cmp,
-    rating:      Number(row.rating ?? 0),
-    reviews:     row.total_reviews ?? row.review_count ?? 0,
-    price:       precio,
-    fotoUrl:     row.foto_url ?? null,
+    id:       row.id,
+    initials: (nombres[0]?.toUpperCase() ?? '?') + (apellidos[0]?.toUpperCase() ?? '?'),
+    name:     `${titulo} ${nombres} ${apellidos}`.trim(),
+    spec, cmp,
+    rating:   Number(row.rating ?? 0),
+    reviews:  row.total_reviews ?? row.review_count ?? 0,
+    price:    precio,
+    fotoUrl:  row.foto_url ?? null,
     status:      'now',
     statusLabel: 'Disponible ahora',
   }
@@ -137,21 +115,16 @@ function formatDoc(row) {
 // ─── Subcomponentes ───────────────────────────────────────────
 
 function Avatar({ initials, fotoUrl, size = 48 }) {
-  if (fotoUrl) {
-    return (
-      <img
-        src={fotoUrl}
-        alt={initials}
-        style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-      />
-    )
-  }
+  if (fotoUrl) return (
+    <img src={fotoUrl} alt={initials}
+      style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+  )
   return (
     <div style={{
-      width: size, height: size, borderRadius: '50%',
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
       background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: C.white, fontWeight: 700, fontSize: size * 0.33, flexShrink: 0,
+      color: C.white, fontWeight: 700, fontSize: size * 0.33,
     }}>
       {initials}
     </div>
@@ -163,12 +136,9 @@ function StarRating({ rating }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
       <span style={{ color: C.amber, letterSpacing: 1, fontSize: 13, lineHeight: 1 }}>
-        {'★'.repeat(filled)}
-        <span style={{ color: C.gray300 }}>{'★'.repeat(5 - filled)}</span>
+        {'★'.repeat(filled)}<span style={{ color: C.gray300 }}>{'★'.repeat(5 - filled)}</span>
       </span>
-      <span style={{ fontSize: 12, fontWeight: 700, color: C.gray700 }}>
-        {rating.toFixed(1)}
-      </span>
+      <span style={{ fontSize: 12, fontWeight: 700, color: C.gray700 }}>{rating.toFixed(1)}</span>
     </span>
   )
 }
@@ -178,8 +148,8 @@ function StatusBadge({ status, label }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
-      background: s.bg, color: s.label,
-      fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+      background: s.bg, color: s.label, fontSize: 12, fontWeight: 600,
+      padding: '2px 8px', borderRadius: 20,
     }}>
       <span style={{
         width: 6, height: 6, borderRadius: '50%', background: s.dot,
@@ -212,9 +182,7 @@ function DoctorCard({ doc, onBook }) {
       <Avatar initials={doc.initials} fotoUrl={doc.fotoUrl} size={52} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, fontSize: 14, color: C.gray900 }}>{doc.name}</div>
-        <div style={{ fontSize: 12, color: C.gray500, marginTop: 1 }}>
-          {doc.spec} · {doc.cmp}
-        </div>
+        <div style={{ fontSize: 12, color: C.gray500, marginTop: 1 }}>{doc.spec} · {doc.cmp}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
           <StarRating rating={doc.rating} />
           <span style={{ fontSize: 11, color: C.gray500 }}>({doc.reviews} reseñas)</span>
@@ -227,9 +195,7 @@ function DoctorCard({ doc, onBook }) {
           marginTop: 6, background: C.green700, color: C.white,
           fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 8,
           opacity: hovered ? 1 : 0.85, transition: 'opacity 0.15s',
-        }}>
-          Reservar
-        </div>
+        }}>Reservar</div>
       </div>
     </div>
   )
@@ -281,27 +247,59 @@ function SpecialtyChip({ icon, label, price, selected, onClick }) {
   )
 }
 
-function PromoStrip() {
-  const [visible, setVisible] = useState(true)
-  if (!visible) return null
+function SectionHeader({ title, actionLabel, onAction }) {
   return (
-    <div style={{
-      background: `linear-gradient(90deg, ${C.green800}, ${C.green600})`,
-      padding: '10px 20px',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      flexShrink: 0,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 16 }}>🎉</span>
-        <span style={{ fontSize: 12, color: C.white, fontWeight: 600 }}>
-          Primera consulta a S/. 20 — solo hoy
-        </span>
-      </div>
-      <button
-        onClick={() => setVisible(false)}
-        style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0 }}
-        aria-label="Cerrar promoción"
-      >×</button>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px 10px' }}>
+      <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, margin: 0 }}>{title}</h2>
+      {actionLabel && (
+        <button onClick={onAction} style={{ background: 'none', border: 'none', color: C.green700, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          {actionLabel} →
+        </button>
+      )}
+    </div>
+  )
+}
+
+function SearchBar({ value, onChange }) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div style={{ position: 'relative' }}>
+      <span style={{
+        position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+        color: focused ? C.green600 : C.gray400, fontSize: 17, pointerEvents: 'none', zIndex: 1,
+      }}>🔍</span>
+      <input
+        type="text"
+        placeholder="Buscar médico, síntoma o especialidad..."
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          width: '100%',
+          padding: value ? '12px 40px 12px 44px' : '12px 14px 12px 44px',
+          border: `1.5px solid ${focused ? C.green500 : C.gray200}`,
+          borderRadius: 14, fontSize: 13, outline: 'none',
+          background: C.gray50, color: C.gray900,
+          boxShadow: focused ? '0 0 0 3px rgba(16,185,129,0.10)' : 'none',
+          transition: 'border-color 0.15s, box-shadow 0.15s',
+        }}
+      />
+      {value && (
+        <button
+          type="button"
+          onPointerDown={e => { e.preventDefault(); onChange('') }}
+          aria-label="Limpiar"
+          style={{
+            position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+            background: C.gray300, border: 'none', borderRadius: '50%',
+            width: 20, height: 20, cursor: 'pointer', padding: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, color: C.gray600, WebkitTapHighlightColor: 'transparent',
+          }}
+        >×</button>
+      )}
     </div>
   )
 }
@@ -314,8 +312,7 @@ function SearchResultItem({ doc, onSelect }) {
       onPointerUp={() => { setPressed(false); onSelect() }}
       onPointerLeave={() => setPressed(false)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '10px 16px',
+        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
         background: pressed ? C.green50 : C.white,
         cursor: 'pointer', transition: 'background 0.1s',
         WebkitTapHighlightColor: 'transparent',
@@ -323,143 +320,21 @@ function SearchResultItem({ doc, onSelect }) {
     >
       <Avatar initials={doc.initials} fotoUrl={doc.fotoUrl} size={38} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {doc.name}
         </div>
         <div style={{ fontSize: 11, color: C.gray500, marginTop: 1 }}>
           {doc.spec}
-          {doc.price > 0 && (
-            <span style={{ color: C.green700, fontWeight: 700, marginLeft: 5 }}>
-              · S/. {doc.price}
-            </span>
-          )}
+          {doc.price > 0 && <span style={{ color: C.green700, fontWeight: 700, marginLeft: 5 }}>· S/. {doc.price}</span>}
         </div>
       </div>
       {doc.rating > 0 && (
-        <span style={{ fontSize: 11, color: C.amber, fontWeight: 700, flexShrink: 0 }}>
-          ★ {doc.rating.toFixed(1)}
-        </span>
+        <span style={{ fontSize: 11, color: C.amber, fontWeight: 700, flexShrink: 0 }}>★ {doc.rating.toFixed(1)}</span>
       )}
       <span style={{ color: C.gray300, fontSize: 16, flexShrink: 0 }}>›</span>
     </div>
   )
 }
-
-function SearchBar({ value, onChange, onSearch, dropdownOpen, onFocus, onBlur }) {
-  const [focused, setFocused] = useState(false)
-  return (
-    <div data-tour="search" style={{ position: 'relative', margin: '16px 20px 0' }}>
-      <span style={{
-        position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-        color: focused ? C.green600 : C.gray500, fontSize: 18, pointerEvents: 'none',
-        zIndex: 1,
-      }}>🔍</span>
-      <input
-        type="text"
-        placeholder="Buscar médico, síntoma o especialidad..."
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onSearch?.() } }}
-        onFocus={() => { setFocused(true); onFocus?.() }}
-        onBlur={() => { setFocused(false); onBlur?.() }}
-        style={{
-          width: '100%',
-          padding: value ? '12px 100px 12px 44px' : '12px 14px 12px 44px',
-          border: `1.5px solid ${focused ? C.green500 : C.gray300}`,
-          borderRadius: dropdownOpen ? '12px 12px 0 0' : 12,
-          fontSize: 13, outline: 'none',
-          background: C.white, color: C.gray900,
-          boxShadow: focused ? '0 0 0 3px rgba(16,185,129,0.12)' : 'none',
-          transition: 'border-color 0.15s, border-radius 0.15s',
-        }}
-      />
-      {value && (
-        <div style={{
-          position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-          display: 'flex', alignItems: 'center', gap: 4,
-        }}>
-          <button
-            type="button"
-            onClick={() => onSearch?.()}
-            aria-label="Buscar"
-            style={{
-              background: C.green700, border: 'none', borderRadius: 8,
-              padding: '5px 10px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 4,
-              fontSize: 12, fontWeight: 700, color: C.white, lineHeight: 1,
-              WebkitTapHighlightColor: 'transparent',
-            }}
-          >
-            🔍 Buscar
-          </button>
-          <button
-            type="button"
-            onPointerDown={e => { e.preventDefault(); onChange('') }}
-            aria-label="Limpiar búsqueda"
-            style={{
-              background: C.gray200, border: 'none', borderRadius: '50%',
-              width: 20, height: 20, cursor: 'pointer', padding: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, color: C.gray500, lineHeight: 1,
-              WebkitTapHighlightColor: 'transparent',
-            }}
-          >×</button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function SectionHeader({ title, actionLabel, onAction }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 20px 10px' }}>
-      <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, margin: 0 }}>{title}</h2>
-      {actionLabel && (
-        <button onClick={onAction} style={{ background: 'none', border: 'none', color: C.green700, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-          {actionLabel} →
-        </button>
-      )}
-    </div>
-  )
-}
-
-function QuickActions() {
-  const navigate = useNavigate()
-  const actions = [
-    { icon: '⚡', label: 'Consultar\nahora',  color: C.green50,  border: C.green200, to: '/especialidades' },
-    { icon: '📅', label: 'Mis\ncitas',         color: '#EFF6FF',  border: '#BFDBFE', to: '/citas'          },
-    { icon: '💊', label: 'Receta\ndigital',    color: '#FFF7ED',  border: '#FED7AA', onTap: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
-    { icon: '📋', label: 'Mi\nhistorial',      color: '#F5F3FF',  border: '#DDD6FE', to: '/historial'      },
-  ]
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, padding: '0 20px' }}>
-      {actions.map((a, i) => (
-        <button
-          key={i}
-          onClick={() => a.onTap ? a.onTap() : navigate(a.to)}
-          style={{
-            background: a.color, border: `1.5px solid ${a.border}`,
-            borderRadius: 14, padding: '12px 8px', cursor: 'pointer',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-            transition: 'transform 0.12s',
-            WebkitTapHighlightColor: 'transparent',
-          }}
-          onPointerDown={e => { e.currentTarget.style.transform = 'scale(0.93)' }}
-          onPointerUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
-          onPointerLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
-        >
-          <span style={{ fontSize: 22 }}>{a.icon}</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: C.gray700, textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.3 }}>
-            {a.label}
-          </span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-// ─── Alerta de consulta activa ────────────────────────────────
 
 function doctorTitulo(doc) {
   const isCPsP = (doc?.cmp ?? '').startsWith('CPsP')
@@ -468,18 +343,16 @@ function doctorTitulo(doc) {
 }
 
 function ActiveCallBanner({ appt, onEnter }) {
-  const doc      = appt.doctor ?? {}
-  const titulo   = doctorTitulo(doc)
-  const nombre   = [doc.nombres, doc.apellidos].filter(Boolean).join(' ') || 'tu médico'
-  const spec     = doc.especialidad ?? ''
-
+  const doc    = appt.doctor ?? {}
+  const titulo = doctorTitulo(doc)
+  const nombre = [doc.nombres, doc.apellidos].filter(Boolean).join(' ') || 'tu médico'
+  const spec   = doc.especialidad ?? ''
   return (
     <div style={{
       background: 'linear-gradient(135deg, #065F46, #059669)',
       padding: '16px 20px 18px',
       display: 'flex', flexDirection: 'column', gap: 12,
-      animation: 'banner-glow 2s ease-in-out infinite',
-      flexShrink: 0,
+      animation: 'banner-glow 2s ease-in-out infinite', flexShrink: 0,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontSize: 18, animation: 'dot-blink 1s step-end infinite' }}>🔴</span>
@@ -496,12 +369,10 @@ function ActiveCallBanner({ appt, onEnter }) {
         onClick={() => onEnter(appt.video_url)}
         style={{
           width: '100%', padding: '14px 0',
-          background: '#FFFFFF', color: '#065F46',
-          border: 'none', borderRadius: 12,
+          background: '#FFFFFF', color: '#065F46', border: 'none', borderRadius: 12,
           fontSize: 15, fontWeight: 800, cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          fontFamily: 'inherit',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+          fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
         }}
       >
         📹 Entrar a la consulta
@@ -518,17 +389,14 @@ export default function Home() {
   const firstName   = profile?.full_name?.split(' ')[0] ?? ''
 
   const [search,          setSearch]          = useState('')
-  const [showDropdown,    setShowDropdown]    = useState(false)
   const [selectedSpec,    setSelectedSpec]    = useState(null)
   const [doctors,         setDoctors]         = useState([])
   const [availableNowIds, setAvailableNowIds] = useState(new Set())
   const [schedules,       setSchedules]       = useState([])
   const [loadingDocs,     setLoadingDocs]     = useState(true)
   const [errorDocs,       setErrorDocs]       = useState(null)
-  const [showTriaje,      setShowTriaje]      = useState(false)
   const [activeAppt,      setActiveAppt]      = useState(null)
   const [videoUrl,        setVideoUrl]        = useState(null)
-  const [showPushBanner,  setShowPushBanner]  = useState(false)
 
   const checkActiveAppt = useCallback(async () => {
     if (!user?.id) return
@@ -548,11 +416,9 @@ export default function Home() {
     if (!user?.id) return
     const channel = supabase
       .channel(`home-active-appt-${user.id}`)
-      .on(
-        'postgres_changes',
+      .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'appointments', filter: `patient_id=eq.${user.id}` },
-        () => { checkActiveAppt() },
-      )
+        () => { checkActiveAppt() })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [user?.id, checkActiveAppt])
@@ -568,7 +434,7 @@ export default function Home() {
       setLoadingDocs(false)
       return
     }
-    const activos = (docs ?? []).filter(d => d.activo !== false && d.aprobado !== false)
+    const activos      = (docs ?? []).filter(d => d.activo !== false && d.aprobado !== false)
     const schedulesData = scheds ?? []
     setDoctors(activos.map(formatDoc))
     setSchedules(schedulesData)
@@ -576,65 +442,19 @@ export default function Home() {
     setLoadingDocs(false)
   }
 
-  useEffect(() => {
-    fetchDoctors()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchDoctors() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const channel = supabase
       .channel('home-doctors-availability')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'doctors' },
-        () => { fetchDoctors() }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'doctors' }, () => fetchDoctors())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (
-      profile?.role === 'patient' &&
-      'Notification' in window &&
-      Notification.permission === 'default' &&
-      !localStorage.getItem('vs-push-dismissed')
-    ) {
-      const t = setTimeout(() => setShowPushBanner(true), 2500)
-      return () => clearTimeout(t)
-    }
-  }, [profile?.role])
+  const handleBook = (doc) => { navigate(`/medico/${doc.id}`) }
 
-  async function handleActivarPush() {
-    setShowPushBanner(false)
-    localStorage.setItem('vs-push-dismissed', '1')
-    const permission = await requestPermission()
-    if (permission !== 'granted') return
-    const subscription = await subscribeToPush()
-    if (!subscription) return
-    await saveTokenToSupabase(subscription)
-    toast.success('¡Recordatorios de citas activados! 🔔')
-  }
-
-  function handleDismissPush() {
-    setShowPushBanner(false)
-    localStorage.setItem('vs-push-dismissed', '1')
-  }
-
-  const handleBook = (doc) => {
-    navigate(`/medico/${doc.id}`)
-  }
-
-  function handleSearchChange(val) {
-    setSearch(val)
-    setShowDropdown(!!val.trim())
-  }
-
-  function handleSearch() {
-    console.log('[Home] handleSearch — search:', JSON.stringify(search), '| showDropdown:', showDropdown)
-    if (search.trim()) setShowDropdown(false)
-  }
-
-  // Especialidad sugerida cuando el texto coincide con un síntoma conocido
+  // ── Búsqueda ──────────────────────────────────────────────
   const symptomSpec = useMemo(() => {
     if (!search.trim()) return null
     const q = search.toLowerCase()
@@ -644,7 +464,6 @@ export default function Home() {
     return null
   }, [search])
 
-  // Resultados en tiempo real para el panel de búsqueda
   const searchResults = useMemo(() => {
     if (!search.trim()) return []
     const q = search.toLowerCase()
@@ -652,10 +471,7 @@ export default function Home() {
       d.name.toLowerCase().includes(q) || d.spec.toLowerCase().includes(q)
     )
     const bySymptom = symptomSpec
-      ? doctors.filter(d =>
-          d.spec.toLowerCase().includes(symptomSpec.toLowerCase()) &&
-          !byName.some(b => b.id === d.id)
-        )
+      ? doctors.filter(d => d.spec.toLowerCase().includes(symptomSpec.toLowerCase()) && !byName.some(b => b.id === d.id))
       : []
     return [...byName, ...bySymptom].slice(0, 7)
   }, [search, doctors, symptomSpec])
@@ -668,15 +484,14 @@ export default function Home() {
   )
 
   const filteredDocs = doctors.filter(d => {
-    const q         = search.toLowerCase()
+    const q        = search.toLowerCase()
     const specMatch = !selectedSpec || d.spec.toLowerCase().includes(selectedSpec.toLowerCase())
     const txtMatch  = !q || d.name.toLowerCase().includes(q) || d.spec.toLowerCase().includes(q)
-    // Con búsqueda activa o especialidad seleccionada mostramos todos los que coincidan,
-    // sin exigir disponibilidad ahora
     const nowMatch  = (q || selectedSpec) ? true : availableNowIds.has(d.id)
     return specMatch && txtMatch && nowMatch
   })
 
+  // ── Render ────────────────────────────────────────────────
   return (
     <>
       <style>{`
@@ -696,110 +511,42 @@ export default function Home() {
         <ActiveCallBanner appt={activeAppt} onEnter={setVideoUrl} />
       )}
 
-      {showTriaje && (
-        <TriajeBot
-          onClose={() => setShowTriaje(false)}
-          onSelectSpecialty={(spec) => {
-            setSelectedSpec(spec)
-            setSearch('')
-            setShowTriaje(false)
-          }}
-          onBookNow={() => {
-            setShowTriaje(false)
-            const general = doctors.find(d =>
-              d.spec.toLowerCase().includes('general')
-            )
-            if (general) {
-              navigate(`/booking/${general.id}`)
-            } else {
-              setSelectedSpec('General')
-              setSearch('')
-            }
-          }}
-        />
-      )}
-
-      <PromoStrip />
-
-      {/* Hero */}
+      {/* ── Hero compacto ── */}
       <div style={{
         background: `linear-gradient(160deg, ${C.green800} 0%, ${C.green600} 100%)`,
-        padding: '20px 20px 28px', flexShrink: 0,
+        padding: '16px 20px 20px', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>
-              {firstName ? `Hola, ${firstName} 👋` : 'Bienvenido 👋'}
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: C.white, marginTop: 2 }}>
-              ¿Cómo te sientes hoy?
-            </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>
-              📍 Perú · Médicos disponibles ahora
-            </div>
-          </div>
-          <button
-            onClick={() => toast('Sin notificaciones nuevas')}
-            style={{
-              width: 44, height: 44, borderRadius: '50%',
-              background: 'rgba(255,255,255,0.2)', border: 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', flexShrink: 0,
-            }}
-          >
-            <span style={{ fontSize: 20 }}>🔔</span>
-          </button>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>
+          {firstName ? `Hola, ${firstName} 👋` : 'Bienvenido 👋'}
         </div>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          {[
-            { n: loadingDocs ? '…' : String(doctors.filter(d => availableNowIds.has(d.id)).length), label: 'Médicos online'  },
-            { n: '< 5 min',                                   label: 'Espera promedio' },
-            { n: 'S/. 20',                                    label: 'Promo hoy'       },
-          ].map((s, i) => (
-            <div key={i} style={{
-              flex: 1, background: 'rgba(255,255,255,0.15)',
-              borderRadius: 10, padding: '8px 10px', textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: C.white }}>{s.n}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>{s.label}</div>
-            </div>
-          ))}
+        <div style={{ fontSize: 21, fontWeight: 800, color: C.white, marginTop: 2 }}>
+          ¿Cómo te sientes hoy?
+        </div>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
+          📍 Perú · Médicos disponibles ahora
         </div>
       </div>
 
-      {/* Banner de acceso a panel propio — solo para admin / doctor */}
+      {/* ── Accesos de rol ── */}
       {profile?.role === 'admin' && (
         <button
           onClick={() => navigate('/admin/panel')}
           style={{
-            margin: '16px 20px 0',
-            width: 'calc(100% - 40px)',
-            padding: '14px 18px',
+            margin: '12px 20px 0', width: 'calc(100% - 40px)',
+            padding: '13px 18px',
             background: `linear-gradient(135deg, ${C.green900}, ${C.green800})`,
-            border: `1.5px solid ${C.green700}`,
-            borderRadius: 14, cursor: 'pointer',
+            border: `1.5px solid ${C.green700}`, borderRadius: 14, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 12,
-            boxShadow: '0 4px 20px rgba(6,79,60,0.35)',
-            fontFamily: 'inherit',
+            boxShadow: '0 4px 20px rgba(6,79,60,0.35)', fontFamily: 'inherit',
             WebkitTapHighlightColor: 'transparent',
           }}
         >
-          <span style={{
-            width: 42, height: 42, borderRadius: 10, flexShrink: 0,
-            background: 'rgba(255,255,255,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 22,
-          }}>⚙️</span>
+          <span style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>⚙️</span>
           <div style={{ textAlign: 'left', flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.white }}>
-              Panel de administrador
-            </div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>
-              Gestiona citas, médicos e ingresos
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.white }}>Panel de administrador</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>Gestiona citas, médicos e ingresos</div>
           </div>
-          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 20, flexShrink: 0 }}>›</span>
+          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 20 }}>›</span>
         </button>
       )}
 
@@ -807,404 +554,166 @@ export default function Home() {
         <button
           onClick={() => navigate('/medico/panel')}
           style={{
-            margin: '16px 20px 0',
-            width: 'calc(100% - 40px)',
-            padding: '14px 18px',
+            margin: '12px 20px 0', width: 'calc(100% - 40px)',
+            padding: '13px 18px',
             background: `linear-gradient(135deg, ${C.green900}, ${C.green800})`,
-            border: `1.5px solid ${C.green700}`,
-            borderRadius: 14, cursor: 'pointer',
+            border: `1.5px solid ${C.green700}`, borderRadius: 14, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 12,
-            boxShadow: '0 4px 20px rgba(6,79,60,0.35)',
-            fontFamily: 'inherit',
+            boxShadow: '0 4px 20px rgba(6,79,60,0.35)', fontFamily: 'inherit',
             WebkitTapHighlightColor: 'transparent',
           }}
         >
-          <span style={{
-            width: 42, height: 42, borderRadius: 10, flexShrink: 0,
-            background: 'rgba(255,255,255,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 22,
-          }}>🩺</span>
+          <span style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🩺</span>
           <div style={{ textAlign: 'left', flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.white }}>
-              Ir a mi panel médico
-            </div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>
-              Ver tus citas y consultas pendientes
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.white }}>Ir a mi panel médico</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>Ver tus citas y consultas pendientes</div>
           </div>
-          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 20, flexShrink: 0 }}>›</span>
+          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 20 }}>›</span>
         </button>
       )}
 
-      <SearchBar
-        value={search}
-        onChange={handleSearchChange}
-        onSearch={handleSearch}
-        dropdownOpen={showDropdown}
-      />
+      {/* ── Buscador — sticky ── */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 10,
+        background: C.white,
+        padding: '12px 20px 10px',
+        borderBottom: `1px solid ${C.gray100}`,
+        boxShadow: '0 1px 6px rgba(0,0,0,0.06)',
+      }}>
+        <SearchBar value={search} onChange={setSearch} />
+      </div>
 
-      {/* ── Panel de búsqueda en tiempo real ── */}
-      {search.trim().length > 0 && showDropdown && (
-        <div style={{
-          margin: '0 20px',
-          background: C.white,
-          border: `1.5px solid ${C.green200}`,
-          borderTop: 'none',
-          borderRadius: '0 0 14px 14px',
-          overflow: 'hidden',
-          boxShadow: '0 8px 24px rgba(5,150,105,0.13)',
-          zIndex: 10,
-        }}>
-
-          {/* Sugerencia de síntoma */}
-          {symptomSpec && (
-            <div
-              onPointerDown={e => {
-                e.preventDefault()
-                setSearch('')
-                setSelectedSpec(symptomSpec)
-              }}
-              style={{
-                padding: '8px 16px', cursor: 'pointer',
-                background: '#FFFBEB',
-                borderBottom: `1px solid #FDE68A`,
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}
-            >
-              <span style={{ fontSize: 14 }}>💡</span>
-              <div style={{ flex: 1 }}>
-                <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600 }}>
-                  Síntoma detectado · Ver médicos de{' '}
-                </span>
-                <span style={{ fontSize: 11, color: '#92400E', fontWeight: 800 }}>
-                  {symptomSpec}
-                </span>
-              </div>
-              <span style={{ fontSize: 12, color: '#B45309' }}>›</span>
-            </div>
-          )}
-
-          {/* Cabecera de resultados */}
+      {/* ── Resultados inline (aparecen inmediatamente al escribir) ── */}
+      {search.trim().length > 0 && (
+        <div style={{ padding: '8px 20px 4px', background: C.white }}>
           <div style={{
-            padding: '8px 16px 6px',
-            background: C.green50,
-            borderBottom: `1px solid ${C.green100}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            border: `1.5px solid ${C.green200}`,
+            borderRadius: 12, overflow: 'hidden',
+            boxShadow: '0 4px 16px rgba(5,150,105,0.10)',
           }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.green800 }}>
-              {searchResults.length > 0
-                ? `${searchResults.length} resultado${searchResults.length !== 1 ? 's' : ''} para "${search}"`
-                : `Sin resultados para "${search}"`}
-            </span>
-            <button
-              type="button"
-              onPointerDown={e => { e.preventDefault(); setSearch('') }}
-              style={{
-                background: 'none', border: 'none', color: C.gray400,
-                fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0,
-              }}
-            >
-              ×
-            </button>
-          </div>
-
-          {/* Lista de resultados */}
-          {searchResults.length === 0 ? (
-            <div style={{
-              padding: '20px 16px', textAlign: 'center',
-              color: C.gray400, fontSize: 12,
-            }}>
-              No encontramos médicos para "{search}".<br />
-              <span style={{ color: C.green700, fontWeight: 600 }}>
-                Intenta con el nombre del médico o una especialidad.
-              </span>
-            </div>
-          ) : (
-            <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-              {searchResults.map((doc, i) => (
-                <div key={doc.id}>
-                  {i > 0 && (
-                    <div style={{ height: 1, background: C.gray100, margin: '0 16px' }} />
-                  )}
-                  <SearchResultItem
-                    doc={doc}
-                    onSelect={() => {
-                      setSearch('')
-                      navigate(`/medico/${doc.id}`)
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Pie: ver todos */}
-          {searchResults.length > 0 && (
-            <div style={{ padding: '6px 16px 10px', borderTop: `1px solid ${C.gray100}` }}>
-              <button
-                type="button"
-                onPointerDown={e => { e.preventDefault() }}
-                onClick={handleSearch}
+            {/* Sugerencia por síntoma */}
+            {symptomSpec && (
+              <div
+                onPointerDown={e => { e.preventDefault(); setSearch(''); setSelectedSpec(symptomSpec) }}
                 style={{
-                  width: '100%', padding: '7px 0',
-                  background: 'none',
-                  border: `1px solid ${C.green200}`,
-                  borderRadius: 8, fontSize: 11, fontWeight: 700,
-                  color: C.green700, cursor: 'pointer', fontFamily: 'inherit',
+                  padding: '8px 14px', cursor: 'pointer',
+                  background: '#FFFBEB', borderBottom: `1px solid #FDE68A`,
+                  display: 'flex', alignItems: 'center', gap: 8,
                 }}
               >
-                Ver todos los resultados en la lista ↓
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Asistente de triaje IA */}
-      <button
-        onClick={() => setShowTriaje(true)}
-        style={{
-          margin: '12px 20px 0',
-          width: 'calc(100% - 40px)',
-          padding: '13px 16px',
-          background: `linear-gradient(135deg, ${C.green900}, ${C.green700})`,
-          border: 'none', borderRadius: 14, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', gap: 12,
-          boxShadow: '0 4px 16px rgba(5,150,105,0.28)',
-          fontFamily: 'inherit',
-          WebkitTapHighlightColor: 'transparent',
-        }}
-      >
-        <span style={{
-          width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-          background: 'rgba(255,255,255,0.18)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 20,
-        }}>🤖</span>
-        <div style={{ textAlign: 'left', flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: C.white }}>
-            ¿Qué médico necesito?
-          </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
-            Describe tus síntomas · La IA te orienta en segundos
-          </div>
-        </div>
-        <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 18, flexShrink: 0 }}>›</span>
-      </button>
-
-      {/* Banner de notificaciones push */}
-      {showPushBanner && (
-        <div style={{
-          margin: '12px 20px 0',
-          background: `linear-gradient(135deg, ${C.green900}, ${C.green700})`,
-          border: `1px solid ${C.green600}`,
-          borderRadius: 16, padding: '14px 16px',
-          display: 'flex', flexDirection: 'column', gap: 12,
-          boxShadow: '0 4px 20px rgba(6,79,60,0.30)',
-        }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <span style={{
-              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-              background: 'rgba(255,255,255,0.18)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-            }}>🔔</span>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: C.white }}>
-                ¿Quieres recordatorios de tus citas?
+                <span style={{ fontSize: 14 }}>💡</span>
+                <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600 }}>
+                  Síntoma detectado · Ver médicos de{' '}
+                  <strong style={{ color: '#92400E' }}>{symptomSpec}</strong>
+                </span>
               </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 3, lineHeight: 1.4 }}>
-                Te avisamos 1 hora antes de cada consulta para que no la olvides.
-              </div>
+            )}
+
+            {/* Cabecera de resultados */}
+            <div style={{
+              padding: '7px 14px 5px',
+              background: C.green50, borderBottom: `1px solid ${C.green100}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.green800 }}>
+                {searchResults.length > 0
+                  ? `${searchResults.length} resultado${searchResults.length !== 1 ? 's' : ''} para "${search}"`
+                  : `Sin resultados para "${search}"`}
+              </span>
+              <button
+                type="button"
+                onPointerDown={e => { e.preventDefault(); setSearch('') }}
+                style={{ background: 'none', border: 'none', color: C.gray400, fontSize: 17, cursor: 'pointer', lineHeight: 1, padding: 0 }}
+              >×</button>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={handleActivarPush}
-              style={{
-                flex: 1, padding: '9px 0',
-                background: C.white, color: C.green800,
-                border: 'none', borderRadius: 10,
-                fontSize: 12, fontWeight: 800, cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              Sí, activar
-            </button>
-            <button
-              onClick={handleDismissPush}
-              style={{
-                flex: 1, padding: '9px 0',
-                background: 'rgba(255,255,255,0.15)', color: C.white,
-                border: '1px solid rgba(255,255,255,0.3)', borderRadius: 10,
-                fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              Ahora no
-            </button>
+
+            {/* Lista de resultados */}
+            {searchResults.length === 0 ? (
+              <div style={{ padding: '18px 14px', textAlign: 'center', color: C.gray400, fontSize: 12 }}>
+                No encontramos médicos para "{search}".<br />
+                <span style={{ color: C.green700, fontWeight: 600 }}>
+                  Intenta con el nombre del médico o una especialidad.
+                </span>
+              </div>
+            ) : (
+              searchResults.map((doc, i) => (
+                <div key={doc.id}>
+                  {i > 0 && <div style={{ height: 1, background: C.gray100, margin: '0 14px' }} />}
+                  <SearchResultItem
+                    doc={doc}
+                    onSelect={() => { setSearch(''); navigate(`/medico/${doc.id}`) }}
+                  />
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
 
-      <SectionHeader title="Acciones rápidas" />
-      <QuickActions />
-
-      {/* Acceso rápido a boticas aliadas */}
-      <div
-        onClick={() => navigate('/farmacias')}
-        style={{
-          margin: '10px 20px 0',
-          background: `linear-gradient(135deg, ${C.green50}, #fff)`,
-          border: `1.5px solid ${C.green200}`,
-          borderRadius: 14, padding: '12px 16px',
-          display: 'flex', alignItems: 'center', gap: 12,
-          cursor: 'pointer',
-          WebkitTapHighlightColor: 'transparent',
-        }}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && navigate('/farmacias')}
-      >
-        <span style={{
-          width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-          background: C.green100,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 20,
-        }}>🏪</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: C.green800 }}>
-            Encuentra una botica aliada
+      {/* ── Especialidades (ocultas durante búsqueda activa) ── */}
+      {!search.trim() && (
+        <>
+          <SectionHeader title="Especialidades" />
+          <div style={{ display: 'flex', gap: 8, padding: '0 20px 4px', overflowX: 'auto' }}>
+            {SPECIALTIES.map((s, i) => (
+              <SpecialtyChip
+                key={i} {...s}
+                selected={selectedSpec === s.label}
+                onClick={() => setSelectedSpec(selectedSpec === s.label ? null : s.label)}
+              />
+            ))}
           </div>
-          <div style={{ fontSize: 11, color: C.green700, marginTop: 2 }}>
-            Recetas electrónicas aceptadas · Cerca de ti
-          </div>
-        </div>
-        <span style={{ color: C.green500, fontSize: 18, flexShrink: 0 }}>›</span>
-      </div>
+        </>
+      )}
 
-      <SectionHeader title="Especialidades" />
-      <div style={{ display: 'flex', gap: 8, padding: '0 20px 4px', overflowX: 'auto' }}>
-        {SPECIALTIES.map((s, i) => (
-          <SpecialtyChip
-            key={i}
-            {...s}
-            selected={selectedSpec === s.label}
-            onClick={() => setSelectedSpec(selectedSpec === s.label ? null : s.label)}
-          />
-        ))}
-      </div>
-      <div style={{ padding: '10px 20px 0' }}>
-        <button
-          data-tour="especialidades-btn"
-          onClick={() => navigate('/especialidades')}
-          style={{
-            width: '100%', padding: '12px 0',
-            background: `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
-            color: C.white, border: 'none', borderRadius: 12,
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            fontFamily: 'inherit',
-            boxShadow: '0 4px 14px rgba(5,150,105,0.28)',
-          }}
-        >
-          🩺 Ver todas las especialidades
-        </button>
-      </div>
-
+      {/* ── Lista de médicos ── */}
       <SectionHeader
         title={selectedSpec ?? (search.trim() ? `Resultados para "${search}"` : 'Disponibles ahora')}
-        actionLabel="Ver todos"
-        onAction={() => {}}
+        actionLabel={selectedSpec ? 'Limpiar' : undefined}
+        onAction={() => setSelectedSpec(null)}
       />
 
       <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* Estado: cargando */}
-        {loadingDocs && (
-          <>
-            <DoctorSkeleton />
-            <DoctorSkeleton />
-            <DoctorSkeleton />
-          </>
-        )}
+        {loadingDocs && <><DoctorSkeleton /><DoctorSkeleton /><DoctorSkeleton /></>}
 
-        {/* Estado: error */}
         {!loadingDocs && errorDocs && (
-          <div style={{
-            textAlign: 'center', padding: 24, color: C.gray500, fontSize: 13,
-            background: C.gray100, borderRadius: 12,
-          }}>
+          <div style={{ textAlign: 'center', padding: 24, color: C.gray500, fontSize: 13, background: C.gray100, borderRadius: 12 }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
             {errorDocs}
             <button
-              onClick={() => { setLoadingDocs(true); setErrorDocs(null); }}
-              style={{
-                display: 'block', margin: '12px auto 0',
-                background: 'none', border: `1px solid ${C.green600}`,
-                color: C.green700, borderRadius: 8, padding: '6px 16px',
-                fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              }}
-            >
-              Reintentar
-            </button>
+              onClick={() => { setLoadingDocs(true); setErrorDocs(null); fetchDoctors() }}
+              style={{ display: 'block', margin: '12px auto 0', background: 'none', border: `1px solid ${C.green600}`, color: C.green700, borderRadius: 8, padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >Reintentar</button>
           </div>
         )}
 
-        {/* 🕐 Próximos médicos disponibles hoy — aparece cuando no hay nadie en línea ahora */}
+        {/* Próximos disponibles hoy */}
         {!loadingDocs && !errorDocs && proximosDisponibles.length > 0 && (
-          <div style={{ marginBottom: 8 }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '4px 20px 10px',
-            }}>
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10 }}>
               <span style={{ fontSize: 13 }}>🕐</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.gray700 }}>
-                Próximos médicos disponibles hoy
-              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.gray700 }}>Próximos disponibles hoy</span>
             </div>
-            <div style={{
-              display: 'flex', gap: 10,
-              overflowX: 'auto', padding: '0 20px 4px',
-              scrollbarWidth: 'none',
-            }}>
+            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
               {proximosDisponibles.map(d => (
                 <div
                   key={d.docId}
                   onClick={() => navigate(`/medico/${d.docId}`)}
                   style={{
-                    flexShrink: 0, width: 130,
-                    background: C.white,
-                    border: `1.5px solid ${C.gray200}`,
-                    borderRadius: 14, padding: '12px 12px 10px',
-                    cursor: 'pointer',
+                    flexShrink: 0, width: 130, background: C.white,
+                    border: `1.5px solid ${C.gray200}`, borderRadius: 14,
+                    padding: '12px 12px 10px', cursor: 'pointer',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                     boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
                   }}
                 >
-                  {d.fotoUrl ? (
-                    <img src={d.fotoUrl} alt={d.name}
-                      style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
-                  ) : (
-                    <div style={{
-                      width: 44, height: 44, borderRadius: '50%',
-                      background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: C.white, fontWeight: 800, fontSize: 15,
-                    }}>
-                      {d.initials}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 12, fontWeight: 700, color: C.gray900, textAlign: 'center', lineHeight: 1.3, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {d.name}
-                  </div>
-                  <div style={{ fontSize: 10, color: C.gray500, textAlign: 'center', lineHeight: 1.3 }}>
-                    {d.spec}
-                  </div>
-                  <div style={{
-                    marginTop: 2, fontSize: 10, fontWeight: 700,
-                    color: C.green700, background: C.green50,
-                    border: `1px solid ${C.green200}`,
-                    padding: '3px 8px', borderRadius: 20, textAlign: 'center', whiteSpace: 'nowrap',
-                  }}>
+                  {d.fotoUrl
+                    ? <img src={d.fotoUrl} alt={d.name} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} />
+                    : <div style={{ width: 44, height: 44, borderRadius: '50%', background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.white, fontWeight: 800, fontSize: 15 }}>{d.initials}</div>
+                  }
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.gray900, textAlign: 'center', lineHeight: 1.3, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</div>
+                  <div style={{ fontSize: 10, color: C.gray500, textAlign: 'center' }}>{d.spec}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: C.green700, background: C.green50, border: `1px solid ${C.green200}`, padding: '3px 8px', borderRadius: 20, textAlign: 'center', whiteSpace: 'nowrap' }}>
                     {d.esManana ? 'Mañana ' : ''}{formatHora12(d.hora)}
                   </div>
                 </div>
@@ -1213,23 +722,19 @@ export default function Home() {
           </div>
         )}
 
-        {/* Estado: sin resultados del filtro */}
+        {/* Sin resultados */}
         {!loadingDocs && !errorDocs && filteredDocs.length === 0 && proximosDisponibles.length === 0 && (
           <div style={{ textAlign: 'center', padding: 24, color: C.gray500, fontSize: 13 }}>
-            No se encontraron médicos
-            {search && ` para "${search}"`}
+            No se encontraron médicos{search && ` para "${search}"`}
           </div>
         )}
 
-        {/* Lista de médicos — entrada escalonada */}
+        {/* Tarjetas de médicos */}
         {!loadingDocs && !errorDocs && filteredDocs.map((d, i) => (
           <div
             key={d.id}
             data-tour={i === 0 ? 'doctor-card' : undefined}
-            style={{
-              animation: 'cardIn 0.32s ease both',
-              animationDelay: `${Math.min(i, 6) * 55}ms`,
-            }}
+            style={{ animation: 'cardIn 0.32s ease both', animationDelay: `${Math.min(i, 6) * 55}ms` }}
           >
             <DoctorCard doc={d} onBook={handleBook} />
           </div>
@@ -1240,17 +745,13 @@ export default function Home() {
       <div style={{
         margin: '20px 20px 8px',
         background: C.green50, border: `1px solid ${C.green100}`,
-        borderRadius: 14, padding: '14px 16px',
+        borderRadius: 14, padding: '12px 16px',
         display: 'flex', gap: 12, alignItems: 'center',
       }}>
-        <span style={{ fontSize: 28, flexShrink: 0 }}>🛡️</span>
+        <span style={{ fontSize: 26, flexShrink: 0 }}>🛡️</span>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.green800 }}>
-            Atención regulada · RENIPRESS registrado
-          </div>
-          <div style={{ fontSize: 11, color: C.green700, marginTop: 2 }}>
-            Médicos colegiados · Receta electrónica válida · Ley 30421
-          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.green800 }}>Atención regulada · RENIPRESS registrado</div>
+          <div style={{ fontSize: 11, color: C.green700, marginTop: 2 }}>Médicos colegiados · Receta electrónica válida · Ley 30421</div>
         </div>
       </div>
 

@@ -8,6 +8,7 @@ const C = {
   green800: '#065F46',
   green700: '#047857',
   green600: '#059669',
+  green500: '#10B981',
   green400: '#34D399',
   green50:  '#ECFDF5',
   gray600:  '#4B5563',
@@ -152,9 +153,17 @@ function DrawerItem({ icon, label, to, roots, badge, navigate, pathname, onClose
 export function TopBar() {
   const navigate        = useNavigate()
   const { pathname }    = useLocation()
-  const { user }        = useAuthStore()
+  const { user, profile } = useAuthStore()
   const unread          = useUnread(user?.id)
   const [open, setOpen] = useState(false)
+
+  const firstName = profile?.full_name?.split(' ')[0]?.toUpperCase() ?? ''
+
+  async function handleSignOut() {
+    setOpen(false)
+    await supabase.auth.signOut()
+    navigate('/', { replace: true })
+  }
 
   return (
     <>
@@ -165,34 +174,43 @@ export function TopBar() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0,
       }}>
+        {/* Izquierda: hamburger + nombre */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={() => setOpen(true)}
+            style={{
+              background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.22)',
+              borderRadius: 8, padding: '7px 9px', cursor: 'pointer', color: C.white,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'relative', WebkitTapHighlightColor: 'transparent',
+            }}
+            aria-label="Menú"
+          >
+            {HAMBURGER}
+            {unread > 0 && (
+              <span style={{
+                position: 'absolute', top: -5, right: -5,
+                width: 16, height: 16, borderRadius: 8,
+                background: '#EF4444', color: C.white,
+                fontSize: 9, fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: `2px solid ${C.green900}`,
+              }}>
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+          </button>
+          {firstName && (
+            <span style={{ fontSize: 13, fontWeight: 800, color: C.white, letterSpacing: 0.8 }}>
+              {firstName}
+            </span>
+          )}
+        </div>
+
+        {/* Derecha: logo */}
         <div style={{ fontSize: 16, fontWeight: 900, color: C.white, letterSpacing: -0.3, userSelect: 'none' }}>
           VIDA<span style={{ color: C.green400 }}>SALUD</span>
         </div>
-
-        <button
-          onClick={() => setOpen(true)}
-          style={{
-            background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.22)',
-            borderRadius: 8, padding: '7px 9px', cursor: 'pointer', color: C.white,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            position: 'relative', WebkitTapHighlightColor: 'transparent',
-          }}
-          aria-label="Menú"
-        >
-          {HAMBURGER}
-          {unread > 0 && (
-            <span style={{
-              position: 'absolute', top: -5, right: -5,
-              width: 16, height: 16, borderRadius: 8,
-              background: '#EF4444', color: C.white,
-              fontSize: 9, fontWeight: 800,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: `2px solid ${C.green900}`,
-            }}>
-              {unread > 9 ? '9+' : unread}
-            </span>
-          )}
-        </button>
       </div>
 
       {/* Overlay */}
@@ -250,10 +268,27 @@ export function TopBar() {
           ))}
         </div>
 
+        {/* Cerrar sesión */}
+        <div style={{ padding: '4px 8px 0', borderTop: `1px solid ${C.gray200}` }}>
+          <button
+            onClick={handleSignOut}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              width: '100%', padding: '13px 14px', border: 'none',
+              background: 'transparent', borderRadius: 12, cursor: 'pointer',
+              fontFamily: "'DM Sans', sans-serif",
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span style={{ fontSize: 20, flexShrink: 0 }}>🚪</span>
+            <span style={{ fontSize: 15, fontWeight: 600, color: '#DC2626' }}>Cerrar sesión</span>
+          </button>
+        </div>
+
         {/* Pie del drawer */}
         <div style={{
-          padding: '12px 18px',
-          paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
+          padding: '8px 18px',
+          paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
           borderTop: `1px solid ${C.gray200}`,
         }}>
           <div style={{ fontSize: 10, color: C.gray500, textAlign: 'center', lineHeight: 1.5 }}>

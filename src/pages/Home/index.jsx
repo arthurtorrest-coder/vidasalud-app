@@ -5,24 +5,6 @@ import { useAuthStore } from '../../stores/authStore'
 import VideoRoom from '../../components/VideoRoom'
 import { C } from '../../lib/tokens'
 
-// ─── Mapa síntoma → especialidad ─────────────────────────────
-const SYMPTOMS = {
-  'fiebre': 'General', 'gripe': 'General', 'resfriado': 'General', 'cefalea': 'General',
-  'dolor cabeza': 'General', 'dolor de cabeza': 'General',
-  'tos': 'Neumología', 'respira': 'Neumología', 'bronquio': 'Neumología', 'asma': 'Neumología',
-  'diente': 'Odontología', 'muela': 'Odontología', 'caries': 'Odontología', 'boca': 'Odontología',
-  'piel': 'Dermatología', 'acné': 'Dermatología', 'manchas': 'Dermatología', 'sarpullido': 'Dermatología',
-  'niño': 'Pediatría', 'bebé': 'Pediatría', 'infante': 'Pediatría', 'infantil': 'Pediatría',
-  'corazón': 'Cardiología', 'presión': 'Cardiología', 'colesterol': 'Cardiología', 'arritmia': 'Cardiología',
-  'ansiedad': 'Psicología', 'depresión': 'Psicología', 'estrés': 'Psicología', 'tristeza': 'Psicología',
-  'dieta': 'Nutrición', 'obesidad': 'Nutrición', 'adelgazar': 'Nutrición', 'peso': 'Nutrición',
-  'ojo': 'Oftalmología', 'visión': 'Oftalmología', 'vista': 'Oftalmología',
-  'hueso': 'Traumatología', 'rodilla': 'Traumatología', 'fractura': 'Traumatología', 'espalda': 'Traumatología',
-  'diabetes': 'Endocrinología', 'tiroides': 'Endocrinología', 'hormona': 'Endocrinología',
-  'estómago': 'Gastroenterología', 'digestión': 'Gastroenterología', 'reflujo': 'Gastroenterología',
-  'nutrición': 'Nutrición',
-}
-
 const SPECIALTIES = [
   { icon: '🩺', label: 'General',     price: 25 },
   { icon: '👶', label: 'Pediatría',   price: 45 },
@@ -260,82 +242,6 @@ function SectionHeader({ title, actionLabel, onAction }) {
   )
 }
 
-function SearchBar({ value, onChange }) {
-  const [focused, setFocused] = useState(false)
-  return (
-    <div style={{ position: 'relative' }}>
-      <span style={{
-        position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-        color: focused ? C.green600 : C.gray400, fontSize: 17, pointerEvents: 'none', zIndex: 1,
-      }}>🔍</span>
-      <input
-        type="text"
-        placeholder="Buscar médico, síntoma o especialidad..."
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          width: '100%',
-          padding: value ? '12px 40px 12px 44px' : '12px 14px 12px 44px',
-          border: `1.5px solid ${focused ? C.green500 : C.gray200}`,
-          borderRadius: 14, fontSize: 13, outline: 'none',
-          background: C.gray50, color: C.gray900,
-          boxShadow: focused ? '0 0 0 3px rgba(16,185,129,0.10)' : 'none',
-          transition: 'border-color 0.15s, box-shadow 0.15s',
-        }}
-      />
-      {value && (
-        <button
-          type="button"
-          onPointerDown={e => { e.preventDefault(); onChange('') }}
-          aria-label="Limpiar"
-          style={{
-            position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-            background: C.gray300, border: 'none', borderRadius: '50%',
-            width: 20, height: 20, cursor: 'pointer', padding: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, color: C.gray600, WebkitTapHighlightColor: 'transparent',
-          }}
-        >×</button>
-      )}
-    </div>
-  )
-}
-
-function SearchResultItem({ doc, onSelect }) {
-  const [pressed, setPressed] = useState(false)
-  return (
-    <div
-      onPointerDown={() => setPressed(true)}
-      onPointerUp={() => { setPressed(false); onSelect() }}
-      onPointerLeave={() => setPressed(false)}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-        background: pressed ? C.green50 : C.white,
-        cursor: 'pointer', transition: 'background 0.1s',
-        WebkitTapHighlightColor: 'transparent',
-      }}
-    >
-      <Avatar initials={doc.initials} fotoUrl={doc.fotoUrl} size={38} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {doc.name}
-        </div>
-        <div style={{ fontSize: 11, color: C.gray500, marginTop: 1 }}>
-          {doc.spec}
-          {doc.price > 0 && <span style={{ color: C.green700, fontWeight: 700, marginLeft: 5 }}>· S/. {doc.price}</span>}
-        </div>
-      </div>
-      {doc.rating > 0 && (
-        <span style={{ fontSize: 11, color: C.amber, fontWeight: 700, flexShrink: 0 }}>★ {doc.rating.toFixed(1)}</span>
-      )}
-      <span style={{ color: C.gray300, fontSize: 16, flexShrink: 0 }}>›</span>
-    </div>
-  )
-}
-
 function doctorTitulo(doc) {
   const isCPsP = (doc?.cmp ?? '').startsWith('CPsP')
   const fem    = (doc?.nombres ?? '').trimEnd().endsWith('a')
@@ -388,7 +294,6 @@ export default function Home() {
   const { profile, user } = useAuthStore()
   const firstName   = profile?.full_name?.split(' ')[0] ?? ''
 
-  const [search,          setSearch]          = useState('')
   const [selectedSpec,    setSelectedSpec]    = useState(null)
   const [doctors,         setDoctors]         = useState([])
   const [availableNowIds, setAvailableNowIds] = useState(new Set())
@@ -455,28 +360,6 @@ export default function Home() {
 
   const handleBook = (doc) => { navigate(`/medico/${doc.id}`) }
 
-  // ── Búsqueda ──────────────────────────────────────────────
-  const symptomSpec = useMemo(() => {
-    if (!search.trim()) return null
-    const q = search.toLowerCase()
-    for (const [kw, spec] of Object.entries(SYMPTOMS)) {
-      if (q.includes(kw)) return spec
-    }
-    return null
-  }, [search])
-
-  const searchResults = useMemo(() => {
-    if (!search.trim()) return []
-    const q = search.toLowerCase()
-    const byName = doctors.filter(d =>
-      d.name.toLowerCase().includes(q) || d.spec.toLowerCase().includes(q)
-    )
-    const bySymptom = symptomSpec
-      ? doctors.filter(d => d.spec.toLowerCase().includes(symptomSpec.toLowerCase()) && !byName.some(b => b.id === d.id))
-      : []
-    return [...byName, ...bySymptom].slice(0, 7)
-  }, [search, doctors, symptomSpec])
-
   const allSpecs = useMemo(() => {
     const quick = new Set(SPECIALTIES.map(s => s.label))
     const extra = [...new Set(doctors.map(d => d.spec).filter(Boolean))]
@@ -486,18 +369,16 @@ export default function Home() {
   }, [doctors])
 
   const proximosDisponibles = useMemo(
-    () => (availableNowIds.size === 0 && !search.trim() && !selectedSpec)
+    () => (availableNowIds.size === 0 && !selectedSpec)
       ? getProximosDisponibles(schedules, doctors)
       : [],
-    [schedules, doctors, availableNowIds, search, selectedSpec]
+    [schedules, doctors, availableNowIds, selectedSpec]
   )
 
   const filteredDocs = doctors.filter(d => {
-    const q        = search.toLowerCase()
     const specMatch = !selectedSpec || d.spec.toLowerCase().includes(selectedSpec.toLowerCase())
-    const txtMatch  = !q || d.name.toLowerCase().includes(q) || d.spec.toLowerCase().includes(q)
-    const nowMatch  = (q || selectedSpec) ? true : availableNowIds.has(d.id)
-    return specMatch && txtMatch && nowMatch
+    const nowMatch  = selectedSpec ? true : availableNowIds.has(d.id)
+    return specMatch && nowMatch
   })
 
   // ── Render ────────────────────────────────────────────────
@@ -662,170 +543,71 @@ export default function Home() {
         <span style={{ color: C.green500, fontSize: 18, flexShrink: 0 }}>›</span>
       </div>
 
-      {/* ── Buscador — sticky ── */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 10,
-        background: C.white,
-        padding: '12px 20px 10px',
-        borderBottom: `1px solid ${C.gray100}`,
-        boxShadow: '0 1px 6px rgba(0,0,0,0.06)',
-      }}>
-        <SearchBar value={search} onChange={setSearch} />
+      {/* ── Especialidades ── */}
+      <SectionHeader title="¿Qué médico necesitas?" />
+      <div style={{ display: 'flex', gap: 8, padding: '0 20px 4px', overflowX: 'auto' }}>
+        {SPECIALTIES.map((s, i) => (
+          <SpecialtyChip
+            key={i} {...s}
+            selected={selectedSpec === s.label}
+            onClick={() => { setSelectedSpec(selectedSpec === s.label ? null : s.label); setShowAllSpecs(false) }}
+          />
+        ))}
       </div>
-
-      {/* ── Resultados inline (aparecen inmediatamente al escribir) ── */}
-      {search.trim().length > 0 && (
-        <div style={{ padding: '8px 20px 4px', background: C.white }}>
-          <div style={{
-            border: `1.5px solid ${C.green200}`,
-            borderRadius: 12, overflow: 'hidden',
-            boxShadow: '0 4px 16px rgba(5,150,105,0.10)',
-          }}>
-            {/* Sugerencia por síntoma */}
-            {symptomSpec && (
-              <div
-                onPointerDown={e => { e.preventDefault(); setSearch(''); setSelectedSpec(symptomSpec) }}
-                style={{
-                  padding: '8px 14px', cursor: 'pointer',
-                  background: '#FFFBEB', borderBottom: `1px solid #FDE68A`,
-                  display: 'flex', alignItems: 'center', gap: 8,
-                }}
-              >
-                <span style={{ fontSize: 14 }}>💡</span>
-                <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600 }}>
-                  Síntoma detectado · Ver médicos de{' '}
-                  <strong style={{ color: '#92400E' }}>{symptomSpec}</strong>
-                </span>
-              </div>
-            )}
-
-            {/* Cabecera de resultados */}
-            <div style={{
-              padding: '7px 14px 5px',
-              background: C.green50, borderBottom: `1px solid ${C.green100}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: C.green800 }}>
-                {searchResults.length > 0
-                  ? `${searchResults.length} resultado${searchResults.length !== 1 ? 's' : ''} para "${search}"`
-                  : `Sin resultados para "${search}"`}
-              </span>
-              <button
-                type="button"
-                onPointerDown={e => { e.preventDefault(); setSearch('') }}
-                style={{ background: 'none', border: 'none', color: C.gray400, fontSize: 17, cursor: 'pointer', lineHeight: 1, padding: 0 }}
-              >×</button>
-            </div>
-
-            {/* Lista de resultados */}
-            {searchResults.length === 0 ? (
-              <div style={{ padding: '18px 14px', textAlign: 'center', color: C.gray400, fontSize: 12 }}>
-                No encontramos médicos para "{search}".<br />
-                <span style={{ color: C.green700, fontWeight: 600 }}>
-                  Intenta con el nombre del médico o una especialidad.
-                </span>
-              </div>
-            ) : (
-              searchResults.map((doc, i) => (
-                <div key={doc.id}>
-                  {i > 0 && <div style={{ height: 1, background: C.gray100, margin: '0 14px' }} />}
-                  <SearchResultItem
-                    doc={doc}
-                    onSelect={() => { setSearch(''); navigate(`/medico/${doc.id}`) }}
-                  />
-                </div>
-              ))
-            )}
+      <div style={{ padding: '10px 20px 0' }}>
+        <button
+          onClick={() => setShowAllSpecs(v => !v)}
+          style={{
+            width: '100%', padding: '12px 0',
+            background: showAllSpecs ? C.green700 : `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+            color: C.white, border: 'none', borderRadius: 12,
+            fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+            boxShadow: '0 4px 14px rgba(5,150,105,0.28)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          🩺 {showAllSpecs ? 'Ocultar especialidades ▲' : 'Ver todas las especialidades ▼'}
+        </button>
+      </div>
+      {showAllSpecs && (
+        <div style={{
+          margin: '10px 20px 0', border: `1.5px solid ${C.green200}`,
+          borderRadius: 14, padding: '14px 12px', background: C.white,
+          boxShadow: '0 4px 16px rgba(5,150,105,0.10)',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.green800, marginBottom: 10, paddingLeft: 4 }}>
+            Selecciona una especialidad
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {allSpecs.map(spec => {
+              const quick  = SPECIALTIES.find(s => s.label === spec)
+              const active = selectedSpec === spec
+              return (
+                <button
+                  key={spec}
+                  onClick={() => { setSelectedSpec(active ? null : spec); setShowAllSpecs(false) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '7px 14px', borderRadius: 20, cursor: 'pointer',
+                    background: active ? C.green700 : C.green50,
+                    border: `1.5px solid ${active ? C.green700 : C.green200}`,
+                    color: active ? C.white : C.green800,
+                    fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  {quick && <span>{quick.icon}</span>}
+                  {spec}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
 
-      {/* ── Especialidades ── */}
-      {!search.trim() && (
-        <>
-          <SectionHeader title="¿Qué médico necesitas?" />
-
-          {/* Chips rápidos */}
-          <div style={{ display: 'flex', gap: 8, padding: '0 20px 4px', overflowX: 'auto' }}>
-            {SPECIALTIES.map((s, i) => (
-              <SpecialtyChip
-                key={i} {...s}
-                selected={selectedSpec === s.label}
-                onClick={() => {
-                  setSelectedSpec(selectedSpec === s.label ? null : s.label)
-                  setShowAllSpecs(false)
-                }}
-              />
-            ))}
-          </div>
-
-          {/* Botón "Ver todas" */}
-          <div style={{ padding: '10px 20px 0' }}>
-            <button
-              onClick={() => setShowAllSpecs(v => !v)}
-              style={{
-                width: '100%', padding: '12px 0',
-                background: showAllSpecs
-                  ? C.green700
-                  : `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
-                color: C.white, border: 'none', borderRadius: 12,
-                fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                fontFamily: 'inherit',
-                boxShadow: '0 4px 14px rgba(5,150,105,0.28)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}
-            >
-              🩺 {showAllSpecs ? 'Ocultar especialidades ▲' : 'Ver todas las especialidades ▼'}
-            </button>
-          </div>
-
-          {/* Panel expandible con todas las especialidades */}
-          {showAllSpecs && (
-            <div style={{
-              margin: '10px 20px 0',
-              border: `1.5px solid ${C.green200}`,
-              borderRadius: 14, padding: '14px 12px',
-              background: C.white,
-              boxShadow: '0 4px 16px rgba(5,150,105,0.10)',
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.green800, marginBottom: 10, paddingLeft: 4 }}>
-                Selecciona una especialidad
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {allSpecs.map(spec => {
-                  const quick = SPECIALTIES.find(s => s.label === spec)
-                  const active = selectedSpec === spec
-                  return (
-                    <button
-                      key={spec}
-                      onClick={() => {
-                        setSelectedSpec(active ? null : spec)
-                        setShowAllSpecs(false)
-                      }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '7px 14px', borderRadius: 20, cursor: 'pointer',
-                        background: active ? C.green700 : C.green50,
-                        border: `1.5px solid ${active ? C.green700 : C.green200}`,
-                        color: active ? C.white : C.green800,
-                        fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                        WebkitTapHighlightColor: 'transparent',
-                      }}
-                    >
-                      {quick && <span>{quick.icon}</span>}
-                      {spec}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
       {/* ── Lista de médicos ── */}
       <SectionHeader
-        title={selectedSpec ?? (search.trim() ? `Resultados para "${search}"` : 'Disponibles ahora')}
+        title={selectedSpec ?? 'Disponibles ahora'}
         actionLabel={selectedSpec ? 'Limpiar' : undefined}
         onAction={() => setSelectedSpec(null)}
       />
@@ -882,7 +664,7 @@ export default function Home() {
         {/* Sin resultados */}
         {!loadingDocs && !errorDocs && filteredDocs.length === 0 && proximosDisponibles.length === 0 && (
           <div style={{ textAlign: 'center', padding: 24, color: C.gray500, fontSize: 13 }}>
-            No se encontraron médicos{search && ` para "${search}"`}
+            No se encontraron médicos disponibles
           </div>
         )}
 

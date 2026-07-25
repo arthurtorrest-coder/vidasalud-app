@@ -157,7 +157,7 @@ export function TopBar() {
   const unread          = useUnread(user?.id)
   const [open, setOpen] = useState(false)
 
-  const firstName = profile?.full_name?.split(' ')[0]?.toUpperCase() ?? ''
+  const firstName = profile?.full_name?.toUpperCase() ?? ''
 
   async function handleSignOut() {
     setOpen(false)

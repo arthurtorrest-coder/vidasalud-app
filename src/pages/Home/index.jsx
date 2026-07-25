@@ -591,9 +591,9 @@ export default function Home() {
         <button
           onClick={() => navigate('/especialidades')}
           style={{
-            width: '100%', padding: '15px 20px',
+            width: '100%', padding: '16px 20px',
             background: `linear-gradient(135deg, ${C.green900}, ${C.green700})`,
-            border: 'none', borderRadius: 14, cursor: 'pointer',
+            border: '2px solid #6EE7B7', borderRadius: 16, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
             boxShadow: '0 4px 20px rgba(5,150,105,0.4)',
             fontFamily: 'inherit',

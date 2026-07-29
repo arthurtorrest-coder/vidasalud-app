@@ -466,9 +466,9 @@ export default function Home() {
       <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {[
           { icon: '📹', label: 'Agendar cita',  bg: '#065F46', border: '#34D399', color: '#FFFFFF', h: 48, shadow: '0 6px 20px rgba(6,95,70,0.45)',  shadowPress: '0 2px 6px rgba(6,95,70,0.25)',  action: () => navigate('/especialidades') },
-          { icon: '📅', label: 'Mis citas',      bg: '#D1FAE5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.12)', shadowPress: '0 1px 4px rgba(6,95,70,0.08)', action: () => navigate('/citas') },
-          { icon: '💊', label: 'Receta digital', bg: '#E0F2FE', border: '#BAE6FD', color: '#0369A1', h: 40, shadow: '0 4px 14px rgba(3,105,161,0.10)', shadowPress: '0 1px 4px rgba(3,105,161,0.07)', action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
-          { icon: '📋', label: 'Mi historial',   bg: '#FEF3C7', border: '#FDE68A', color: '#92400E', h: 40, shadow: '0 4px 14px rgba(146,64,14,0.10)', shadowPress: '0 1px 4px rgba(146,64,14,0.07)', action: () => navigate('/historial') },
+          { icon: '📅', label: 'Mis citas',      bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/citas') },
+          { icon: '💊', label: 'Receta digital', bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
+          { icon: '📋', label: 'Mi historial',   bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/historial') },
         ].map((a, i) => (
           <button
             key={i}

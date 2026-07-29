@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast, { Toaster } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
@@ -188,6 +188,10 @@ function slotToLocalDatetime(slot) {
 export default function PanelFarmacia() {
   const navigate      = useNavigate()
   const { farmacia } = useAuthStore()
+
+  const [logoUrl,    setLogoUrl]    = useState(farmacia?.logo_url ?? null)
+  const [uploading,  setUploading]  = useState(false)
+  const logoInputRef = useRef(null)
 
   const [tab,         setTab]         = useState('registrar')
   const [loading,     setLoading]     = useState(true)
@@ -434,6 +438,28 @@ export default function PanelFarmacia() {
     }
   }
 
+  async function handleLogoUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { toast.error('Solo se permiten imágenes'); return }
+    if (file.size > 2 * 1024 * 1024) { toast.error('La imagen no debe superar 2 MB'); return }
+    setUploading(true)
+    const ext  = file.name.split('.').pop()
+    const path = `${farmacia.id}/logo.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from('farmacias')
+      .upload(path, file, { upsert: true, contentType: file.type })
+    if (upErr) { toast.error('Error al subir imagen'); setUploading(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('farmacias').getPublicUrl(path)
+    const { error: dbErr } = await supabase
+      .from('farmacias')
+      .update({ logo_url: publicUrl })
+      .eq('id', farmacia.id)
+    if (dbErr) { toast.error('Error al guardar imagen') }
+    else { setLogoUrl(publicUrl + '?t=' + Date.now()); toast.success('Logo actualizado ✅') }
+    setUploading(false)
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut()
     navigate('/', { replace: true })
@@ -479,16 +505,43 @@ export default function PanelFarmacia() {
         </div>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 12, flexShrink: 0,
-            background: farmacia.logo_url ? 'transparent' : 'rgba(255,255,255,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
-            overflow: 'hidden',
-          }}>
-            {farmacia.logo_url
-              ? <img src={farmacia.logo_url} alt={farmacia.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {/* Logo — clic para cambiar foto */}
+          <div
+            onClick={() => logoInputRef.current?.click()}
+            title="Cambiar logo"
+            style={{
+              width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+              background: logoUrl ? 'transparent' : 'rgba(255,255,255,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
+              overflow: 'hidden', cursor: 'pointer', position: 'relative',
+            }}
+          >
+            {logoUrl
+              ? <img src={logoUrl} alt={farmacia.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : '💊'}
+            {/* Overlay cámara */}
+            <div style={{
+              position: 'absolute', inset: 0, borderRadius: 12,
+              background: 'rgba(0,0,0,0.35)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: uploading ? 10 : 14,
+              opacity: uploading ? 1 : 0,
+              transition: 'opacity 0.15s',
+            }}
+              onMouseEnter={e => { if (!uploading) e.currentTarget.style.opacity = '1' }}
+              onMouseLeave={e => { if (!uploading) e.currentTarget.style.opacity = '0' }}
+            >
+              {uploading ? '⏳' : '📷'}
+            </div>
           </div>
+          {/* Input oculto */}
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleLogoUpload}
+            style={{ display: 'none' }}
+          />
           <div>
             <div style={{ fontSize: 17, fontWeight: 900, color: C.white, lineHeight: 1.2 }}>
               {farmacia.nombre}

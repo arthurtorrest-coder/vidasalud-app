@@ -465,10 +465,10 @@ export default function Home() {
       {/* ── Acciones rápidas ── */}
       <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {[
-          { icon: '📹', label: 'Agendar cita',  bg: '#065F46', border: '#34D399', color: '#FFFFFF', h: 48, action: () => navigate('/especialidades') },
-          { icon: '📅', label: 'Mis citas',      bg: '#FFFFFF', border: '#D1FAE5', color: '#065F46', h: 40, action: () => navigate('/citas') },
-          { icon: '💊', label: 'Receta digital', bg: '#FFFFFF', border: '#D1FAE5', color: '#065F46', h: 40, action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
-          { icon: '📋', label: 'Mi historial',   bg: '#FFFFFF', border: '#D1FAE5', color: '#065F46', h: 40, action: () => navigate('/historial') },
+          { icon: '📹', label: 'Agendar cita',  bg: '#065F46', border: '#34D399', color: '#FFFFFF', h: 48, shadow: '0 6px 20px rgba(6,95,70,0.45)',  shadowPress: '0 2px 6px rgba(6,95,70,0.25)',  action: () => navigate('/especialidades') },
+          { icon: '📅', label: 'Mis citas',      bg: '#FFFFFF', border: '#D1FAE5', color: '#065F46', h: 40, shadow: '0 4px 12px rgba(0,0,0,0.08)', shadowPress: '0 1px 4px rgba(0,0,0,0.06)', action: () => navigate('/citas') },
+          { icon: '💊', label: 'Receta digital', bg: '#FFFFFF', border: '#D1FAE5', color: '#065F46', h: 40, shadow: '0 4px 12px rgba(0,0,0,0.08)', shadowPress: '0 1px 4px rgba(0,0,0,0.06)', action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
+          { icon: '📋', label: 'Mi historial',   bg: '#FFFFFF', border: '#D1FAE5', color: '#065F46', h: 40, shadow: '0 4px 12px rgba(0,0,0,0.08)', shadowPress: '0 1px 4px rgba(0,0,0,0.06)', action: () => navigate('/historial') },
         ].map((a, i) => (
           <button
             key={i}
@@ -480,11 +480,21 @@ export default function Home() {
               display: 'flex', alignItems: 'center',
               padding: '0 14px', gap: 10,
               fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
-              transition: 'opacity 0.1s',
+              boxShadow: a.shadow,
+              transition: 'transform 0.15s, box-shadow 0.15s',
             }}
-            onPointerDown={e => { e.currentTarget.style.opacity = '0.75' }}
-            onPointerUp={e => { e.currentTarget.style.opacity = '1' }}
-            onPointerLeave={e => { e.currentTarget.style.opacity = '1' }}
+            onPointerDown={e => {
+              e.currentTarget.style.transform = 'translateY(2px)'
+              e.currentTarget.style.boxShadow = a.shadowPress
+            }}
+            onPointerUp={e => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = a.shadow
+            }}
+            onPointerLeave={e => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = a.shadow
+            }}
           >
             <span style={{ fontSize: 18, flexShrink: 0 }}>{a.icon}</span>
             <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: a.color, textAlign: 'left' }}>

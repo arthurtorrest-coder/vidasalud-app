@@ -463,12 +463,12 @@ export default function Home() {
       )}
 
       {/* ── Acciones rápidas ── */}
-      <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: '14px 20px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: '#F0FDF4' }}>
         {[
-          { icon: '📹', label: 'Agendar cita',  bg: '#065F46', border: '#34D399', color: '#FFFFFF', h: 48, shadow: '0 6px 20px rgba(6,95,70,0.45)',  shadowPress: '0 2px 6px rgba(6,95,70,0.25)',  action: () => navigate('/especialidades') },
-          { icon: '📅', label: 'Mis citas',      bg: '#FFFFFF', border: '#D1FAE5', color: '#065F46', h: 40, shadow: '0 4px 12px rgba(0,0,0,0.08)', shadowPress: '0 1px 4px rgba(0,0,0,0.06)', action: () => navigate('/citas') },
-          { icon: '💊', label: 'Receta digital', bg: '#FFFFFF', border: '#D1FAE5', color: '#065F46', h: 40, shadow: '0 4px 12px rgba(0,0,0,0.08)', shadowPress: '0 1px 4px rgba(0,0,0,0.06)', action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
-          { icon: '📋', label: 'Mi historial',   bg: '#FFFFFF', border: '#D1FAE5', color: '#065F46', h: 40, shadow: '0 4px 12px rgba(0,0,0,0.08)', shadowPress: '0 1px 4px rgba(0,0,0,0.06)', action: () => navigate('/historial') },
+          { icon: '📹', label: 'Agendar cita',  bg: '#065F46', border: '#34D399', color: '#FFFFFF', h: 48, shadow: '0 6px 20px rgba(6,95,70,0.45)',   shadowPress: '0 2px 6px rgba(6,95,70,0.25)',   action: () => navigate('/especialidades') },
+          { icon: '📅', label: 'Mis citas',      bg: '#FFFFFF', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.12)',  shadowPress: '0 1px 4px rgba(6,95,70,0.08)',  action: () => navigate('/citas') },
+          { icon: '💊', label: 'Receta digital', bg: '#FFFFFF', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.12)',  shadowPress: '0 1px 4px rgba(6,95,70,0.08)',  action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
+          { icon: '📋', label: 'Mi historial',   bg: '#FFFFFF', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.12)',  shadowPress: '0 1px 4px rgba(6,95,70,0.08)',  action: () => navigate('/historial') },
         ].map((a, i) => (
           <button
             key={i}

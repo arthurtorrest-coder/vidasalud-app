@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import VideoRoom from '../../components/VideoRoom'
@@ -287,6 +288,149 @@ function ActiveCallBanner({ appt, onEnter }) {
   )
 }
 
+// ─── Modal: sin médico disponible ────────────────────────────
+
+function AgendarModal({ onAviso, onDespues, onClose, loading }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,0.45)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{
+        width: '100%', maxWidth: 430,
+        background: C.white, borderRadius: '20px 20px 0 0',
+        padding: '24px 22px 36px',
+        animation: 'slideUp 0.25s ease both',
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>🩺</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.gray900 }}>
+            Sin médicos de guardia ahora
+          </div>
+          <div style={{ fontSize: 13, color: C.gray500, marginTop: 6, lineHeight: 1.5 }}>
+            No hay médicos de Medicina General disponibles en este momento.
+            ¿Qué prefieres hacer?
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button
+            onClick={onAviso}
+            disabled={loading}
+            style={{
+              width: '100%', padding: '15px 16px',
+              background: loading
+                ? C.green100
+                : `linear-gradient(135deg, #065F46, ${C.green600})`,
+              color: loading ? C.green700 : C.white,
+              border: 'none', borderRadius: 14,
+              fontSize: 14, fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 12,
+              fontFamily: 'inherit',
+              boxShadow: loading ? 'none' : '0 6px 20px rgba(6,95,70,0.35)',
+              transition: 'all 0.15s',
+            }}
+          >
+            <span style={{ fontSize: 22, flexShrink: 0 }}>🔔</span>
+            <div style={{ textAlign: 'left', flex: 1 }}>
+              <div>{loading ? 'Registrando solicitud…' : 'Avisar cuando haya médico'}</div>
+              <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.8, marginTop: 2 }}>
+                Te notificamos en cuanto uno esté disponible (máx. 30 min)
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={onDespues}
+            style={{
+              width: '100%', padding: '14px 16px',
+              background: C.white,
+              border: `1.5px solid ${C.gray300}`,
+              borderRadius: 14,
+              fontSize: 14, fontWeight: 700, color: C.gray700,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 12,
+              fontFamily: 'inherit',
+            }}
+          >
+            <span style={{ fontSize: 22, flexShrink: 0 }}>📅</span>
+            <div style={{ textAlign: 'left', flex: 1 }}>
+              <div>Agendar para después</div>
+              <div style={{ fontSize: 11, fontWeight: 400, color: C.gray400, marginTop: 2 }}>
+                Elige una hora y médico disponible próximamente
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Banner de espera de turno ────────────────────────────────
+
+function TurnoEsperaBanner({ solicitud, onCancel }) {
+  const [tiempoEspera, setTiempoEspera] = useState('')
+
+  useEffect(() => {
+    function calcular() {
+      const mins = Math.floor((Date.now() - new Date(solicitud.created_at).getTime()) / 60000)
+      setTiempoEspera(mins < 1 ? 'Hace unos segundos' : `Hace ${mins} min`)
+    }
+    calcular()
+    const t = setInterval(calcular, 30_000)
+    return () => clearInterval(t)
+  }, [solicitud.created_at])
+
+  const minRestantes = Math.max(0, Math.floor(
+    (new Date(solicitud.expires_at).getTime() - Date.now()) / 60000
+  ))
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #065F46, #059669)',
+      padding: '16px 20px 18px',
+      display: 'flex', flexDirection: 'column', gap: 12, flexShrink: 0,
+      animation: 'banner-glow 2s ease-in-out infinite',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 24, animation: 'dot-blink 2s step-end infinite' }}>🔔</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
+            Buscando médico disponible…
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 3 }}>
+            {tiempoEspera} · Caduca en {minRestantes} min
+          </div>
+        </div>
+        <button
+          onClick={onCancel}
+          style={{
+            background: 'rgba(255,255,255,0.15)', border: 'none',
+            color: C.white, borderRadius: 20, padding: '5px 12px',
+            fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            flexShrink: 0,
+          }}
+        >
+          Cancelar
+        </button>
+      </div>
+      <div style={{
+        background: 'rgba(255,255,255,0.13)', borderRadius: 10, padding: '10px 14px',
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <span style={{ fontSize: 14 }}>⏳</span>
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
+          En cuanto un médico tome tu turno, te dirigiremos al pago automáticamente.
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────
 
 export default function Home() {
@@ -303,6 +447,9 @@ export default function Home() {
   const [activeAppt,      setActiveAppt]      = useState(null)
   const [videoUrl,        setVideoUrl]        = useState(null)
   const [showAllSpecs,    setShowAllSpecs]    = useState(false)
+  const [showAgendarModal, setShowAgendarModal] = useState(false)
+  const [solicitudActiva,  setSolicitudActiva]  = useState(null)
+  const [solicitudLoading, setSolicitudLoading] = useState(false)
 
   const checkActiveAppt = useCallback(async () => {
     if (!user?.id) return
@@ -328,6 +475,88 @@ export default function Home() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [user?.id, checkActiveAppt])
+
+  const checkSolicitud = useCallback(async () => {
+    if (!user?.id) return
+    const { data } = await supabase
+      .from('solicitudes_turno')
+      .select('id, status, created_at, expires_at, appointment_id')
+      .eq('patient_id', user.id)
+      .eq('status', 'pendiente')
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle()
+    setSolicitudActiva(data ?? null)
+  }, [user?.id])
+
+  useEffect(() => { checkSolicitud() }, [checkSolicitud])
+
+  // Realtime: cuando el médico toma el turno → redirigir al pago
+  useEffect(() => {
+    if (!user?.id) return
+    const channel = supabase
+      .channel(`solicitud-turno-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'solicitudes_turno', filter: `patient_id=eq.${user.id}` },
+        (payload) => {
+          if (payload.new.status === 'tomada' && payload.new.appointment_id) {
+            setSolicitudActiva(null)
+            toast.success('¡Un médico tomó tu turno! Redirigiendo al pago…', { duration: 4000 })
+            navigate(`/pago/${payload.new.appointment_id}`)
+          }
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [user?.id, navigate])
+
+  async function crearSolicitud() {
+    if (!user?.id) return
+    setSolicitudLoading(true)
+
+    // Si ya existe una solicitud pendiente vigente, mostrarla directamente
+    const { data: existente } = await supabase
+      .from('solicitudes_turno')
+      .select('id, status, created_at, expires_at, appointment_id')
+      .eq('patient_id', user.id)
+      .eq('status', 'pendiente')
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle()
+
+    if (existente) {
+      setSolicitudActiva(existente)
+      setSolicitudLoading(false)
+      setShowAgendarModal(false)
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('solicitudes_turno')
+      .insert({ patient_id: user.id })
+      .select()
+      .single()
+
+    setSolicitudLoading(false)
+
+    if (error) {
+      toast.error('No se pudo registrar la solicitud: ' + error.message)
+      return
+    }
+
+    setSolicitudActiva(data)
+    setShowAgendarModal(false)
+    toast.success('¡Listo! Te avisamos cuando haya un médico disponible.')
+  }
+
+  async function cancelarSolicitud() {
+    if (!solicitudActiva?.id) return
+    await supabase
+      .from('solicitudes_turno')
+      .update({ status: 'expirada' })
+      .eq('id', solicitudActiva.id)
+    setSolicitudActiva(null)
+    toast('Solicitud cancelada.', { icon: 'ℹ️' })
+  }
 
   async function fetchDoctors() {
     const [{ data: docs, error }, { data: scheds }] = await Promise.all([
@@ -359,6 +588,21 @@ export default function Home() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBook = (doc) => { navigate(`/medico/${doc.id}`) }
+
+  // Sin médicos de Medicina General disponibles en este momento
+  const generalAvailableNow = !loadingDocs && doctors.some(
+    d => availableNowIds.has(d.id) && d.spec.toLowerCase().includes('general')
+  )
+
+  function handleAgendarCita() {
+    if (loadingDocs || generalAvailableNow) {
+      navigate('/especialidades')
+      return
+    }
+    // Hay solicitud activa → mostrar el banner de espera directamente
+    if (solicitudActiva) return
+    setShowAgendarModal(true)
+  }
 
   const allSpecs = useMemo(() => {
     const quick = new Set(SPECIALTIES.map(s => s.label))
@@ -393,12 +637,20 @@ export default function Home() {
           0%,100% { opacity: 1; }
           50%      { opacity: 0; }
         }
+        @keyframes slideUp {
+          from { transform: translateY(100%); opacity: 0; }
+          to   { transform: translateY(0);    opacity: 1; }
+        }
       `}</style>
 
       {videoUrl && <VideoRoom url={videoUrl} onLeave={() => setVideoUrl(null)} />}
 
       {activeAppt && profile?.role === 'patient' && (
         <ActiveCallBanner appt={activeAppt} onEnter={setVideoUrl} />
+      )}
+
+      {solicitudActiva && profile?.role === 'patient' && !activeAppt && (
+        <TurnoEsperaBanner solicitud={solicitudActiva} onCancel={cancelarSolicitud} />
       )}
 
       {/* ── Hero compacto ── */}
@@ -465,7 +717,7 @@ export default function Home() {
       {/* ── Acciones rápidas ── */}
       <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {[
-          { icon: '📹', label: 'Agendar cita',  bg: '#065F46', border: '#34D399', color: '#FFFFFF', h: 48, shadow: '0 6px 20px rgba(6,95,70,0.45)',  shadowPress: '0 2px 6px rgba(6,95,70,0.25)',  action: () => navigate('/especialidades') },
+          { icon: '📹', label: 'Agendar cita',  bg: '#065F46', border: '#34D399', color: '#FFFFFF', h: 48, shadow: '0 6px 20px rgba(6,95,70,0.45)',  shadowPress: '0 2px 6px rgba(6,95,70,0.25)',  action: handleAgendarCita },
           { icon: '📅', label: 'Mis citas',      bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/citas') },
           { icon: '💊', label: 'Receta digital', bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
           { icon: '📋', label: 'Mi historial',   bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/historial') },
@@ -671,6 +923,15 @@ export default function Home() {
       </div>
 
       <div style={{ height: 12 }} />
+
+      {showAgendarModal && (
+        <AgendarModal
+          loading={solicitudLoading}
+          onAviso={crearSolicitud}
+          onDespues={() => { setShowAgendarModal(false); navigate('/especialidades') }}
+          onClose={() => setShowAgendarModal(false)}
+        />
+      )}
     </>
   )
 }

@@ -563,6 +563,7 @@ export default function PanelMedico() {
   const [tomandoTurno, setTomandoTurno] = useState(null)
   const [pushActivo,   setPushActivo]   = useState(false)
   const [activandoPush, setActivandoPush] = useState(false)
+  const fetchTurnosGenRef = useRef(0)   // evita race conditions entre llamadas concurrentes
 
   // ── Formulario "Mi perfil" ────────────────────────────────
   const perfilRef   = useRef(null)
@@ -752,23 +753,26 @@ export default function PanelMedico() {
   }, [doctorInfo?.id, user?.id, appointments, selectedDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchTurnos() {
-    console.log('[fetchTurnos] START — doctorId:', doctorInfo?.id, '| expires_at >', new Date().toISOString())
+    const gen = ++fetchTurnosGenRef.current
+    console.log(`[fetchTurnos gen:${gen}] START — doctorId:`, doctorInfo?.id)
     const { data, error } = await supabase
       .from('solicitudes_turno')
       .select('id, patient_id, created_at, expires_at, patient:profiles(full_name)')
       .eq('status', 'pendiente')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: true })
-    // Loguear el objeto error completo — error?.message puede ser undefined aunque error sea truthy
-    console.log('[fetchTurnos] resultado crudo:', { data, error })
-    console.log('[fetchTurnos] count:', data?.length ?? 0, '| error:', error)
-    if (error) {
-      console.error('[fetchTurnos] EARLY RETURN por error (setTurnos NO será llamado):', JSON.stringify(error))
+    console.log(`[fetchTurnos gen:${gen}] resultado — count:${data?.length ?? 0} | error:`, error ?? null)
+    // Descartar si ya hay una llamada más nueva en vuelo
+    if (gen !== fetchTurnosGenRef.current) {
+      console.log(`[fetchTurnos gen:${gen}] STALE (gen actual: ${fetchTurnosGenRef.current}) — descartando resultado`)
       return
     }
-    console.log('[fetchTurnos] llamando setTurnos con', data?.length ?? 0, 'item(s)')
+    if (error) {
+      console.error(`[fetchTurnos gen:${gen}] error — setTurnos NO llamado:`, error)
+      return
+    }
+    console.log(`[fetchTurnos gen:${gen}] >>> setTurnos con ${data?.length ?? 0} item(s)`)
     setTurnos(data ?? [])
-    console.log('[fetchTurnos] setTurnos despachado')
   }
 
   // Traza cada cambio del estado turnos

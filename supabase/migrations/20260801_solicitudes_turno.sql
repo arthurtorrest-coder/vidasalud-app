@@ -31,6 +31,10 @@ CREATE POLICY "st_paciente_select" ON public.solicitudes_turno
 CREATE POLICY "st_paciente_insert" ON public.solicitudes_turno
   FOR INSERT WITH CHECK (auth.uid() = patient_id);
 
+-- Paciente: cancelar sus propias solicitudes (status → 'expirada')
+CREATE POLICY "st_paciente_update" ON public.solicitudes_turno
+  FOR UPDATE USING (auth.uid() = patient_id);
+
 -- Médico: leer todas las pendientes (para tomar turno) y las que ya tomó
 CREATE POLICY "st_medico_select" ON public.solicitudes_turno
   FOR SELECT USING (

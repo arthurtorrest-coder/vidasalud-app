@@ -516,13 +516,15 @@ export default function Home() {
 
   const checkSolicitud = useCallback(async () => {
     if (!user?.id) return
-    const { data } = await supabase
+    console.log('[checkSolicitud] buscando solicitud pendiente — patient:', user.id)
+    const { data, error } = await supabase
       .from('solicitudes_turno')
       .select('id, status, created_at, expires_at, appointment_id')
       .eq('patient_id', user.id)
       .eq('status', 'pendiente')
       .gt('expires_at', new Date().toISOString())
       .maybeSingle()
+    console.log('[checkSolicitud] resultado:', { data, error: error?.message ?? null })
     setSolicitudActiva(data ?? null)
   }, [user?.id])
 
@@ -588,10 +590,32 @@ export default function Home() {
 
   async function cancelarSolicitud() {
     if (!solicitudActiva?.id) return
-    await supabase
+    console.log('[cancelarSolicitud] actualizando status → expirada, id:', solicitudActiva.id)
+
+    const { data, error } = await supabase
       .from('solicitudes_turno')
       .update({ status: 'expirada' })
       .eq('id', solicitudActiva.id)
+      .eq('patient_id', user.id)   // doble filtro por seguridad
+      .select('id, status')
+
+    console.log('[cancelarSolicitud] resultado:', { data, error: error?.message ?? null })
+
+    if (error) {
+      toast.error('No se pudo cancelar: ' + error.message)
+      return
+    }
+
+    if (!data?.length) {
+      // UPDATE no afectó ninguna fila — lo más probable es RLS bloqueando
+      // Ejecutar en Supabase SQL Editor:
+      //   CREATE POLICY "st_paciente_update" ON public.solicitudes_turno
+      //     FOR UPDATE USING (auth.uid() = patient_id);
+      console.error('[cancelarSolicitud] 0 filas afectadas — verificar política RLS st_paciente_update')
+      toast.error('No se pudo cancelar. Revisa la consola para más detalles.')
+      return
+    }
+
     setSolicitudActiva(null)
     toast('Solicitud cancelada.', { icon: 'ℹ️' })
   }

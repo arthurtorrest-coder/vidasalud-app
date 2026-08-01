@@ -757,10 +757,10 @@ export default function PanelMedico() {
     console.log(`[fetchTurnos gen:${gen}] START — doctorId:`, doctorInfo?.id)
     const { data, error } = await supabase
       .from('solicitudes_turno')
-      .select('id, patient_id, created_at, expires_at, patient:profiles(full_name)')
+      .select('id, patient_id, status, expires_at')
       .eq('status', 'pendiente')
       .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: true })
+      .limit(10)
     console.log(`[fetchTurnos gen:${gen}] resultado — count:${data?.length ?? 0} | error:`, error ?? null)
     // Descartar si ya hay una llamada más nueva en vuelo
     if (gen !== fetchTurnosGenRef.current) {
@@ -1717,7 +1717,7 @@ export default function PanelMedico() {
                 {/* Lista de turnos */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                   {turnos.map((turno, idx) => {
-                    const nombre      = turno.patient?.full_name ?? 'Paciente'
+                    const nombre      = 'Paciente'   // join desactivado temporalmente
                     const isTomando   = tomandoTurno === turno.id
                     const esUltimo    = idx === turnos.length - 1
                     const minRestantes = Math.max(0, Math.floor(

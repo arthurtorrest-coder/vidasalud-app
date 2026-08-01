@@ -66,6 +66,13 @@ function dateSelectorLabel(dateStr) {
   return { top: dow.charAt(0).toUpperCase() + dow.slice(1), bot: dayMonth }
 }
 
+function tiempoEsperaLabel(createdAt) {
+  const mins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000)
+  if (mins < 1) return 'Hace unos segundos'
+  if (mins === 1) return 'Hace 1 min'
+  return `Hace ${mins} min`
+}
+
 // ─── Badge de estado ─────────────────────────────────────────
 const STATUS_CFG = {
   pending:   { label: 'Pend. pago',   bg: C.amberBg, color: C.amberText },
@@ -524,6 +531,8 @@ export default function PanelMedico() {
   const [statsData,    setStatsData]    = useState(null)
   const [loadingStats, setLoadingStats] = useState(false)
   const [unreadCounts, setUnreadCounts] = useState({})   // { [appointmentId]: number }
+  const [turnos,       setTurnos]       = useState([])
+  const [tomandoTurno, setTomandoTurno] = useState(null)
 
   // ── Formulario "Mi perfil" ────────────────────────────────
   const perfilRef   = useRef(null)
@@ -711,6 +720,39 @@ export default function PanelMedico() {
 
     return () => { supabase.removeChannel(ch) }
   }, [doctorInfo?.id, user?.id, appointments, selectedDate]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function fetchTurnos() {
+    const { data } = await supabase
+      .from('solicitudes_turno')
+      .select(`id, patient_id, created_at, expires_at, patient:profiles!patient_id(full_name)`)
+      .eq('status', 'pendiente')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: true })
+    setTurnos(data ?? [])
+  }
+
+  // Cargar turnos pendientes cuando tengamos el doctors.id real
+  useEffect(() => {
+    if (!doctorInfo?.id) return
+    fetchTurnos()
+  }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Realtime: nuevas solicitudes de turno o cambios de estado
+  useEffect(() => {
+    if (!doctorInfo?.id) return
+    const channel = supabase
+      .channel(`panel-turnos-${doctorInfo.id}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'solicitudes_turno' },
+        () => fetchTurnos()
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'solicitudes_turno' },
+        () => fetchTurnos()
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchData() {
     console.log('[PanelMedico] fetchData START — selectedDate:', selectedDate, '| user.id:', user?.id)
@@ -1204,6 +1246,58 @@ export default function PanelMedico() {
     }
   }
 
+  async function handleTomarTurno(solicitud) {
+    if (!doctorInfo?.id) return
+    setTomandoTurno(solicitud.id)
+
+    // Paso 1: reclamar atómicamente — UPDATE filtra por status='pendiente'
+    // Si otro médico llegó primero, 0 filas se actualizan → data vacío
+    const { data: claimed, error: claimErr } = await supabase
+      .from('solicitudes_turno')
+      .update({ doctor_id: doctorInfo.id, status: 'tomada', notificado: true })
+      .eq('id', solicitud.id)
+      .eq('status', 'pendiente')
+      .select('id, patient_id')
+
+    if (claimErr || !claimed?.length) {
+      toast.error('Otro médico tomó este turno primero')
+      setTomandoTurno(null)
+      fetchTurnos()
+      return
+    }
+
+    // Paso 2: crear cita con status 'pending' (esperando pago del paciente)
+    const { data: appt, error: apptErr } = await supabase
+      .from('appointments')
+      .insert({
+        patient_id:       claimed[0].patient_id,
+        doctor_id:        doctorInfo.id,
+        status:           'pending',
+        scheduled_at:     new Date().toISOString(),
+        duration_minutes: 20,
+        precio_total:     doctorInfo.precio ?? 25,
+      })
+      .select('id')
+      .single()
+
+    if (apptErr || !appt) {
+      toast.error('No se pudo crear la cita: ' + (apptErr?.message ?? 'error desconocido'))
+      setTomandoTurno(null)
+      return
+    }
+
+    // Paso 3: vincular appointment_id a la solicitud
+    // El listener Realtime del paciente detecta este cambio y lo redirige a /pago/:id
+    await supabase
+      .from('solicitudes_turno')
+      .update({ appointment_id: appt.id })
+      .eq('id', solicitud.id)
+
+    toast.success('✅ Turno tomado · El paciente será redirigido al pago', { duration: 5000 })
+    setTurnos(prev => prev.filter(t => t.id !== solicitud.id))
+    setTomandoTurno(null)
+  }
+
   // ── Estadísticas del día ──────────────────────────────────
   const stats = useMemo(() => ({
     total:      appointments.length,
@@ -1412,6 +1506,121 @@ export default function PanelMedico() {
 
           {/* ── Cuerpo scrollable ───────────────────────────── */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* ── Turnos solicitados ──────────────────────────── */}
+            {turnos.length > 0 && (
+              <div style={{
+                background: C.white,
+                border: `2px solid ${C.green300}`,
+                borderRadius: 16,
+                overflow: 'hidden',
+                boxShadow: '0 4px 16px rgba(16,185,129,0.12)',
+              }}>
+                {/* Cabecera */}
+                <div style={{
+                  background: `linear-gradient(135deg, #065F46, ${C.green700})`,
+                  padding: '12px 14px',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span style={{ fontSize: 18, animation: 'pulse-dot 1.6s ease-in-out infinite' }}>🔔</span>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: C.white }}>
+                      Turnos solicitados
+                    </span>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginLeft: 8 }}>
+                      Pacientes esperando ahora
+                    </span>
+                  </div>
+                  <div style={{
+                    minWidth: 22, height: 22, borderRadius: 11,
+                    background: '#34D399', color: '#065F46',
+                    fontSize: 11, fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '0 6px',
+                  }}>
+                    {turnos.length}
+                  </div>
+                </div>
+
+                {/* Lista de turnos */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  {turnos.map((turno, idx) => {
+                    const nombre      = turno.patient?.full_name ?? 'Paciente'
+                    const isTomando   = tomandoTurno === turno.id
+                    const esUltimo    = idx === turnos.length - 1
+                    const minRestantes = Math.max(0, Math.floor(
+                      (new Date(turno.expires_at).getTime() - Date.now()) / 60000
+                    ))
+                    return (
+                      <div
+                        key={turno.id}
+                        style={{
+                          padding: '12px 14px',
+                          borderBottom: esUltimo ? 'none' : `1px solid ${C.gray100}`,
+                          display: 'flex', alignItems: 'center', gap: 12,
+                        }}
+                      >
+                        {/* Avatar */}
+                        <div style={{
+                          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                          background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: C.white, fontWeight: 800, fontSize: 14,
+                        }}>
+                          {nombre.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'}
+                        </div>
+
+                        {/* Info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900, lineHeight: 1.2 }}>
+                            {nombre}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, padding: '2px 7px',
+                              borderRadius: 20, background: C.green50, color: C.green700,
+                              border: `1px solid ${C.green200}`,
+                            }}>
+                              ⏳ {tiempoEsperaLabel(turno.created_at)}
+                            </span>
+                            <span style={{
+                              fontSize: 10, fontWeight: 600, color: C.gray400,
+                            }}>
+                              Caduca en {minRestantes} min
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Botón tomar turno */}
+                        <button
+                          onClick={() => handleTomarTurno(turno)}
+                          disabled={isTomando || tomandoTurno !== null}
+                          style={{
+                            flexShrink: 0,
+                            padding: '9px 14px',
+                            background: (isTomando || tomandoTurno !== null)
+                              ? C.green100
+                              : `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+                            color: (isTomando || tomandoTurno !== null) ? C.green700 : C.white,
+                            border: 'none', borderRadius: 10,
+                            fontSize: 12, fontWeight: 800,
+                            cursor: (isTomando || tomandoTurno !== null) ? 'not-allowed' : 'pointer',
+                            fontFamily: 'inherit',
+                            transition: 'all 0.15s',
+                            whiteSpace: 'nowrap',
+                            boxShadow: (isTomando || tomandoTurno !== null)
+                              ? 'none'
+                              : '0 3px 10px rgba(5,150,105,0.3)',
+                          }}
+                        >
+                          {isTomando ? 'Tomando…' : '✅ Tomar turno'}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* ── Mi perfil: foto ────────────────────────────── */}
             <div style={{

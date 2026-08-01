@@ -530,16 +530,7 @@ export default function Home() {
 
       {/* ── Especialidades ── */}
       <SectionHeader title="¿Qué médico necesitas?" />
-      <div style={{ display: 'flex', gap: 8, padding: '0 20px 4px', overflowX: 'auto' }}>
-        {SPECIALTIES.map((s, i) => (
-          <SpecialtyChip
-            key={i} {...s}
-            selected={selectedSpec === s.label}
-            onClick={() => { setSelectedSpec(selectedSpec === s.label ? null : s.label); setShowAllSpecs(false) }}
-          />
-        ))}
-      </div>
-      <div style={{ padding: '10px 20px 0' }}>
+      <div style={{ padding: '0 20px 0' }}>
         <button
           onClick={() => setShowAllSpecs(v => !v)}
           style={{

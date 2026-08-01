@@ -73,6 +73,34 @@ function tiempoEsperaLabel(createdAt) {
   return `Hace ${mins} min`
 }
 
+function tocarSonidoTurno() {
+  try {
+    const AudioCtx = window.AudioContext || window['webkitAudioContext']
+    const ctx  = new AudioCtx()
+    const gain = ctx.createGain()
+    gain.connect(ctx.destination)
+
+    // Dos tonos cortos ascendentes — patrón de alerta
+    [[880, 0, 0.18], [1100, 0.22, 0.18]].forEach(([freq, start, dur]) => {
+      const osc = ctx.createOscillator()
+      osc.connect(gain)
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + start)
+      gain.gain.setValueAtTime(0.25, ctx.currentTime + start)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur)
+      osc.start(ctx.currentTime + start)
+      osc.stop(ctx.currentTime + start + dur)
+    })
+  } catch { /* contexto de audio no disponible */ }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw     = window.atob(base64)
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0))
+}
+
 // ─── Badge de estado ─────────────────────────────────────────
 const STATUS_CFG = {
   pending:   { label: 'Pend. pago',   bg: C.amberBg, color: C.amberText },
@@ -533,6 +561,8 @@ export default function PanelMedico() {
   const [unreadCounts, setUnreadCounts] = useState({})   // { [appointmentId]: number }
   const [turnos,       setTurnos]       = useState([])
   const [tomandoTurno, setTomandoTurno] = useState(null)
+  const [pushActivo,   setPushActivo]   = useState(false)
+  const [activandoPush, setActivandoPush] = useState(false)
 
   // ── Formulario "Mi perfil" ────────────────────────────────
   const perfilRef   = useRef(null)
@@ -737,14 +767,41 @@ export default function PanelMedico() {
     fetchTurnos()
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Realtime: nuevas solicitudes de turno o cambios de estado
+  // Realtime: nuevas solicitudes de turno → sonido + toast destacado
   useEffect(() => {
     if (!doctorInfo?.id) return
     const channel = supabase
       .channel(`panel-turnos-${doctorInfo.id}`)
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'solicitudes_turno' },
-        () => fetchTurnos()
+        (payload) => {
+          fetchTurnos()
+          tocarSonidoTurno()
+          const nombre = payload.new?.patient_name ?? 'Un paciente'
+          toast.custom(t => (
+            <div
+              onClick={() => toast.dismiss(t.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: '#065F46', borderRadius: 14, padding: '13px 16px',
+                boxShadow: '0 6px 24px rgba(6,95,70,0.45)',
+                border: '2px solid #34D399', cursor: 'pointer', maxWidth: 340,
+                fontFamily: 'inherit',
+                opacity: t.visible ? 1 : 0, transition: 'opacity 0.25s',
+              }}
+            >
+              <span style={{ fontSize: 26, flexShrink: 0, animation: 'pulse-dot 1s ease-in-out infinite' }}>🔔</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#FFFFFF' }}>
+                  ¡Nuevo turno de guardia!
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
+                  {nombre} está esperando en Medicina General
+                </div>
+              </div>
+            </div>
+          ), { duration: 8000 })
+        }
       )
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'solicitudes_turno' },
@@ -752,6 +809,15 @@ export default function PanelMedico() {
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
+  }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Verificar estado de suscripción push al cargar
+  useEffect(() => {
+    if (!doctorInfo?.id) return
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+    navigator.serviceWorker.ready.then(reg =>
+      reg.pushManager.getSubscription().then(sub => setPushActivo(!!sub))
+    ).catch(() => {})
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchData() {
@@ -1246,6 +1312,46 @@ export default function PanelMedico() {
     }
   }
 
+  async function suscribirPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      toast.error('Tu navegador no soporta notificaciones push')
+      return
+    }
+    setActivandoPush(true)
+    try {
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') {
+        toast.error('Permiso de notificaciones denegado')
+        setActivandoPush(false)
+        return
+      }
+      const reg     = await navigator.serviceWorker.ready
+      const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
+      if (!vapidKey) {
+        toast.error('VITE_VAPID_PUBLIC_KEY no configurado en .env')
+        setActivandoPush(false)
+        return
+      }
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      })
+      const { error } = await supabase
+        .from('doctors')
+        .update({ push_token: subscription.toJSON() })
+        .eq('id', doctorInfo.id)
+      if (error) {
+        toast.error('No se pudo guardar la suscripción: ' + error.message)
+      } else {
+        setPushActivo(true)
+        toast.success('✅ Notificaciones push activadas')
+      }
+    } catch (err) {
+      toast.error('Error al activar notificaciones: ' + err.message)
+    }
+    setActivandoPush(false)
+  }
+
   async function handleTomarTurno(solicitud) {
     if (!doctorInfo?.id) return
     setTomandoTurno(solicitud.id)
@@ -1531,6 +1637,27 @@ export default function PanelMedico() {
                       Pacientes esperando ahora
                     </span>
                   </div>
+
+                  {/* Botón activar push */}
+                  {!pushActivo && (
+                    <button
+                      onClick={suscribirPush}
+                      disabled={activandoPush}
+                      title="Activar notificaciones push para recibir alertas aunque no tengas la app abierta"
+                      style={{
+                        flexShrink: 0, marginRight: 8,
+                        background: activandoPush ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.18)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        color: C.white, borderRadius: 20,
+                        padding: '3px 10px', fontSize: 11, fontWeight: 700,
+                        cursor: activandoPush ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {activandoPush ? '…' : '🔔 Activar push'}
+                    </button>
+                  )}
+
                   <div style={{
                     minWidth: 22, height: 22, borderRadius: 11,
                     background: '#34D399', color: '#065F46',

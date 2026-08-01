@@ -205,31 +205,6 @@ function DoctorSkeleton() {
   )
 }
 
-function SpecialtyChip({ icon, label, price, selected, onClick }) {
-  const [pressed, setPressed] = useState(false)
-  return (
-    <div
-      onClick={onClick}
-      onPointerDown={() => setPressed(true)}
-      onPointerUp={() => setPressed(false)}
-      onPointerLeave={() => setPressed(false)}
-      style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        gap: 6, padding: '12px 14px', borderRadius: 14, cursor: 'pointer',
-        background: selected ? C.green700 : C.white,
-        border: `1.5px solid ${selected ? C.green700 : C.gray300}`,
-        transition: 'all 0.15s ease', minWidth: 72, flexShrink: 0,
-        transform: pressed ? 'scale(0.94)' : 'scale(1)',
-        WebkitTapHighlightColor: 'transparent',
-      }}
-    >
-      <span style={{ fontSize: 24 }}>{icon}</span>
-      <span style={{ fontSize: 12, fontWeight: 700, color: selected ? C.white : C.gray700 }}>{label}</span>
-      <span style={{ fontSize: 12, color: selected ? C.green100 : C.gray500 }}>S/. {price}</span>
-    </div>
-  )
-}
-
 function SectionHeader({ title, actionLabel, onAction }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px 10px' }}>
@@ -586,6 +561,17 @@ export default function Home() {
     setSolicitudActiva(data)
     setShowAgendarModal(false)
     toast.success('¡Listo! Te avisamos cuando haya un médico disponible.')
+
+    // Notificar a médicos de Medicina General vía Web Push (fire-and-forget)
+    const nombrePaciente = profile?.full_name ?? 'Paciente'
+    supabase.functions
+      .invoke('notificar-turno-medicos', {
+        body: { patient_id: user.id, patient_name: nombrePaciente },
+      })
+      .then(({ error: fnErr }) => {
+        if (fnErr) console.warn('[notificar-turno-medicos]', fnErr.message)
+        else       console.log('[notificar-turno-medicos] notificaciones enviadas')
+      })
   }
 
   async function cancelarSolicitud() {

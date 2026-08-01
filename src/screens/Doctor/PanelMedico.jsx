@@ -1648,6 +1648,95 @@ export default function PanelMedico() {
             </div>
           </div>
 
+          {/* ── Turnos solicitados — fuera del scroll, siempre visible ── */}
+          {turnos.length > 0 && (
+            <div style={{
+              flexShrink: 0,
+              borderTop: `2px solid ${C.green300}`,
+              background: C.white,
+              maxHeight: 220,
+              overflowY: 'auto',
+            }}>
+              {/* Cabecera */}
+              <div style={{
+                background: `linear-gradient(135deg, #065F46, ${C.green700})`,
+                padding: '10px 14px',
+                display: 'flex', alignItems: 'center', gap: 10,
+                position: 'sticky', top: 0, zIndex: 1,
+              }}>
+                <span style={{ fontSize: 16, animation: 'pulse-dot 1.6s ease-in-out infinite' }}>🔔</span>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: C.white }}>
+                    Turnos solicitados
+                  </span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', marginLeft: 8 }}>
+                    Pacientes esperando ahora
+                  </span>
+                </div>
+                <div style={{
+                  minWidth: 20, height: 20, borderRadius: 10,
+                  background: '#34D399', color: '#065F46',
+                  fontSize: 11, fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 5px',
+                }}>
+                  {turnos.length}
+                </div>
+              </div>
+
+              {/* Lista */}
+              {turnos.map((turno, idx) => {
+                const nombre       = 'Paciente'
+                const isTomando    = tomandoTurno === turno.id
+                const esUltimo     = idx === turnos.length - 1
+                const minRestantes = Math.max(0, Math.floor(
+                  (new Date(turno.expires_at).getTime() - Date.now()) / 60000
+                ))
+                return (
+                  <div key={turno.id} style={{
+                    padding: '10px 14px',
+                    borderBottom: esUltimo ? 'none' : `1px solid ${C.gray100}`,
+                    display: 'flex', alignItems: 'center', gap: 10,
+                  }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                      background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: C.white, fontWeight: 800, fontSize: 13,
+                    }}>
+                      P
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.gray900 }}>{nombre}</div>
+                      <div style={{ fontSize: 10, color: C.gray400, marginTop: 2 }}>
+                        ⏳ {tiempoEsperaLabel(turno.created_at)} · caduca en {minRestantes} min
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleTomarTurno(turno)}
+                      disabled={isTomando || tomandoTurno !== null}
+                      style={{
+                        flexShrink: 0, padding: '7px 12px',
+                        background: (isTomando || tomandoTurno !== null)
+                          ? C.green100
+                          : `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+                        color: (isTomando || tomandoTurno !== null) ? C.green700 : C.white,
+                        border: 'none', borderRadius: 9,
+                        fontSize: 11, fontWeight: 800,
+                        cursor: (isTomando || tomandoTurno !== null) ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit', whiteSpace: 'nowrap',
+                        boxShadow: (isTomando || tomandoTurno !== null)
+                          ? 'none' : '0 2px 8px rgba(5,150,105,0.3)',
+                      }}
+                    >
+                      {isTomando ? 'Tomando…' : '✅ Tomar turno'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
           {/* ── Cuerpo scrollable ───────────────────────────── */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
@@ -1691,122 +1780,6 @@ export default function PanelMedico() {
                 <span style={{ fontSize: 12, fontWeight: 600, color: C.green700 }}>
                   Notificaciones push activas — recibirás alertas de nuevos turnos
                 </span>
-              </div>
-            )}
-
-            {/* ── Turnos solicitados ──────────────────────────── */}
-            {turnos.length > 0 && (
-              <div style={{
-                background: C.white,
-                border: `2px solid ${C.green300}`,
-                borderRadius: 16,
-                overflow: 'hidden',
-                boxShadow: '0 4px 16px rgba(16,185,129,0.12)',
-              }}>
-                {/* Cabecera */}
-                <div style={{
-                  background: `linear-gradient(135deg, #065F46, ${C.green700})`,
-                  padding: '12px 14px',
-                  display: 'flex', alignItems: 'center', gap: 10,
-                }}>
-                  <span style={{ fontSize: 18, animation: 'pulse-dot 1.6s ease-in-out infinite' }}>🔔</span>
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: C.white }}>
-                      Turnos solicitados
-                    </span>
-                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginLeft: 8 }}>
-                      Pacientes esperando ahora
-                    </span>
-                  </div>
-
-                  <div style={{
-                    minWidth: 22, height: 22, borderRadius: 11,
-                    background: '#34D399', color: '#065F46',
-                    fontSize: 11, fontWeight: 800,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    padding: '0 6px',
-                  }}>
-                    {turnos.length}
-                  </div>
-                </div>
-
-                {/* Lista de turnos */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  {turnos.map((turno, idx) => {
-                    const nombre      = 'Paciente'   // join desactivado temporalmente
-                    const isTomando   = tomandoTurno === turno.id
-                    const esUltimo    = idx === turnos.length - 1
-                    const minRestantes = Math.max(0, Math.floor(
-                      (new Date(turno.expires_at).getTime() - Date.now()) / 60000
-                    ))
-                    return (
-                      <div
-                        key={turno.id}
-                        style={{
-                          padding: '12px 14px',
-                          borderBottom: esUltimo ? 'none' : `1px solid ${C.gray100}`,
-                          display: 'flex', alignItems: 'center', gap: 12,
-                        }}
-                      >
-                        {/* Avatar */}
-                        <div style={{
-                          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-                          background: `linear-gradient(135deg, ${C.green600}, ${C.green800})`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: C.white, fontWeight: 800, fontSize: 14,
-                        }}>
-                          {nombre.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'}
-                        </div>
-
-                        {/* Info */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: C.gray900, lineHeight: 1.2 }}>
-                            {nombre}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-                            <span style={{
-                              fontSize: 10, fontWeight: 700, padding: '2px 7px',
-                              borderRadius: 20, background: C.green50, color: C.green700,
-                              border: `1px solid ${C.green200}`,
-                            }}>
-                              ⏳ {tiempoEsperaLabel(turno.created_at)}
-                            </span>
-                            <span style={{
-                              fontSize: 10, fontWeight: 600, color: C.gray400,
-                            }}>
-                              Caduca en {minRestantes} min
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Botón tomar turno */}
-                        <button
-                          onClick={() => handleTomarTurno(turno)}
-                          disabled={isTomando || tomandoTurno !== null}
-                          style={{
-                            flexShrink: 0,
-                            padding: '9px 14px',
-                            background: (isTomando || tomandoTurno !== null)
-                              ? C.green100
-                              : `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
-                            color: (isTomando || tomandoTurno !== null) ? C.green700 : C.white,
-                            border: 'none', borderRadius: 10,
-                            fontSize: 12, fontWeight: 800,
-                            cursor: (isTomando || tomandoTurno !== null) ? 'not-allowed' : 'pointer',
-                            fontFamily: 'inherit',
-                            transition: 'all 0.15s',
-                            whiteSpace: 'nowrap',
-                            boxShadow: (isTomando || tomandoTurno !== null)
-                              ? 'none'
-                              : '0 3px 10px rgba(5,150,105,0.3)',
-                          }}
-                        >
-                          {isTomando ? 'Tomando…' : '✅ Tomar turno'}
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
               </div>
             )}
 

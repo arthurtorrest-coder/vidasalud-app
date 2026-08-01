@@ -1421,6 +1421,8 @@ export default function PanelMedico() {
   const cmp        = doctorInfo?.cmp        ?? doctorInfo?.cmp_code  ?? ''
   const specialty  = doctorInfo?.especialidad ?? doctorInfo?.specialty ?? ''
 
+  console.log('[turnos state]', turnos, '| length:', turnos.length, '| shows section:', turnos.length > 0)
+
   return (
     <>
       <style>{`

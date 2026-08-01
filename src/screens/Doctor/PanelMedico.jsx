@@ -1613,6 +1613,49 @@ export default function PanelMedico() {
           {/* ── Cuerpo scrollable ───────────────────────────── */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
+            {/* ── Notificaciones push ─────────────────────────── */}
+            {!pushActivo ? (
+              <button
+                onClick={suscribirPush}
+                disabled={activandoPush}
+                style={{
+                  width: '100%', padding: '12px 14px',
+                  background: activandoPush
+                    ? C.green50
+                    : `linear-gradient(135deg, ${C.green50}, #ECFDF5)`,
+                  border: `1.5px solid ${C.green200}`,
+                  borderRadius: 14, cursor: activandoPush ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  fontFamily: 'inherit', textAlign: 'left',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <span style={{ fontSize: 20, flexShrink: 0 }}>
+                  {activandoPush ? '⏳' : '🔔'}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.green800 }}>
+                    {activandoPush ? 'Activando notificaciones…' : 'Activar notificaciones push'}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.green700, marginTop: 2 }}>
+                    Recibe alertas de nuevos turnos aunque no tengas la app abierta
+                  </div>
+                </div>
+                <span style={{ fontSize: 16, color: C.green500, flexShrink: 0 }}>›</span>
+              </button>
+            ) : (
+              <div style={{
+                padding: '10px 14px',
+                background: C.green50, border: `1px solid ${C.green100}`,
+                borderRadius: 14, display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span style={{ fontSize: 16 }}>✅</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.green700 }}>
+                  Notificaciones push activas — recibirás alertas de nuevos turnos
+                </span>
+              </div>
+            )}
+
             {/* ── Turnos solicitados ──────────────────────────── */}
             {turnos.length > 0 && (
               <div style={{
@@ -1637,26 +1680,6 @@ export default function PanelMedico() {
                       Pacientes esperando ahora
                     </span>
                   </div>
-
-                  {/* Botón activar push */}
-                  {!pushActivo && (
-                    <button
-                      onClick={suscribirPush}
-                      disabled={activandoPush}
-                      title="Activar notificaciones push para recibir alertas aunque no tengas la app abierta"
-                      style={{
-                        flexShrink: 0, marginRight: 8,
-                        background: activandoPush ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.18)',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        color: C.white, borderRadius: 20,
-                        padding: '3px 10px', fontSize: 11, fontWeight: 700,
-                        cursor: activandoPush ? 'not-allowed' : 'pointer',
-                        fontFamily: 'inherit', whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {activandoPush ? '…' : '🔔 Activar push'}
-                    </button>
-                  )}
 
                   <div style={{
                     minWidth: 22, height: 22, borderRadius: 11,

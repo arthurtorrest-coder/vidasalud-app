@@ -752,24 +752,34 @@ export default function PanelMedico() {
   }, [doctorInfo?.id, user?.id, appointments, selectedDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchTurnos() {
-    console.log('[fetchTurnos] consultando solicitudes pendientes — doctorId:', doctorInfo?.id)
+    console.log('[fetchTurnos] START — doctorId:', doctorInfo?.id, '| expires_at >', new Date().toISOString())
     const { data, error } = await supabase
       .from('solicitudes_turno')
       .select('id, patient_id, created_at, expires_at, patient:profiles(full_name)')
       .eq('status', 'pendiente')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: true })
-    console.log('[fetchTurnos] resultado:', { count: data?.length ?? 0, error: error?.message ?? null, data })
+    // Loguear el objeto error completo — error?.message puede ser undefined aunque error sea truthy
+    console.log('[fetchTurnos] resultado crudo:', { data, error })
+    console.log('[fetchTurnos] count:', data?.length ?? 0, '| error:', error)
     if (error) {
-      console.error('[fetchTurnos] error RLS o query:', error)
+      console.error('[fetchTurnos] EARLY RETURN por error (setTurnos NO será llamado):', JSON.stringify(error))
       return
     }
+    console.log('[fetchTurnos] llamando setTurnos con', data?.length ?? 0, 'item(s)')
     setTurnos(data ?? [])
+    console.log('[fetchTurnos] setTurnos despachado')
   }
+
+  // Traza cada cambio del estado turnos
+  useEffect(() => {
+    console.log('[turnos useEffect] estado cambió →', turnos.length, 'item(s)', turnos)
+  }, [turnos])
 
   // Cargar turnos pendientes cuando tengamos el doctors.id real
   useEffect(() => {
     if (!doctorInfo?.id) return
+    console.log('[fetchTurnos useEffect] doctorInfo.id disponible, llamando fetchTurnos')
     fetchTurnos()
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 

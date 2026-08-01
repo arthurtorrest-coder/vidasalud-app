@@ -752,12 +752,18 @@ export default function PanelMedico() {
   }, [doctorInfo?.id, user?.id, appointments, selectedDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchTurnos() {
-    const { data } = await supabase
+    console.log('[fetchTurnos] consultando solicitudes pendientes — doctorId:', doctorInfo?.id)
+    const { data, error } = await supabase
       .from('solicitudes_turno')
-      .select(`id, patient_id, created_at, expires_at, patient:profiles!patient_id(full_name)`)
+      .select('id, patient_id, created_at, expires_at, patient:profiles(full_name)')
       .eq('status', 'pendiente')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: true })
+    console.log('[fetchTurnos] resultado:', { count: data?.length ?? 0, error: error?.message ?? null, data })
+    if (error) {
+      console.error('[fetchTurnos] error RLS o query:', error)
+      return
+    }
     setTurnos(data ?? [])
   }
 

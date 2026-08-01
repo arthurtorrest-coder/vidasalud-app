@@ -755,12 +755,28 @@ export default function PanelMedico() {
   async function fetchTurnos() {
     const gen = ++fetchTurnosGenRef.current
     console.log(`[fetchTurnos gen:${gen}] START — doctorId:`, doctorInfo?.id)
-    const { data, error } = await supabase
+
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('TIMEOUT_5S')), 5000)
+    )
+    const query = supabase
       .from('solicitudes_turno')
       .select('id, patient_id, status, expires_at')
       .eq('status', 'pendiente')
       .gt('expires_at', new Date().toISOString())
       .limit(10)
+
+    let data, error
+    try {
+      const result = await Promise.race([query, timeout])
+      console.log(`[fetchTurnos gen:${gen}] await resuelto`)
+      data  = result.data
+      error = result.error
+    } catch (e) {
+      console.error(`[fetchTurnos gen:${gen}] TIMEOUT o excepción:`, e.message)
+      return
+    }
+
     console.log(`[fetchTurnos gen:${gen}] resultado — count:${data?.length ?? 0} | error:`, error ?? null)
     // Descartar si ya hay una llamada más nueva en vuelo
     if (gen !== fetchTurnosGenRef.current) {

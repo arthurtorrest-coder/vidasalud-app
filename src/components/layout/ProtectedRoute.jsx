@@ -7,7 +7,9 @@ export default function ProtectedRoute() {
   const { user, profile, doctor, farmacia, loading } = useAuthStore()
   const location = useLocation()
 
-  if (loading) {
+  // Solo mostrar spinner en el arranque inicial (sin sesión todavía).
+  // Si ya hay user, un refresh de token no debe desmontar los hijos.
+  if (loading && !user) {
     return (
       <div style={{
         minHeight: '100vh', background: C.gray100,

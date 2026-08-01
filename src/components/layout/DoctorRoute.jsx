@@ -6,9 +6,10 @@ const C = { red50: '#FEF2F2', red600: '#DC2626', gray900: '#111827', gray500: '#
 export default function DoctorRoute() {
   const { profile, loading } = useAuthStore()
 
-  // ProtectedRoute ya muestra el spinner mientras loading=true
-  // cuando llegamos aquí, profile ya está cargado
-  if (loading) return null
+  // ProtectedRoute maneja el spinner inicial (loading && !user).
+  // Aquí solo bloqueamos si aún no hay profile (primera carga).
+  // Si profile ya existe, un refresh de sesión no debe desmontar PanelMedico.
+  if (loading && !profile) return null
 
   if (profile?.role !== 'doctor') {
     return (

@@ -290,7 +290,7 @@ function ActiveCallBanner({ appt, onEnter }) {
 
 // ─── Modal: sin médico disponible ────────────────────────────
 
-function AgendarModal({ onAviso, onDespues, onClose, loading }) {
+function AgendarModal({ onAviso, onEspecialidades, onDespues, onClose, loading }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 1000,
@@ -305,18 +305,30 @@ function AgendarModal({ onAviso, onDespues, onClose, loading }) {
         padding: '24px 22px 36px',
         animation: 'slideUp 0.25s ease both',
       }}>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: 40, marginBottom: 10 }}>🩺</div>
+        {/* Pill de arrastre */}
+        <div style={{
+          width: 36, height: 4, borderRadius: 2,
+          background: C.gray300, margin: '0 auto 18px',
+        }} />
+
+        <div style={{ textAlign: 'center', marginBottom: 22 }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16,
+            background: C.green50, border: `1.5px solid ${C.green200}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 28, margin: '0 auto 12px',
+          }}>🩺</div>
           <div style={{ fontSize: 17, fontWeight: 800, color: C.gray900 }}>
-            Sin médicos de guardia ahora
+            No hay médicos disponibles ahora
           </div>
-          <div style={{ fontSize: 13, color: C.gray500, marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, color: C.gray500, marginTop: 6, lineHeight: 1.55 }}>
             No hay médicos de Medicina General disponibles en este momento.
             ¿Qué prefieres hacer?
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Opción 1: verde oscuro (principal) */}
           <button
             onClick={onAviso}
             disabled={loading}
@@ -327,7 +339,8 @@ function AgendarModal({ onAviso, onDespues, onClose, loading }) {
                 : `linear-gradient(135deg, #065F46, ${C.green600})`,
               color: loading ? C.green700 : C.white,
               border: 'none', borderRadius: 14,
-              fontSize: 14, fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: 14, fontWeight: 800,
+              cursor: loading ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 12,
               fontFamily: 'inherit',
               boxShadow: loading ? 'none' : '0 6px 20px rgba(6,95,70,0.35)',
@@ -337,30 +350,55 @@ function AgendarModal({ onAviso, onDespues, onClose, loading }) {
             <span style={{ fontSize: 22, flexShrink: 0 }}>🔔</span>
             <div style={{ textAlign: 'left', flex: 1 }}>
               <div>{loading ? 'Registrando solicitud…' : 'Avisar cuando haya médico'}</div>
-              <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.8, marginTop: 2 }}>
+              <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.82, marginTop: 2 }}>
                 Te notificamos en cuanto uno esté disponible (máx. 30 min)
               </div>
             </div>
           </button>
 
+          {/* Opción 2: verde claro */}
+          <button
+            onClick={onEspecialidades}
+            style={{
+              width: '100%', padding: '14px 16px',
+              background: C.green50,
+              border: `1.5px solid ${C.green200}`,
+              borderRadius: 14,
+              fontSize: 14, fontWeight: 700, color: C.green800,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 12,
+              fontFamily: 'inherit',
+              transition: 'all 0.15s',
+            }}
+          >
+            <span style={{ fontSize: 22, flexShrink: 0 }}>🩺</span>
+            <div style={{ textAlign: 'left', flex: 1 }}>
+              <div>Ver otras especialidades</div>
+              <div style={{ fontSize: 11, fontWeight: 400, color: C.green700, marginTop: 2 }}>
+                Pediatría, Psicología, Nutrición y más
+              </div>
+            </div>
+          </button>
+
+          {/* Opción 3: blanco con borde */}
           <button
             onClick={onDespues}
             style={{
-              width: '100%', padding: '14px 16px',
+              width: '100%', padding: '13px 16px',
               background: C.white,
               border: `1.5px solid ${C.gray300}`,
               borderRadius: 14,
-              fontSize: 14, fontWeight: 700, color: C.gray700,
+              fontSize: 14, fontWeight: 600, color: C.gray600,
               cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 12,
               fontFamily: 'inherit',
             }}
           >
-            <span style={{ fontSize: 22, flexShrink: 0 }}>📅</span>
+            <span style={{ fontSize: 20, flexShrink: 0 }}>📅</span>
             <div style={{ textAlign: 'left', flex: 1 }}>
               <div>Agendar para después</div>
               <div style={{ fontSize: 11, fontWeight: 400, color: C.gray400, marginTop: 2 }}>
-                Elige una hora y médico disponible próximamente
+                Elige un horario disponible próximamente
               </div>
             </div>
           </button>
@@ -928,6 +966,7 @@ export default function Home() {
         <AgendarModal
           loading={solicitudLoading}
           onAviso={crearSolicitud}
+          onEspecialidades={() => { setShowAgendarModal(false); navigate('/especialidades') }}
           onDespues={() => { setShowAgendarModal(false); navigate('/especialidades') }}
           onClose={() => setShowAgendarModal(false)}
         />

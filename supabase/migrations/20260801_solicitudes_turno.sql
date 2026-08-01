@@ -69,8 +69,11 @@ CREATE POLICY "st_admin_all" ON public.solicitudes_turno
     )
   );
 
--- ── Función de expiración automática (opcional, ejecutar como cron) ──
--- Puedes crear un cron job en Supabase con este query:
---   UPDATE public.solicitudes_turno
+-- ── Realtime ────────────────────────────────────────────────────────
+-- OBLIGATORIO: sin esta línea ningún cliente recibe eventos de cambio.
+ALTER PUBLICATION supabase_realtime ADD TABLE public.solicitudes_turno;
+
+-- ── Expiración automática (opcional, ejecutar como cron) ────────────
+-- UPDATE public.solicitudes_turno
 --   SET status = 'expirada'
 --   WHERE status = 'pendiente' AND expires_at < NOW();

@@ -1392,27 +1392,11 @@ export default function PanelMedico() {
     if (!doctorInfo?.id) return
     setTomandoTurno(solicitud.id)
 
-    // Paso 1: reclamar atómicamente — UPDATE filtra por status='pendiente'
-    // Si otro médico llegó primero, 0 filas se actualizan → data vacío
-    const { data: claimed, error: claimErr } = await supabase
-      .from('solicitudes_turno')
-      .update({ doctor_id: doctorInfo.id, status: 'tomada', notificado: true })
-      .eq('id', solicitud.id)
-      .eq('status', 'pendiente')
-      .select('id, patient_id')
-
-    if (claimErr || !claimed?.length) {
-      toast.error('Otro médico tomó este turno primero')
-      setTomandoTurno(null)
-      fetchTurnos()
-      return
-    }
-
-    // Paso 2: crear cita con status 'pending' (esperando pago del paciente)
+    // Paso 1: crear la cita primero para obtener su ID
     const { data: appt, error: apptErr } = await supabase
       .from('appointments')
       .insert({
-        patient_id:       claimed[0].patient_id,
+        patient_id:       solicitud.patient_id,
         doctor_id:        doctorInfo.id,
         status:           'pending',
         scheduled_at:     new Date().toISOString(),
@@ -1428,12 +1412,29 @@ export default function PanelMedico() {
       return
     }
 
-    // Paso 3: vincular appointment_id a la solicitud
-    // El listener Realtime del paciente detecta este cambio y lo redirige a /pago/:id
-    await supabase
+    // Paso 2: claim atómico + appointment_id en un SOLO UPDATE
+    // Dispara UN único evento Realtime con status='tomada' Y appointment_id ya seteado.
+    // El listener del paciente en Home lo recibe en un solo evento y navega a /pago/:id.
+    // Si 0 filas → otro médico llegó primero → deshacemos la cita.
+    const { data: claimed, error: claimErr } = await supabase
       .from('solicitudes_turno')
-      .update({ appointment_id: appt.id })
+      .update({
+        doctor_id:      doctorInfo.id,
+        status:         'tomada',
+        notificado:     true,
+        appointment_id: appt.id,
+      })
       .eq('id', solicitud.id)
+      .eq('status', 'pendiente')
+      .select('id')
+
+    if (claimErr || !claimed?.length) {
+      await supabase.from('appointments').delete().eq('id', appt.id)
+      toast.error('Otro médico tomó este turno primero')
+      setTomandoTurno(null)
+      fetchTurnos()
+      return
+    }
 
     toast.success('✅ Turno tomado · El paciente será redirigido al pago', { duration: 5000 })
     setTurnos(prev => prev.filter(t => t.id !== solicitud.id))

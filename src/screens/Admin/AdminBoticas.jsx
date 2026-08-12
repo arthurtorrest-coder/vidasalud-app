@@ -10,10 +10,26 @@ function fmtDate(iso) {
   })
 }
 
+function fmtSoles(n) {
+  return `S/. ${Number(n ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function getMesRango() {
+  const lima = new Date(Date.now() - 5 * 3_600_000)
+  const y = lima.getUTCFullYear(), m = lima.getUTCMonth()
+  return {
+    inicio: new Date(Date.UTC(y, m,     1,  5,  0,  0)).toISOString(),
+    fin:    new Date(Date.UTC(y, m + 1, 1,  4, 59, 59)).toISOString(),
+  }
+}
+
+const COMISION_BOTICA = 5 // S/. por paciente referido atendido
+
 export default function AdminBoticas() {
   const navigate = useNavigate()
 
   const [boticas,      setBoticas]      = useState([])
+  const [finBoticas,   setFinBoticas]   = useState({})
   const [loading,      setLoading]      = useState(true)
   const [filterCity,   setFilterCity]   = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -22,15 +38,36 @@ export default function AdminBoticas() {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     const safe = q => Promise.resolve(q).catch(err => ({ data: null, error: err }))
+    const { inicio, fin } = getMesRango()
 
-    const { data, error } = await safe(supabase
-      .from('farmacias')
-      .select('id, nombre, codigo_digemid, ciudad, distrito, direccion, telefono, propietario_nombre, email, codigo_referido, aprobado, activo, comision_porcentaje, created_at')
-      .eq('aprobado', true)
-      .order('nombre', { ascending: true }))
+    const [boticasRes, apptRes] = await Promise.all([
+      safe(supabase
+        .from('farmacias')
+        .select('id, nombre, codigo_digemid, ciudad, distrito, direccion, telefono, propietario_nombre, email, codigo_referido, aprobado, activo, comision_porcentaje, created_at')
+        .eq('aprobado', true)
+        .order('nombre', { ascending: true })),
+      safe(supabase
+        .from('appointments')
+        .select('farmacia_referente_id')
+        .eq('status', 'done')
+        .not('farmacia_referente_id', 'is', null)
+        .gte('scheduled_at', inicio)
+        .lte('scheduled_at', fin)),
+    ])
 
-    if (error) console.warn('[AdminBoticas] farmacias:', error.message)
-    setBoticas(data ?? [])
+    if (boticasRes.error) console.warn('[AdminBoticas] farmacias:', boticasRes.error.message)
+    if (apptRes.error)    console.warn('[AdminBoticas] appointments:', apptRes.error.message)
+
+    const finData = {}
+    for (const a of (apptRes.data ?? [])) {
+      const id = a.farmacia_referente_id
+      if (!finData[id]) finData[id] = { pacientes: 0, monto: 0 }
+      finData[id].pacientes++
+      finData[id].monto += COMISION_BOTICA
+    }
+
+    setBoticas(boticasRes.data ?? [])
+    setFinBoticas(finData)
     setLoading(false)
   }, [])
 
@@ -214,6 +251,25 @@ export default function AdminBoticas() {
                         <span>🏷 DIGEMID: <strong style={{ color: C.gray700 }}>{botica.codigo_digemid ?? '—'}</strong></span>
                         <span>💰 Comisión: <strong style={{ color: C.green700 }}>{botica.comision_porcentaje ?? 5}%</strong></span>
                       </div>
+                      {/* Resumen financiero del mes */}
+                      {finBoticas[botica.id] ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                          <span style={{
+                            fontSize: 12, fontWeight: 800, color: C.green700,
+                            background: C.green50, padding: '3px 10px', borderRadius: 20,
+                            border: `1px solid ${C.green200}`,
+                          }}>
+                            {fmtSoles(finBoticas[botica.id].monto)} a pagar
+                          </span>
+                          <span style={{ fontSize: 11, color: C.gray400, fontWeight: 600 }}>
+                            {finBoticas[botica.id].pacientes} paciente{finBoticas[botica.id].pacientes !== 1 ? 's' : ''} referido{finBoticas[botica.id].pacientes !== 1 ? 's' : ''} este mes
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ marginTop: 7, fontSize: 11, color: C.gray300, fontWeight: 600 }}>
+                          Sin pacientes referidos este mes
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -282,6 +338,35 @@ export default function AdminBoticas() {
               )
             })
           )}
+
+          {/* Total a pagar a todas las boticas */}
+          {!loading && Object.keys(finBoticas).length > 0 && (() => {
+            const totalMonto    = Object.values(finBoticas).reduce((s, v) => s + v.monto, 0)
+            const totalPacientes = Object.values(finBoticas).reduce((s, v) => s + v.pacientes, 0)
+            return (
+              <div style={{
+                background: C.white, borderRadius: 16,
+                border: `1.5px solid ${C.green300}`,
+                padding: '14px 20px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.gray700 }}>
+                  Total a pagar a boticas este mes
+                  <span style={{ marginLeft: 8, fontSize: 12, color: C.gray400, fontWeight: 500 }}>
+                    · {totalPacientes} paciente{totalPacientes !== 1 ? 's' : ''} referido{totalPacientes !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <span style={{
+                  fontSize: 17, fontWeight: 900, color: C.green700,
+                  background: C.green50, padding: '5px 16px', borderRadius: 20,
+                  border: `1.5px solid ${C.green300}`,
+                }}>
+                  {fmtSoles(totalMonto)}
+                </span>
+              </div>
+            )
+          })()}
         </div>
       </main>
     </div>

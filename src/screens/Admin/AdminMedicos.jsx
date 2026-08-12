@@ -8,6 +8,17 @@ function fmtSoles(n) {
   return `S/. ${Number(n ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function getMesRango() {
+  const lima = new Date(Date.now() - 5 * 3_600_000)
+  const y = lima.getUTCFullYear(), m = lima.getUTCMonth()
+  return {
+    inicio: new Date(Date.UTC(y, m,     1,  5,  0,  0)).toISOString(),
+    fin:    new Date(Date.UTC(y, m + 1, 1,  4, 59, 59)).toISOString(),
+  }
+}
+
+const COMISION_VS = 15 // S/. que retiene VIDASALUD por consulta
+
 const TH = ({ children, right }) => (
   <th style={{
     padding: '10px 14px', textAlign: right ? 'right' : 'left',
@@ -39,6 +50,7 @@ export default function AdminMedicos() {
 
   const [doctors,        setDoctors]        = useState([])
   const [pendingTarifas, setPendingTarifas] = useState([])
+  const [finMes,         setFinMes]         = useState({})
   const [loading,        setLoading]        = useState(true)
   const [filterSpec,     setFilterSpec]     = useState('')
   const [filterStatus,   setFilterStatus]   = useState('all')
@@ -46,8 +58,9 @@ export default function AdminMedicos() {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     const safe = q => Promise.resolve(q).catch(err => ({ data: null, error: err }))
+    const { inicio, fin } = getMesRango()
 
-    const [docRes, tarifasRes] = await Promise.all([
+    const [docRes, tarifasRes, apptRes] = await Promise.all([
       safe(supabase
         .from('doctors')
         .select('id, nombres, apellidos, especialidad, cmp, precio, rating, total_reviews, activo, aprobado, foto_url')
@@ -58,12 +71,32 @@ export default function AdminMedicos() {
         .select('id, nombres, apellidos, especialidad, cmp, precio, precio_propuesto')
         .eq('precio_pendiente_aprobacion', true)
         .order('nombres', { ascending: true })),
+      safe(supabase
+        .from('appointments')
+        .select('doctor_id, precio_total')
+        .eq('status', 'done')
+        .gte('scheduled_at', inicio)
+        .lte('scheduled_at', fin)),
     ])
 
     if (docRes.error)     console.warn('[AdminMedicos] doctors:', docRes.error.message)
     if (tarifasRes.error) console.warn('[AdminMedicos] tarifas:', tarifasRes.error.message)
+    if (apptRes.error)    console.warn('[AdminMedicos] appointments:', apptRes.error.message)
 
-    setDoctors((docRes.data ?? []).map(d => ({
+    const docsData = docRes.data ?? []
+
+    // mapa doctor_id → precio para fallback cuando precio_total es nulo
+    const precioMap = Object.fromEntries(docsData.map(d => [d.id, Number(d.precio) || 0]))
+
+    const finData = {}
+    for (const a of (apptRes.data ?? [])) {
+      if (!finData[a.doctor_id]) finData[a.doctor_id] = { consultas: 0, monto: 0 }
+      finData[a.doctor_id].consultas++
+      const precio = Number(a.precio_total) || precioMap[a.doctor_id] || 0
+      finData[a.doctor_id].monto += Math.max(0, precio - COMISION_VS)
+    }
+
+    setDoctors(docsData.map(d => ({
       ...d,
       full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
     })))
@@ -71,6 +104,7 @@ export default function AdminMedicos() {
       ...d,
       full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
     })))
+    setFinMes(finData)
     setLoading(false)
   }, [])
 
@@ -340,6 +374,7 @@ export default function AdminMedicos() {
                 <TH right>Rating</TH>
                 <TH right>Consultas</TH>
                 <TH right>Tarifa</TH>
+                <TH right>A pagar (mes)</TH>
                 <TH>Estado</TH>
               </tr>
             </thead>
@@ -347,7 +382,7 @@ export default function AdminMedicos() {
               {loading ? (
                 [1, 2, 3, 4, 5].map(i => (
                   <tr key={i}>
-                    {[1, 2, 3, 4, 5, 6, 7].map(j => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(j => (
                       <td key={j} style={{ padding: '12px 14px', borderBottom: `1px solid ${C.gray100}` }}>
                         {skeletonBar(j > 3 ? '50px' : '75%', 12)}
                       </td>
@@ -356,13 +391,14 @@ export default function AdminMedicos() {
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: '36px 16px', textAlign: 'center', color: C.gray400, fontSize: 13 }}>
+                  <td colSpan={8} style={{ padding: '36px 16px', textAlign: 'center', color: C.gray400, fontSize: 13 }}>
                     No hay médicos que coincidan con los filtros
                   </td>
                 </tr>
               ) : filtered.map((doc, i) => {
                 const isCPsP   = doc.cmp?.startsWith('CPsP')
                 const isActive = doc.activo !== false
+                const fin      = finMes[doc.id]
                 return (
                   <tr key={doc.id ?? i}>
                     <TD>
@@ -394,6 +430,24 @@ export default function AdminMedicos() {
                         ? <span style={{ fontWeight: 700, color: C.green700 }}>S/. {doc.precio}</span>
                         : <span style={{ color: C.gray400 }}>—</span>}
                     </TD>
+                    <TD right>
+                      {fin ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                          <span style={{
+                            fontSize: 12, fontWeight: 800, color: C.green700,
+                            background: C.green50, padding: '3px 10px', borderRadius: 20,
+                            border: `1px solid ${C.green200}`,
+                          }}>
+                            {fmtSoles(fin.monto)}
+                          </span>
+                          <span style={{ fontSize: 10, color: C.gray400 }}>
+                            {fin.consultas} consulta{fin.consultas !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{ color: C.gray300, fontSize: 13 }}>—</span>
+                      )}
+                    </TD>
                     <TD>
                       <span style={{
                         fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
@@ -407,6 +461,36 @@ export default function AdminMedicos() {
                 )
               })}
             </tbody>
+            {!loading && Object.keys(finMes).length > 0 && (() => {
+              const totalMonto     = Object.values(finMes).reduce((s, v) => s + v.monto, 0)
+              const totalConsultas = Object.values(finMes).reduce((s, v) => s + v.consultas, 0)
+              return (
+                <tfoot>
+                  <tr>
+                    <td colSpan={6} style={{
+                      padding: '13px 14px', borderTop: `2px solid ${C.gray200}`,
+                      background: C.gray50, fontSize: 12, fontWeight: 700, color: C.gray600,
+                      textAlign: 'right',
+                    }}>
+                      Total a pagar este mes · {totalConsultas} consultas completadas:
+                    </td>
+                    <td style={{
+                      padding: '13px 14px', borderTop: `2px solid ${C.gray200}`,
+                      background: C.gray50, textAlign: 'right',
+                    }}>
+                      <span style={{
+                        fontSize: 15, fontWeight: 900, color: C.green700,
+                        background: C.green50, padding: '4px 12px', borderRadius: 20,
+                        border: `1.5px solid ${C.green300}`,
+                      }}>
+                        {fmtSoles(totalMonto)}
+                      </span>
+                    </td>
+                    <td style={{ borderTop: `2px solid ${C.gray200}`, background: C.gray50 }} />
+                  </tr>
+                </tfoot>
+              )
+            })()}
           </table>
         </div>
       </main>

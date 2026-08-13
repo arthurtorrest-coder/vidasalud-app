@@ -591,16 +591,36 @@ export default function PanelMedico() {
     fetchData()
   }, [user, selectedDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Realtime: se suscribe solo cuando ya tenemos el doctors.id real
+  // Realtime: refresca citas cuando cambia status a 'paid' o hay un INSERT nuevo
+  // Requiere REPLICA IDENTITY FULL en appointments (migration 20260812)
   useEffect(() => {
     if (!doctorInfo?.id) return
     const channel = supabase
       .channel(`panel-medico-${doctorInfo.id}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'appointments', filter: `doctor_id=eq.${doctorInfo.id}` },
+        { event: 'INSERT', schema: 'public', table: 'appointments', filter: `doctor_id=eq.${doctorInfo.id}` },
         (payload) => {
-          if (payload.eventType === 'UPDATE') {
+          console.log('[Realtime appointments] INSERT status:', payload.new?.status)
+          // Nueva cita creada (ej. desde turno de guardia) → recargar lista del día
+          if (['pending', 'paid'].includes(payload.new?.status)) {
+            fetchData()
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'appointments', filter: `doctor_id=eq.${doctorInfo.id}` },
+        (payload) => {
+          const nuevo  = payload.new?.status
+          const previo = payload.old?.status
+          console.log('[Realtime appointments] UPDATE', previo, '→', nuevo)
+          if (nuevo === 'paid' && previo !== 'paid') {
+            // Paciente acaba de pagar → recargar para obtener datos con joins
+            toast('💳 Un paciente confirmó su pago', { icon: '✅', duration: 4000 })
+            fetchData()
+          } else {
+            // Otro cambio de estado (active, done, cancelled) → parche local
             setAppointments(prev =>
               prev.map(a => a.id === payload.new.id ? { ...a, ...payload.new } : a)
             )

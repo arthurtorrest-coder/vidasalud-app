@@ -301,10 +301,27 @@ export default function SalaEspera() {
                     <div style={{ fontSize: 13, color: C.green700, marginTop: 6, lineHeight: 1.5 }}>
                       {titulo} {docName} está listo para atenderte.
                     </div>
+
+                    {/* Recordatorio del botón Join — visible antes de entrar */}
+                    <div style={{
+                      marginTop: 14, padding: '10px 14px',
+                      background: '#065F46', borderRadius: 12,
+                      display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
+                    }}>
+                      <span style={{ fontSize: 20, flexShrink: 0 }}>🟢</span>
+                      <span style={{ fontSize: 12, color: C.white, fontWeight: 600, lineHeight: 1.5 }}>
+                        Cuando aparezca la sala, toca el botón verde{' '}
+                        <strong style={{ background: '#059669', padding: '1px 6px', borderRadius: 5 }}>Join</strong>
+                        {' '}o{' '}
+                        <strong style={{ background: '#059669', padding: '1px 6px', borderRadius: 5 }}>Unirse</strong>
+                        {' '}para conectarte.
+                      </span>
+                    </div>
+
                     <button
                       onClick={() => setShowPreCall(true)}
                       style={{
-                        marginTop: 18, width: '100%', padding: '15px 0',
+                        marginTop: 14, width: '100%', padding: '15px 0',
                         background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
                         color: C.white, border: 'none', borderRadius: 14,
                         fontSize: 15, fontWeight: 900, cursor: 'pointer',

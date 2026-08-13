@@ -639,8 +639,9 @@ export default function Payment() {
   const [metodo,       setMetodo]       = useState('yape')
   const [processing,   setProcessing]   = useState(false)
   const [confirmed,    setConfirmed]    = useState(false)
+  const [esDesdeTurno, setEsDesdeTurno] = useState(false)
 
-  /* cargar cita y médico */
+  /* cargar cita, médico y verificar si viene de turno de guardia */
   useEffect(() => {
     supabase
       .from('appointments')
@@ -656,12 +657,17 @@ export default function Payment() {
         setAppointment(appt)
         if (appt.status === 'paid') setConfirmed(true)
 
-        const { data: doc } = await supabase
-          .from('doctors')
-          .select('*')
-          .eq('id', appt.doctor_id)
-          .single()
-        setDoctor(doc)
+        const [docRes, turnoRes] = await Promise.all([
+          supabase.from('doctors').select('*').eq('id', appt.doctor_id).single(),
+          supabase
+            .from('solicitudes_turno')
+            .select('id')
+            .eq('appointment_id', appointmentId)
+            .maybeSingle(),
+        ])
+
+        setDoctor(docRes.data ?? null)
+        if (turnoRes.data) setEsDesdeTurno(true)
         setLoading(false)
       })
   }, [appointmentId, navigate])
@@ -756,6 +762,53 @@ export default function Payment() {
           Elige cómo deseas pagar tu consulta
         </div>
       </div>
+
+      {/* Banner: médico disponible ahora (turno de guardia) */}
+      {esDesdeTurno && !confirmed && doctor && (
+        <div style={{
+          background: 'linear-gradient(135deg, #065F46, #059669)',
+          padding: '14px 20px',
+          display: 'flex', alignItems: 'center', gap: 12,
+          flexShrink: 0,
+        }}>
+          {doctor.foto_url ? (
+            <img
+              src={doctor.foto_url}
+              alt={doctor.nombres}
+              style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+            />
+          ) : (
+            <div style={{
+              width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(255,255,255,0.22)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#FFFFFF', fontWeight: 800, fontSize: 15,
+            }}>
+              {(doctor.nombres?.[0] ?? '?').toUpperCase()}{(doctor.apellidos?.[0] ?? '').toUpperCase()}
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.3 }}>
+              🩺 {doctorTitle(doctor.cmp, doctor.nombres)} {doctor.nombres} {doctor.apellidos} está listo para atenderte
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', marginTop: 2 }}>
+              Realiza tu pago para iniciar la consulta
+            </div>
+          </div>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            fontSize: 10, fontWeight: 800, color: '#065F46',
+            background: '#34D399', padding: '4px 10px', borderRadius: 20,
+            flexShrink: 0, whiteSpace: 'nowrap',
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%', background: '#065F46',
+              animation: 'pulse 1.5s ease-in-out infinite',
+            }} />
+            Médico disponible ahora
+          </span>
+        </div>
+      )}
 
       {/* Contenido scrollable */}
       <div style={{ flex: 1, overflowY: 'auto' }}>

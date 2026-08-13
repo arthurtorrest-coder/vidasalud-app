@@ -7,8 +7,9 @@ const WHITE = '#FFFFFF'
 const PASOS = [
   { icon: '1️⃣', text: 'Toca el botón "Entendido, entrar ahora".' },
   { icon: '2️⃣', text: 'Cuando tu celular muestre el mensaje de permisos, toca PERMITIR o ALLOW.' },
-  { icon: '3️⃣', text: 'Si no ves al médico, recarga la página y vuelve a entrar.' },
-  { icon: '4️⃣', text: 'Asegúrate de tener buena conexión a internet (WiFi o datos 4G).' },
+  { icon: '3️⃣', text: 'Cuando aparezca la sala de video, busca el botón verde "Join" o "Unirse" y tócalo para conectarte con el médico.', highlight: true },
+  { icon: '4️⃣', text: 'Si no ves al médico, recarga la página y vuelve a entrar.' },
+  { icon: '5️⃣', text: 'Asegúrate de tener buena conexión a internet (WiFi o datos 4G).' },
 ]
 
 // ─── SVG: diálogo de permisos del celular ─────────────────────
@@ -142,6 +143,25 @@ export default function PreCallModal({ onEnter, onClose }) {
               <p style={{ margin: 0, fontSize: 12, color: '#B45309', lineHeight: 1.5 }}>
                 ⚠️ Si tocas <strong>Bloquear</strong> o <strong>Block</strong>, el médico no podrá verte.
               </p>
+
+              {/* Paso crítico: botón Join */}
+              <div style={{
+                background: '#065F46', borderRadius: 10, padding: '10px 12px',
+                display: 'flex', alignItems: 'flex-start', gap: 8,
+              }}>
+                <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1.3 }}>🟢</span>
+                <span style={{ fontSize: 12, color: WHITE, lineHeight: 1.55, fontWeight: 600 }}>
+                  Cuando aparezca la sala, busca el botón verde{' '}
+                  <strong style={{ background: GREEN, padding: '1px 6px', borderRadius: 5, color: WHITE }}>
+                    Join
+                  </strong>
+                  {' '}o{' '}
+                  <strong style={{ background: GREEN, padding: '1px 6px', borderRadius: 5, color: WHITE }}>
+                    Unirse
+                  </strong>
+                  {' '}y tócalo para conectarte con el médico.
+                </span>
+              </div>
             </div>
 
             <button
@@ -181,11 +201,17 @@ export default function PreCallModal({ onEnter, onClose }) {
               {PASOS.map((p, i) => (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'flex-start', gap: 12,
-                  background: '#F9FAFB', borderRadius: 12, padding: '11px 14px',
-                  border: '1px solid #E5E7EB',
+                  background: p.highlight ? '#065F46' : '#F9FAFB',
+                  borderRadius: 12, padding: '11px 14px',
+                  border: p.highlight ? '1.5px solid #34D399' : '1px solid #E5E7EB',
                 }}>
                   <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.25 }}>{p.icon}</span>
-                  <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.55, fontWeight: 600 }}>{p.text}</span>
+                  <span style={{
+                    fontSize: 13, lineHeight: 1.55, fontWeight: 600,
+                    color: p.highlight ? WHITE : '#374151',
+                  }}>
+                    {p.text}
+                  </span>
                 </div>
               ))}
             </div>

@@ -400,7 +400,11 @@ export default function AdminMedicos() {
                 const isActive = doc.activo !== false
                 const fin      = finMes[doc.id]
                 return (
-                  <tr key={doc.id ?? i}>
+                  <tr
+                    key={doc.id ?? i}
+                    onClick={() => navigate(`/admin/medicos/${doc.id}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <TD>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         {doc.foto_url ? (

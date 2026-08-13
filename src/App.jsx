@@ -14,11 +14,13 @@ import AdminRoute      from './components/layout/AdminRoute'
 import FarmaciaRoute   from './components/layout/FarmaciaRoute'
 import PanelMedico      from './screens/Doctor/PanelMedico'
 import PanelAdmin       from './screens/Admin/PanelAdmin'
-import AdminMedicos     from './screens/Admin/AdminMedicos'
-import AdminBoticas     from './screens/Admin/AdminBoticas'
-import AdminCobertura   from './screens/Admin/AdminCobertura'
-import AdminConsultas   from './screens/Admin/AdminConsultas'
-import AdminFinanzas    from './screens/Admin/AdminFinanzas'
+import AdminMedicos        from './screens/Admin/AdminMedicos'
+import AdminMedicoDetalle  from './screens/Admin/AdminMedicoDetalle'
+import AdminBoticas        from './screens/Admin/AdminBoticas'
+import AdminBoticaDetalle  from './screens/Admin/AdminBoticaDetalle'
+import AdminCobertura      from './screens/Admin/AdminCobertura'
+import AdminConsultas      from './screens/Admin/AdminConsultas'
+import AdminFinanzas       from './screens/Admin/AdminFinanzas'
 import HistoriaClinica  from './screens/HistoriaClinica'
 import Landing         from './screens/Landing'
 import Home            from './pages/Home'
@@ -109,12 +111,14 @@ export default function App() {
 
           {/* Solo admins */}
           <Route element={<AdminRoute />}>
-            <Route path="/admin/panel"     element={<PanelAdmin />}     />
-            <Route path="/admin/medicos"   element={<AdminMedicos />}   />
-            <Route path="/admin/boticas"   element={<AdminBoticas />}   />
-            <Route path="/admin/cobertura"  element={<AdminCobertura />}  />
-            <Route path="/admin/consultas"  element={<AdminConsultas />}  />
-            <Route path="/admin/finanzas"   element={<AdminFinanzas />}   />
+            <Route path="/admin/panel"                      element={<PanelAdmin />}          />
+            <Route path="/admin/medicos"                   element={<AdminMedicos />}        />
+            <Route path="/admin/medicos/:doctorId"         element={<AdminMedicoDetalle />}  />
+            <Route path="/admin/boticas"                   element={<AdminBoticas />}        />
+            <Route path="/admin/boticas/:boticaId"         element={<AdminBoticaDetalle />}  />
+            <Route path="/admin/cobertura"                 element={<AdminCobertura />}      />
+            <Route path="/admin/consultas"                 element={<AdminConsultas />}      />
+            <Route path="/admin/finanzas"                  element={<AdminFinanzas />}       />
           </Route>
 
           {/* Solo farmacias aprobadas */}

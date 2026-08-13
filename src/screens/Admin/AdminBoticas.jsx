@@ -224,10 +224,15 @@ export default function AdminBoticas() {
             filtered.map(botica => {
               const isExpanded = expanded === botica.id
               return (
-                <div key={botica.id} style={{
-                  background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`,
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden',
-                }}>
+                <div
+                  key={botica.id}
+                  onClick={() => navigate(`/admin/boticas/${botica.id}`)}
+                  style={{
+                    background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden',
+                    cursor: 'pointer',
+                  }}
+                >
                   {/* Fila principal */}
                   <div style={{
                     padding: '16px 20px',
@@ -283,7 +288,7 @@ export default function AdminBoticas() {
                       </span>
 
                       <button
-                        onClick={() => handleToggleActivo(botica)}
+                        onClick={e => { e.stopPropagation(); handleToggleActivo(botica) }}
                         style={{
                           padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
                           cursor: 'pointer', fontFamily: 'inherit',
@@ -296,7 +301,7 @@ export default function AdminBoticas() {
                       </button>
 
                       <button
-                        onClick={() => setExpanded(isExpanded ? null : botica.id)}
+                        onClick={e => { e.stopPropagation(); setExpanded(isExpanded ? null : botica.id) }}
                         style={{
                           padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
                           cursor: 'pointer', fontFamily: 'inherit',

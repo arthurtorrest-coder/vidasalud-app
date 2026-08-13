@@ -310,10 +310,8 @@ export default function SalaEspera() {
                     }}>
                       <span style={{ fontSize: 20, flexShrink: 0 }}>🟢</span>
                       <span style={{ fontSize: 12, color: C.white, fontWeight: 600, lineHeight: 1.5 }}>
-                        Cuando aparezca la sala, toca el botón verde{' '}
+                        Cuando aparezca la sala, busca y aplasta el botón verde{' '}
                         <strong style={{ background: '#059669', padding: '1px 6px', borderRadius: 5 }}>Join</strong>
-                        {' '}o{' '}
-                        <strong style={{ background: '#059669', padding: '1px 6px', borderRadius: 5 }}>Unirse</strong>
                         {' '}para conectarte.
                       </span>
                     </div>

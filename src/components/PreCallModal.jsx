@@ -7,7 +7,7 @@ const WHITE = '#FFFFFF'
 const PASOS = [
   { icon: '1️⃣', text: 'Toca el botón "Entendido, entrar ahora".' },
   { icon: '2️⃣', text: 'Cuando tu celular muestre el mensaje de permisos, toca PERMITIR o ALLOW.' },
-  { icon: '3️⃣', text: 'Cuando aparezca la sala de video, busca el botón verde "Join" o "Unirse" y tócalo para conectarte con el médico.', highlight: true },
+  { icon: '3️⃣', text: 'Cuando aparezca la sala de video, busca y aplasta el botón verde "Join" para conectarte con el médico.', highlight: true },
   { icon: '4️⃣', text: 'Si no ves al médico, recarga la página y vuelve a entrar.' },
   { icon: '5️⃣', text: 'Asegúrate de tener buena conexión a internet (WiFi o datos 4G).' },
 ]
@@ -151,15 +151,11 @@ export default function PreCallModal({ onEnter, onClose }) {
               }}>
                 <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1.3 }}>🟢</span>
                 <span style={{ fontSize: 12, color: WHITE, lineHeight: 1.55, fontWeight: 600 }}>
-                  Cuando aparezca la sala, busca el botón verde{' '}
+                  Cuando aparezca la sala, busca y aplasta el botón verde{' '}
                   <strong style={{ background: GREEN, padding: '1px 6px', borderRadius: 5, color: WHITE }}>
                     Join
                   </strong>
-                  {' '}o{' '}
-                  <strong style={{ background: GREEN, padding: '1px 6px', borderRadius: 5, color: WHITE }}>
-                    Unirse
-                  </strong>
-                  {' '}y tócalo para conectarte con el médico.
+                  {' '}para conectarte con el médico.
                 </span>
               </div>
             </div>

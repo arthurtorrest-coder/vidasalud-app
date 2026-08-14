@@ -1388,6 +1388,11 @@ export default function PanelMedico() {
         setActivandoPush(false)
         return
       }
+      const existente = await reg.pushManager.getSubscription()
+      if (existente) {
+        console.log('[suscribirPush] ya existía una suscripción en este dispositivo, eliminándola:', existente.toJSON())
+        await existente.unsubscribe()
+      }
       const subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidKey),

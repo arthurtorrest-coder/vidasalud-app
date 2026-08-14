@@ -1392,12 +1392,20 @@ export default function PanelMedico() {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
       })
-      const { error } = await supabase
+      const nuevoToken = subscription.toJSON()
+      console.log('[suscribirPush] doctorInfo.id:', doctorInfo.id, '(tipo:', typeof doctorInfo.id, ')')
+      console.log('[suscribirPush] token nuevo a guardar:', nuevoToken)
+      const { data, error } = await supabase
         .from('doctors')
-        .update({ push_token: subscription.toJSON() })
+        .update({ push_token: nuevoToken })
         .eq('id', doctorInfo.id)
+        .select('id, push_token')
+      console.log('[suscribirPush] resultado UPDATE → data:', data, 'error:', error)
       if (error) {
         toast.error('No se pudo guardar la suscripción: ' + error.message)
+      } else if (!data || data.length === 0) {
+        console.warn('[suscribirPush] el UPDATE no afectó ninguna fila — revisar doctorInfo.id')
+        toast.error('No se pudo guardar la suscripción: no se encontró el médico')
       } else {
         setPushActivo(true)
         toast.success('✅ Notificaciones push activadas')

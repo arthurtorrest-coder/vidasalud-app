@@ -765,7 +765,7 @@ export default function Home() {
       {/* ── Acciones rápidas ── */}
       <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {[
-          { icon: '📹', label: 'Agendar cita',  bg: '#065F46', border: '#34D399', color: '#FFFFFF', h: 48, shadow: '0 6px 20px rgba(6,95,70,0.45)',  shadowPress: '0 2px 6px rgba(6,95,70,0.25)',  action: handleAgendarCita },
+          { icon: '📹', label: 'Agendar cita',  bg: '#1D4ED8', border: '#3B82F6', color: '#FFFFFF', h: 48, shadow: '0 6px 20px rgba(6,95,70,0.45)',  shadowPress: '0 2px 6px rgba(6,95,70,0.25)',  action: handleAgendarCita },
           { icon: '📅', label: 'Mis citas',      bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/citas') },
           { icon: '💊', label: 'Receta digital', bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
           { icon: '📋', label: 'Mi historial',   bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/historial') },

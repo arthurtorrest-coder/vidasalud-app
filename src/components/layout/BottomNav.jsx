@@ -66,10 +66,11 @@ const VIDEO_ICON = (
 // ─── Items de navegación ──────────────────────────────────────
 
 const NAV_ITEMS = [
-  { to: '/inicio',    icon: ICONS.home,     label: 'Inicio',    roots: ['/inicio', '/booking', '/pago', '/medico'] },
-  { to: '/citas',     icon: ICONS.calendar, label: 'Citas',     roots: ['/citas'],                                  isCitas: true },
-  { to: '/farmacias', icon: ICONS.pharmacy, label: 'Farmacias', roots: ['/farmacias', '/registro-farmacia']         },
-  { to: '/perfil',    icon: ICONS.user,     label: 'Perfil',    roots: ['/perfil']                                  },
+  { to: '/inicio',         icon: ICONS.home,     label: 'Inicio',         roots: ['/inicio', '/booking', '/pago', '/medico'] },
+  { to: '/citas',          icon: ICONS.calendar, label: 'Citas',          roots: ['/citas'],                                  isCitas: true },
+  { to: '/farmacias',      icon: ICONS.pharmacy, label: 'Farmacias',      roots: ['/farmacias', '/registro-farmacia']         },
+  { to: '/planes/familia', icon: '📋',           label: 'Nuestros planes', roots: ['/planes/familia'],                        highlight: true },
+  { to: '/perfil',         icon: ICONS.user,     label: 'Perfil',         roots: ['/perfil']                                  },
 ]
 
 function isActive(roots, pathname) {
@@ -111,26 +112,29 @@ function useUnread(userId) {
 
 // ─── Item del drawer ──────────────────────────────────────────
 
-function DrawerItem({ icon, label, to, roots, badge, navigate, pathname, onClose }) {
+function DrawerItem({ icon, label, to, roots, badge, navigate, pathname, onClose, highlight }) {
   const active = isActive(roots, pathname)
+  const bg        = highlight ? '#D1FAE5' : (active ? C.green50   : 'transparent')
+  const textColor = highlight ? '#065F46' : (active ? C.green900  : C.gray600)
+  const iconColor = highlight ? '#065F46' : (active ? C.green700  : C.gray500)
   return (
     <button
       onClick={() => { onClose(); navigate(to) }}
       style={{
         display: 'flex', alignItems: 'center', gap: 14,
         width: '100%', padding: '13px 14px', border: 'none',
-        background: active ? C.green50 : 'transparent',
+        background: bg,
         borderRadius: 12, cursor: 'pointer',
         fontFamily: "'DM Sans', sans-serif",
         WebkitTapHighlightColor: 'transparent',
       }}
     >
-      <div style={{ color: active ? C.green700 : C.gray500, display: 'flex', flexShrink: 0 }}>
+      <div style={{ color: iconColor, display: 'flex', flexShrink: 0, fontSize: typeof icon === 'string' ? 20 : undefined }}>
         {icon}
       </div>
       <span style={{
-        fontSize: 15, fontWeight: active ? 700 : 500,
-        color: active ? C.green900 : C.gray600, flex: 1, textAlign: 'left',
+        fontSize: 15, fontWeight: (active || highlight) ? 700 : 500,
+        color: textColor, flex: 1, textAlign: 'left',
       }}>
         {label}
       </span>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../../stores/authStore'
 
 const C = {
   green900: '#064E3B', green800: '#065F46', green700: '#047857',
@@ -24,6 +25,7 @@ const BENEFICIOS = [
 
 export default function PlanFamilia() {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const [personas, setPersonas] = useState(PERSONAS_BASE)
   const [consultas, setConsultas] = useState(OPCIONES_CONSULTAS[0])
 
@@ -31,6 +33,14 @@ export default function PlanFamilia() {
     const personasAdicionales = Math.max(0, personas - PERSONAS_BASE)
     return PRECIO_POR_CONSULTA * consultas + PRECIO_POR_PERSONA_ADICIONAL * personasAdicionales
   }, [personas, consultas])
+
+  function handleContratar() {
+    if (user) {
+      navigate('/corporativo/registro-plan', { state: { personas, consultas, precio } })
+    } else {
+      navigate(`/registro?plan=familia&personas=${personas}&consultas=${consultas}`)
+    }
+  }
 
   return (
     <div style={{
@@ -216,7 +226,7 @@ export default function PlanFamilia() {
           </div>
 
           <button
-            onClick={() => navigate('/registro')}
+            onClick={handleContratar}
             style={{
               width: '100%', padding: '16px 24px', border: 'none',
               background: C.green600, color: C.white, borderRadius: 14,

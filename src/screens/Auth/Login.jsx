@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, Navigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -56,7 +56,12 @@ function inputStyle(hasError) {
 
 export default function Login() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user } = useAuthStore()
+
+  const plan      = searchParams.get('plan')
+  const personas  = searchParams.get('personas')
+  const consultas = searchParams.get('consultas')
   const [loading,       setLoading]       = useState(false)
   const [showPass,      setShowPass]      = useState(false)
   const [resetSent,     setResetSent]     = useState(false)
@@ -92,6 +97,11 @@ export default function Login() {
     setLoading(false)
     if (error) {
       toast.error('Correo o contraseña incorrectos')
+    } else if (plan === 'familia') {
+      navigate('/corporativo/registro-plan', {
+        replace: true,
+        state: { personas: Number(personas) || undefined, consultas: Number(consultas) || undefined },
+      })
     } else {
       navigate('/inicio', { replace: true })
     }

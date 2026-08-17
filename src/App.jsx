@@ -39,6 +39,7 @@ import PanelFarmacia   from './screens/Farmacia/PanelFarmacia'
 import RegisterFarmacia from './screens/Auth/RegisterFarmacia'
 import Farmacias        from './screens/Farmacias'
 import PlanFamilia      from './screens/Corporativo/PlanFamilia'
+import RegistroPlan     from './screens/Corporativo/RegistroPlan'
 
 const C = { green100: '#D1FAE5', green600: '#059669', gray100: '#F3F4F6' }
 
@@ -104,6 +105,9 @@ export default function App() {
 
           {/* Onboarding para nuevos pacientes — sin AppShell */}
           <Route path="/onboarding" element={<Onboarding />} />
+
+          {/* Registro de titular de plan corporativo — sin AppShell */}
+          <Route path="/corporativo/registro-plan" element={<RegistroPlan />} />
 
           {/* Solo médicos */}
           <Route element={<DoctorRoute />}>

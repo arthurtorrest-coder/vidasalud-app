@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, Navigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -34,9 +34,14 @@ function inputStyle(hasError) {
 
 export default function Register() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user } = useAuthStore()
   const [loading,  setLoading]  = useState(false)
   const [showPass, setShowPass] = useState(false)
+
+  const plan      = searchParams.get('plan')
+  const personas  = searchParams.get('personas')
+  const consultas = searchParams.get('consultas')
 
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
@@ -73,11 +78,18 @@ export default function Register() {
         onboarding_completado: true,   // el tour del Home se encarga de la bienvenida
       })
       toast.success(`¡Bienvenido/a, ${firstName}! 🎉`)
-      navigate('/inicio', { replace: true })
+      if (plan === 'familia') {
+        navigate('/corporativo/registro-plan', {
+          replace: true,
+          state: { personas: Number(personas) || undefined, consultas: Number(consultas) || undefined },
+        })
+      } else {
+        navigate('/inicio', { replace: true })
+      }
     } else {
       setLoading(false)
       toast.success('Revisa tu correo para confirmar tu cuenta', { duration: 6000 })
-      navigate('/login')
+      navigate(plan === 'familia' ? `/login?plan=familia&personas=${personas}&consultas=${consultas}` : '/login')
     }
   }
 

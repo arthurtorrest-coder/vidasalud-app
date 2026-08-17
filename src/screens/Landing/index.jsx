@@ -668,6 +668,100 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ══════════ NUESTROS PLANES ══════════ */}
+      <section style={{ padding: '52px 20px 48px', background: C.gray50 }}>
+        <SectionTitle
+          eyebrow="PLANES"
+          title="Nuestros planes"
+          subtitle="Elige el plan que se ajusta a ti, tu familia o tu empresa."
+        />
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 14,
+          maxWidth: 480, margin: '0 auto',
+        }}>
+          {/* Plan Familia */}
+          <div style={{
+            background: C.white, border: `1.5px solid ${C.green200}`,
+            borderRadius: 18, padding: '22px 20px',
+          }}>
+            <div style={{ fontSize: 26, marginBottom: 8 }}>👨‍👩‍👧‍👦</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: C.gray900, marginBottom: 4 }}>
+              Plan Familia
+            </div>
+            <div style={{ fontSize: 12, color: C.gray500, lineHeight: 1.5, marginBottom: 14 }}>
+              Consultas médicas por video para ti y tu familia, con receta electrónica incluida.
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: C.green700, marginBottom: 16 }}>
+              Desde S/. 30<span style={{ fontSize: 12, fontWeight: 700, color: C.gray500 }}>/mes</span>
+            </div>
+            <button
+              onClick={() => navigate('/planes/familia')}
+              style={{
+                width: '100%', padding: '13px 20px', border: 'none',
+                background: C.green600, color: C.white, borderRadius: 12,
+                fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              Ver Plan Familia →
+            </button>
+          </div>
+
+          {/* Plan Empresas */}
+          <div style={{
+            background: `linear-gradient(160deg, ${C.green900}, ${C.green700})`,
+            borderRadius: 18, padding: '22px 20px',
+          }}>
+            <div style={{ fontSize: 26, marginBottom: 8 }}>🏢</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: C.white, marginBottom: 4 }}>
+              Plan Empresas
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, marginBottom: 14 }}>
+              Bienestar médico para tus colaboradores, con planes a la medida de tu empresa.
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: C.green200, marginBottom: 16 }}>
+              Cotiza con nosotros
+            </div>
+            <button
+              onClick={() => window.location.href = 'mailto:ayuda@vidasalud.pe?subject=Cotización Plan Empresas'}
+              style={{
+                width: '100%', padding: '13px 20px', border: '1.5px solid rgba(255,255,255,0.4)',
+                background: 'rgba(255,255,255,0.12)', color: C.white, borderRadius: 12,
+                fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              Solicitar cotización →
+            </button>
+          </div>
+
+          {/* Plan Minería */}
+          <div style={{
+            background: C.white, border: `1.5px solid ${C.gray200}`,
+            borderRadius: 18, padding: '22px 20px',
+          }}>
+            <div style={{ fontSize: 26, marginBottom: 8 }}>⛏️</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: C.gray900, marginBottom: 4 }}>
+              Plan Minería
+            </div>
+            <div style={{ fontSize: 12, color: C.gray500, lineHeight: 1.5, marginBottom: 14 }}>
+              Cobertura médica remota para trabajadores en campamentos y zonas alejadas.
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: C.gray700, marginBottom: 16 }}>
+              Contrato especializado
+            </div>
+            <button
+              onClick={() => window.location.href = 'mailto:ayuda@vidasalud.pe?subject=Contrato Plan Minería'}
+              style={{
+                width: '100%', padding: '13px 20px', border: `1.5px solid ${C.gray300}`,
+                background: C.white, color: C.gray700, borderRadius: 12,
+                fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              Contactar equipo comercial →
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* ══════════ CTA FINAL ══════════ */}
       <section style={{
         padding: '52px 24px',

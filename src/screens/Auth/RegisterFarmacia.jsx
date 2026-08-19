@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -79,6 +79,8 @@ function Label({ children }) {
 
 export default function RegisterFarmacia() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const coordinadorId = searchParams.get('coordinador_id')
   const [submitting, setSubmitting] = useState(false)
 
   const { register, handleSubmit, formState: { errors } } = useForm({
@@ -127,6 +129,7 @@ export default function RegisterFarmacia() {
         propietario_nombre: data.propietario_nombre,
         email:              data.email,
         codigo_referido:    codigoReferido,
+        coordinador_id:     coordinadorId || null,
         aprobado:           false,
         activo:             false,
       })

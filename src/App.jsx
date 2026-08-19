@@ -12,7 +12,9 @@ import EsperaAprobacionFarmacia  from './screens/Auth/EsperaAprobacionFarmacia'
 import DoctorRoute     from './components/layout/DoctorRoute'
 import AdminRoute      from './components/layout/AdminRoute'
 import FarmaciaRoute   from './components/layout/FarmaciaRoute'
+import CoordinadorRoute from './components/layout/CoordinadorRoute'
 import PanelMedico      from './screens/Doctor/PanelMedico'
+import PanelCoordinador from './screens/Coordinador/PanelCoordinador'
 import PanelAdmin       from './screens/Admin/PanelAdmin'
 import AdminMedicos        from './screens/Admin/AdminMedicos'
 import AdminMedicoDetalle  from './screens/Admin/AdminMedicoDetalle'
@@ -20,6 +22,7 @@ import AdminBoticas        from './screens/Admin/AdminBoticas'
 import AdminBoticaDetalle  from './screens/Admin/AdminBoticaDetalle'
 import AdminEmpresas       from './screens/Admin/AdminEmpresas'
 import AdminEmpresaDetalle from './screens/Admin/AdminEmpresaDetalle'
+import AdminCoordinadores  from './screens/Admin/AdminCoordinadores'
 import AdminCobertura      from './screens/Admin/AdminCobertura'
 import AdminConsultas      from './screens/Admin/AdminConsultas'
 import AdminFinanzas       from './screens/Admin/AdminFinanzas'
@@ -126,6 +129,7 @@ export default function App() {
             <Route path="/admin/boticas/:boticaId"         element={<AdminBoticaDetalle />}  />
             <Route path="/admin/empresas"                  element={<AdminEmpresas />}       />
             <Route path="/admin/empresas/:planId"          element={<AdminEmpresaDetalle />} />
+            <Route path="/admin/coordinadores"             element={<AdminCoordinadores />}  />
             <Route path="/admin/cobertura"                 element={<AdminCobertura />}      />
             <Route path="/admin/consultas"                 element={<AdminConsultas />}      />
             <Route path="/admin/finanzas"                  element={<AdminFinanzas />}       />
@@ -135,6 +139,11 @@ export default function App() {
           <Route element={<FarmaciaRoute />}>
             <Route path="/farmacia/panel"                    element={<PanelFarmacia />} />
             <Route path="/farmacia/pago/:appointmentId"      element={<Payment />}       />
+          </Route>
+
+          {/* Solo coordinadores de zona */}
+          <Route element={<CoordinadorRoute />}>
+            <Route path="/coordinador/panel" element={<PanelCoordinador />} />
           </Route>
 
           <Route element={<OnboardingGuardedShell />}>

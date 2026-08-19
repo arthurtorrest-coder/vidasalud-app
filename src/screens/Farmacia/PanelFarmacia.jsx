@@ -4,6 +4,7 @@ import toast, { Toaster } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import { C } from '../../lib/tokens'
+import { COMISION_BOTICA } from '../../lib/finanzas'
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -293,7 +294,7 @@ export default function PanelFarmacia() {
       paciente:   patMap[a.patient_id] ?? '—',
       medico:     a.doctor ? `${a.doctor.nombres ?? ''} ${a.doctor.apellidos ?? ''}`.trim() : '—',
       monto:      Number(a.precio_total ?? 0),
-      comision:   5,
+      comision:   COMISION_BOTICA,
       pagada:     a.comision_pagada ?? false,
       pdfUrl:     prescMap[a.id] ?? null,
     }))
@@ -917,7 +918,7 @@ export default function PanelFarmacia() {
                   Por consulta referida
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: C.green300 }}>
-                  S/. 5.00
+                  S/. {COMISION_BOTICA}.00
                 </div>
               </div>
             </div>

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 
 export function useAuth() {
-  const { setUser, setProfile, setDoctor, setFarmacia, setLoading } = useAuthStore()
+  const { setUser, setProfile, setDoctor, setFarmacia, setCoordinador, setLoading } = useAuthStore()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -21,6 +21,7 @@ export function useAuth() {
         setProfile(null)
         setDoctor(null)
         setFarmacia(null)
+        setCoordinador(null)
         setLoading(false)
       }
     })
@@ -82,6 +83,16 @@ export function useAuth() {
         })
         setFarmacia(f ?? null)
       }
+    }
+
+    if (profileData?.role === 'coordinador') {
+      const { data: coord, error: coordErr } = await supabase
+        .from('coordinadores')
+        .select('id, nombres, apellidos, zona_principal, activo')
+        .eq('profile_id', userId)
+        .maybeSingle()
+      console.log('[useAuth] coordinador —', { id: coord?.id ?? null, error: coordErr?.message ?? null })
+      setCoordinador(coord ?? null)
     }
 
     console.log('[useAuth] fetchProfile DONE — loading → false')

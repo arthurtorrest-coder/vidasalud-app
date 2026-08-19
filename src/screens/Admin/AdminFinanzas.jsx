@@ -9,6 +9,7 @@ import {
 import { toast, Toaster } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { C } from '../../lib/tokens'
+import { repartoConsulta, COMISION_BOTICA, COMISION_COORDINADOR } from '../../lib/finanzas'
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ export default function AdminFinanzas() {
         .gte('scheduled_at', last30Start)),
       safe(supabase
         .from('farmacias')
-        .select('id, nombre, ciudad, comision_porcentaje')
+        .select('id, nombre, ciudad, comision_porcentaje, coordinador_id')
         .eq('aprobado', true)),
     ])
 
@@ -121,15 +122,30 @@ export default function AdminFinanzas() {
     [appts, startOfMonth, endOfMonth]
   )
 
+  const farmaciaMap = useMemo(
+    () => Object.fromEntries(farmacias.map(f => [f.id, f])),
+    [farmacias]
+  )
+
+  function repartoAppt(a) {
+    const farm = a.farmacia_referente_id ? farmaciaMap[a.farmacia_referente_id] : null
+    return repartoConsulta({
+      especialidad:     a.doctor?.especialidad,
+      precioNeto:       Number(a.precio_total) || Number(a.doctor?.precio) || 0,
+      tieneBotica:      !!a.farmacia_referente_id,
+      tieneCoordinador: !!farm?.coordinador_id,
+    })
+  }
+
   const stats = useMemo(() => {
-    const conFarm            = monthAppts.filter(a => a.farmacia_referente_id)
-    const sinFarm            = monthAppts.filter(a => !a.farmacia_referente_id)
-    const ingresosClinica    = conFarm.length * 10 + sinFarm.length * 15
-    const comisionesMedicos  = monthAppts.reduce((s, a) => s + Math.max(0, getPrecio(a) - 15), 0)
-    const comisionesBoticas  = conFarm.length * 5
-    const consultas          = monthAppts.length
-    return { ingresosClinica, comisionesMedicos, comisionesBoticas, consultas }
-  }, [monthAppts])
+    const repartos = monthAppts.map(repartoAppt)
+    const ingresosClinica       = repartos.reduce((s, r) => s + r.clinica,     0)
+    const comisionesMedicos     = repartos.reduce((s, r) => s + r.medico,      0)
+    const comisionesBoticas     = repartos.reduce((s, r) => s + r.botica,      0)
+    const comisionesCoordinadores = repartos.reduce((s, r) => s + r.coordinador, 0)
+    const consultas              = monthAppts.length
+    return { ingresosClinica, comisionesMedicos, comisionesBoticas, comisionesCoordinadores, consultas }
+  }, [monthAppts, farmaciaMap])
 
   // ── Datos del gráfico (últimos 30 días) ─────────────────────
   const incomeByDay = useMemo(() => {
@@ -170,7 +186,7 @@ export default function AdminFinanzas() {
         }
       }
       map[a.farmacia_referente_id].consultas++
-      map[a.farmacia_referente_id].comision += 5
+      map[a.farmacia_referente_id].comision += COMISION_BOTICA
     }
     return Object.values(map).sort((a, b) => b.comision - a.comision)
   }, [appts, farmacias])
@@ -194,10 +210,10 @@ export default function AdminFinanzas() {
         }
       }
       map[doc.id].consultas++
-      map[doc.id].comision += Math.max(0, getPrecio(a) - 15)
+      map[doc.id].comision += repartoAppt(a).medico
     }
     return Object.values(map).sort((a, b) => b.comision - a.comision)
-  }, [monthAppts])
+  }, [monthAppts, farmaciaMap])
 
   // ── Exportar PDF ─────────────────────────────────────────────
   async function exportPDF() {
@@ -248,16 +264,17 @@ export default function AdminFinanzas() {
       const kpis = [
         { label: 'Ingresos clínica',  value: fmtSoles(stats.ingresosClinica),   sub: `${stats.consultas} consultas` },
         { label: 'Comis. médicos',    value: fmtSoles(stats.comisionesMedicos),  sub: 'a liquidar'                  },
-        { label: 'Comis. boticas',    value: fmtSoles(stats.comisionesBoticas),  sub: 'S/. 5 por referida'          },
+        { label: 'Comis. boticas',    value: fmtSoles(stats.comisionesBoticas),  sub: `S/. ${COMISION_BOTICA} por referida` },
+        { label: 'Comis. coordinadores', value: fmtSoles(stats.comisionesCoordinadores), sub: `S/. ${COMISION_COORDINADOR} por referida` },
         { label: 'Consultas',         value: String(stats.consultas),            sub: 'completadas'                 },
       ]
-      const bW = (TW - 9) / 4
+      const bW = (TW - 12) / 5
       kpis.forEach((k, i) => {
         const x = ML + i * (bW + 3)
         doc.setFillColor(236, 253, 245); doc.roundedRect(x, y, bW, 26, 3, 3, 'F')
         doc.setDrawColor(...GL); doc.setLineWidth(0.35); doc.roundedRect(x, y, bW, 26, 3, 3, 'S')
         doc.setFillColor(...GM); doc.rect(x, y, 2.5, 26, 'F')
-        doc.setFontSize(i === 0 || i === 1 || i === 2 ? 8 : 13)
+        doc.setFontSize(i === 4 ? 13 : 8)
         doc.setFont('helvetica', 'bold'); doc.setTextColor(...GN)
         doc.text(k.value, x + bW / 2, y + 10, { align: 'center' })
         doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(...GY)
@@ -298,7 +315,7 @@ export default function AdminFinanzas() {
       doc.setDrawColor(...GL); doc.setLineWidth(0.4); doc.line(ML, yBot + 2, ML + 68, yBot + 2)
 
       const botRows = boticasData.map(b => [
-        b.nombre, b.ciudad, String(b.consultas), 'S/. 5 c/u', fmtSoles(b.comision),
+        b.nombre, b.ciudad, String(b.consultas), `S/. ${COMISION_BOTICA} c/u`, fmtSoles(b.comision),
       ])
 
       autoTable(doc, {
@@ -430,15 +447,16 @@ export default function AdminFinanzas() {
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px 48px' }}>
 
         {/* ── Stats del mes ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-          {loading ? [1,2,3,4].map(i => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
+          {loading ? [1,2,3,4,5].map(i => (
             <div key={i} style={{ background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`, padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               {skeletonBar('40%', 26)} {skeletonBar('55%', 12)}
             </div>
           )) : <>
             <StatCard icon="🏥" value={fmtSoles(stats.ingresosClinica)}    label="Ingresos clínica"      sub={`${stats.consultas} consultas completadas`} pill="MES" />
             <StatCard icon="👨‍⚕️" value={fmtSoles(stats.comisionesMedicos)} label="Comisiones médicos"    sub="A liquidar con médicos" accent={C.blueText} bg={C.blueBg} pill="MES" />
-            <StatCard icon="🏪" value={fmtSoles(stats.comisionesBoticas)}  label="Comisiones boticas"    sub={`${boticasData.length} botica${boticasData.length !== 1 ? 's' : ''} con referidos`} accent={C.amberText} bg={C.amberBg} pill="MES" />
+            <StatCard icon="🏪" value={fmtSoles(stats.comisionesBoticas)}  label="Comisiones boticas"    sub={`S/. ${COMISION_BOTICA} por referida`} accent={C.amberText} bg={C.amberBg} pill="MES" />
+            <StatCard icon="🧭" value={fmtSoles(stats.comisionesCoordinadores)} label="Comisiones coordinadores" sub={`S/. ${COMISION_COORDINADOR} por referida con coordinador`} accent="#6D28D9" bg="#F5F3FF" pill="MES" />
             <StatCard icon="✅" value={stats.consultas}                     label="Consultas completadas" sub="Con status=done" pill="MES" />
           </>}
         </div>
@@ -548,7 +566,7 @@ export default function AdminFinanzas() {
                   </td>
                   <td style={{ padding: '11px 14px', borderBottom: `1px solid ${C.gray100}`, textAlign: 'right' }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: C.green700, background: C.green50, padding: '3px 8px', borderRadius: 20 }}>
-                      S/. 5 c/u
+                      S/. {COMISION_BOTICA} c/u
                     </span>
                   </td>
                   <td style={{ padding: '11px 14px', fontSize: 14, fontWeight: 900, color: C.green700, borderBottom: `1px solid ${C.gray100}`, textAlign: 'right' }}>

@@ -2,14 +2,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { C } from '../../lib/tokens'
+import { COMISION_BOTICA } from '../../lib/finanzas'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts'
-
-// ── Modelo financiero ─────────────────────────────────────────────
-// Botica recibe S/. 5 por cada consulta referida completada
-const COMISION_BOTICA = 5
 
 // ── Helpers ───────────────────────────────────────────────────────
 const MESES_ABR  = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
@@ -68,8 +65,9 @@ export default function AdminBoticaDetalle() {
 
   const limaAhora = useMemo(() => new Date(Date.now() - 5 * 3_600_000), [])
 
-  const [botica,    setBotica]    = useState(null)
-  const [consultas, setConsultas] = useState([])
+  const [botica,      setBotica]      = useState(null)
+  const [coordinador, setCoordinador] = useState(null)
+  const [consultas,   setConsultas]   = useState([])
   const [chartData, setChartData] = useState([])
   const [loading,   setLoading]   = useState(true)
   const [mes,       setMes]       = useState(() => limaAhora.getUTCMonth())
@@ -79,11 +77,22 @@ export default function AdminBoticaDetalle() {
   useEffect(() => {
     supabase
       .from('farmacias')
-      .select('id, nombre, codigo_digemid, ciudad, distrito, direccion, telefono, propietario_nombre, email, activo, comision_porcentaje, codigo_referido')
+      .select('id, nombre, codigo_digemid, ciudad, distrito, direccion, telefono, propietario_nombre, email, activo, comision_porcentaje, codigo_referido, coordinador_id')
       .eq('id', boticaId)
       .single()
       .then(({ data }) => setBotica(data ?? null))
   }, [boticaId])
+
+  // Coordinador de zona vinculado (si tiene)
+  useEffect(() => {
+    if (!botica?.coordinador_id) { setCoordinador(null); return }
+    supabase
+      .from('coordinadores')
+      .select('id, nombres, apellidos, zona_principal')
+      .eq('id', botica.coordinador_id)
+      .single()
+      .then(({ data }) => setCoordinador(data ?? null))
+  }, [botica?.coordinador_id])
 
   // Consultas referidas del mes
   const fetchConsultas = useCallback(async () => {
@@ -210,14 +219,22 @@ export default function AdminBoticaDetalle() {
                 <span>🔗 Código: <strong style={{ color: C.gray700 }}>{botica.codigo_referido}</strong></span>
               )}
             </div>
-            {/* Badge de comisión */}
-            <div style={{ marginTop: 8 }}>
+            {/* Badge de comisión + coordinador */}
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <span style={{
                 fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
                 background: C.green50, color: C.green700, border: `1px solid ${C.green200}`,
               }}>
                 Comisión: S/. {COMISION_BOTICA} por paciente referido atendido
               </span>
+              {botica?.coordinador_id && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                  background: '#F5F3FF', color: '#6D28D9', border: '1px solid #DDD6FE',
+                }}>
+                  🧭 Coordinador: {coordinador ? `${coordinador.nombres} ${coordinador.apellidos}` : 'Cargando…'}
+                </span>
+              )}
             </div>
           </div>
 

@@ -79,5 +79,14 @@ export default function ProtectedRoute() {
     return <Navigate to="/farmacia/panel" replace />
   }
 
+  // Coordinador fuera de su sección → panel coordinador
+  if (
+    profile?.role === 'coordinador' &&
+    !location.pathname.startsWith('/coordinador')
+  ) {
+    console.log('[ProtectedRoute] → redirigiendo coordinador a /coordinador/panel')
+    return <Navigate to="/coordinador/panel" replace />
+  }
+
   return <Outlet />
 }

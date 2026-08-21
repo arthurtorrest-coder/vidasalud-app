@@ -34,6 +34,10 @@ function codigoCopy(codigo) {
   toast.success('Código copiado')
 }
 
+function esGeneral(d) {
+  return (d?.especialidad ?? '').toLowerCase().includes('general')
+}
+
 // ─── Sub-componentes ──────────────────────────────────────────
 
 function StatCard({ icon, value, label, color = C.green700 }) {
@@ -200,6 +204,11 @@ export default function PanelFarmacia() {
   const [comisiones,  setComisiones]  = useState([])
   const [stats,       setStats]       = useState({ pacientes: 0, consultas: 0, comisionMes: 0, pacientesMes: 0 })
 
+  // Turno de guardia (Medicina General) solicitado en nombre de un paciente referido
+  const [solicitudesPorPaciente, setSolicitudesPorPaciente] = useState({}) // patientId -> solicitud
+  const [solicitudCreando,       setSolicitudCreando]       = useState(false)
+  const patientIdsRef = useRef(new Set())
+
   // Form: registrar paciente
   const [form,           setForm]           = useState({ nombre: '', dni: '', telefono: '', email: '' })
   const [registering,    setRegistering]    = useState(false)
@@ -250,13 +259,27 @@ export default function PanelFarmacia() {
 
     const patIds = (pats ?? []).map(p => p.id)
     setPatients(pats ?? [])
+    patientIdsRef.current = new Set(patIds)
 
     if (patIds.length === 0) {
       setComisiones([])
+      setSolicitudesPorPaciente({})
       setStats({ pacientes: 0, consultas: 0, comisionMes: 0, pacientesMes: 0 })
       setLoading(false)
       return
     }
+
+    // Solicitudes de turno de guardia pendientes de estos pacientes
+    const { data: sols, error: solsError } = await supabase
+      .from('solicitudes_turno')
+      .select('id, patient_id, status, created_at, expires_at, appointment_id')
+      .in('patient_id', patIds)
+      .eq('status', 'pendiente')
+      .gt('expires_at', new Date().toISOString())
+    console.log('[PanelFarmacia] query solicitudes_turno:', {
+      sols_count: sols?.length ?? 'null', error: solsError?.message ?? null,
+    })
+    setSolicitudesPorPaciente(Object.fromEntries((sols ?? []).map(s => [s.patient_id, s])))
 
     // 2. Citas de esos pacientes (completadas)
     const { data: appts } = await supabase
@@ -316,6 +339,34 @@ export default function PanelFarmacia() {
   }, [farmacia?.id])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Realtime: estado de las solicitudes de turno de los pacientes referidos
+  useEffect(() => {
+    if (!farmacia?.id) return
+    const channel = supabase
+      .channel(`farmacia-solicitudes-${farmacia.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_turno' }, (payload) => {
+        const row = payload.new ?? payload.old
+        if (!row?.patient_id || !patientIdsRef.current.has(row.patient_id)) return
+
+        setSolicitudesPorPaciente(prev => {
+          const next = { ...prev }
+          if (payload.eventType === 'DELETE' || ['expirada', 'completada'].includes(payload.new?.status)) {
+            delete next[row.patient_id]
+          } else {
+            next[row.patient_id] = payload.new
+          }
+          return next
+        })
+
+        if (payload.new?.status === 'tomada') {
+          const nombre = patients.find(p => p.id === row.patient_id)?.full_name ?? 'el paciente'
+          toast.success(`🎉 Un médico tomó el turno de ${nombre}`, { duration: 5000 })
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [farmacia?.id, patients])
 
   useEffect(() => {
     async function loadDispDoctors() {
@@ -436,6 +487,35 @@ export default function PanelFarmacia() {
       toast.error(err.message)
     } finally {
       setBookingSubmitting(false)
+    }
+  }
+
+  async function crearSolicitudTurno() {
+    if (!bookingState?.patientId) return
+    setSolicitudCreando(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('crear-solicitud-turno-farmacia', {
+        body: { patient_id: bookingState.patientId },
+      })
+      if (error || !data?.ok) throw new Error(data?.error ?? error?.message ?? 'Error al crear la solicitud')
+
+      setSolicitudesPorPaciente(prev => ({ ...prev, [bookingState.patientId]: data.solicitud }))
+      toast.success('¡Listo! Te avisamos cuando haya un médico disponible.')
+
+      if (!data.existente) {
+        // Notificar a médicos de Medicina General vía Web Push (fire-and-forget)
+        supabase.functions
+          .invoke('notificar-turno-medicos', {
+            body: { patient_id: bookingState.patientId, patient_name: bookingState.patientName },
+          })
+          .then(({ error: fnErr }) => {
+            if (fnErr) console.warn('[notificar-turno-medicos]', fnErr.message)
+          })
+      }
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setSolicitudCreando(false)
     }
   }
 
@@ -877,6 +957,19 @@ export default function PanelFarmacia() {
                     <div style={{ fontSize: 10, color: C.gray400, marginTop: 2 }}>
                       Registrado: {fmtDate(p.created_at)}
                     </div>
+                    {solicitudesPorPaciente[p.id] && (
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4,
+                        fontSize: 10, fontWeight: 700,
+                        color:      solicitudesPorPaciente[p.id].status === 'tomada' ? C.green700 : '#B45309',
+                        background: solicitudesPorPaciente[p.id].status === 'tomada' ? C.green50  : '#FFFBEB',
+                        padding: '2px 8px', borderRadius: 10,
+                      }}>
+                        {solicitudesPorPaciente[p.id].status === 'tomada'
+                          ? '✅ Médico asignado — falta pagar'
+                          : '🔔 Turno de guardia solicitado'}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => openBooking(p.id, p.full_name)}
@@ -1114,6 +1207,10 @@ export default function PanelFarmacia() {
               const disponibles = filtered.filter(d => availableNowIds.has(d.id))
               const otros       = filtered.filter(d => !availableNowIds.has(d.id))
 
+              // Turno de guardia: solo aplica si no hay médicos de Medicina General disponibles ahora
+              const generalDisponibleAhora = bookingDoctors.some(d => availableNowIds.has(d.id) && esGeneral(d))
+              const solicitudPaciente = bookingState?.patientId ? solicitudesPorPaciente[bookingState.patientId] : null
+
               const { diaSemana, horaActual } = getLimaDateTime()
               console.log('[PanelFarmacia] booking paso1:', {
                 doctores:      bookingDoctors.length,
@@ -1187,6 +1284,85 @@ export default function PanelFarmacia() {
                       onBlur={e  => { e.target.style.borderColor = C.gray300  }}
                     />
                   </div>
+
+                  {/* Turno de guardia — cuando no hay médicos de Medicina General disponibles ahora */}
+                  {!generalDisponibleAhora && bookingDoctors.length > 0 && (
+                    <div style={{ padding: '0 18px 12px', flexShrink: 0 }}>
+                      {solicitudPaciente?.status === 'tomada' ? (
+                        <div style={{
+                          background: C.green50, border: `1.5px solid ${C.green200}`,
+                          borderRadius: 12, padding: '12px 14px',
+                          display: 'flex', alignItems: 'center', gap: 10,
+                        }}>
+                          <span style={{ fontSize: 18 }}>✅</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: C.green800 }}>
+                              ¡Médico asignado a {bookingState.patientName}!
+                            </div>
+                            <div style={{ fontSize: 10, color: C.green700, marginTop: 2 }}>
+                              La cita ya fue creada — completa el pago para confirmarla
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const apptId = solicitudPaciente.appointment_id
+                              closeBooking()
+                              if (apptId) navigate(`/farmacia/pago/${apptId}`)
+                            }}
+                            style={{
+                              padding: '8px 12px', border: 'none', borderRadius: 8,
+                              background: C.green700, color: C.white, fontSize: 11, fontWeight: 800,
+                              cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
+                            }}
+                          >
+                            💳 Ir a pagar
+                          </button>
+                        </div>
+                      ) : solicitudPaciente?.status === 'pendiente' ? (
+                        <div style={{
+                          background: 'linear-gradient(135deg, #065F46, #059669)',
+                          borderRadius: 12, padding: '12px 14px',
+                          display: 'flex', alignItems: 'center', gap: 10,
+                        }}>
+                          <span style={{ fontSize: 18 }}>🔔</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: C.white }}>
+                              Buscando médico de guardia para {bookingState.patientName}…
+                            </div>
+                            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
+                              Te avisamos aquí en cuanto un médico tome el turno
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={crearSolicitudTurno}
+                          disabled={solicitudCreando}
+                          style={{
+                            width: '100%', padding: '12px 14px', border: 'none', borderRadius: 12,
+                            background: solicitudCreando
+                              ? C.gray200
+                              : `linear-gradient(135deg, #065F46, ${C.green600})`,
+                            color: solicitudCreando ? C.gray500 : C.white,
+                            cursor: solicitudCreando ? 'not-allowed' : 'pointer',
+                            fontFamily: 'inherit', textAlign: 'left',
+                            display: 'flex', alignItems: 'center', gap: 10,
+                          }}
+                        >
+                          <span style={{ fontSize: 18, flexShrink: 0 }}>🔔</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: 800 }}>
+                              {solicitudCreando ? 'Registrando solicitud…' : 'Solicitar turno de guardia'}
+                            </div>
+                            <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.85, marginTop: 2 }}>
+                              Sin médicos de Medicina General disponibles ahora · te avisamos en máx. 30 min
+                            </div>
+                          </div>
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {bookingDoctors.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '32px 0', color: C.gray400 }}>

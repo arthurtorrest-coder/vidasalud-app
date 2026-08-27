@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { supabase } from '../../lib/supabase'
 import { C } from '../../lib/tokens'
 import { COMISION_BOTICA } from '../../lib/finanzas'
@@ -18,9 +20,8 @@ function fmtSoles(n) {
 }
 
 function fmtFecha(iso) {
-  return new Date(iso).toLocaleDateString('es-PE', {
-    timeZone: 'America/Lima', day: '2-digit', month: 'short', year: 'numeric',
-  })
+  if (!iso) return '—'
+  return format(new Date(iso), 'd MMM yyyy', { locale: es })
 }
 
 function getMesRango(m, y) {

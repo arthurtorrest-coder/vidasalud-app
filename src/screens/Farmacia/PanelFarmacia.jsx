@@ -519,6 +519,26 @@ export default function PanelFarmacia() {
     }
   }
 
+  async function cancelarSolicitudTurno(patientId) {
+    const solicitud = solicitudesPorPaciente[patientId]
+    if (!solicitud?.id) return
+    try {
+      const { data, error } = await supabase.functions.invoke('cancelar-solicitud-turno-farmacia', {
+        body: { solicitud_id: solicitud.id },
+      })
+      if (error || !data?.ok) throw new Error(data?.error ?? error?.message ?? 'Error al cancelar la solicitud')
+
+      setSolicitudesPorPaciente(prev => {
+        const next = { ...prev }
+        delete next[patientId]
+        return next
+      })
+      toast('Turno de guardia cancelado.', { icon: 'ℹ️' })
+    } catch (err) {
+      toast.error(err.message)
+    }
+  }
+
   async function handleLogoUpload(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -958,16 +978,30 @@ export default function PanelFarmacia() {
                       Registrado: {fmtDate(p.created_at)}
                     </div>
                     {solicitudesPorPaciente[p.id] && (
-                      <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4,
-                        fontSize: 10, fontWeight: 700,
-                        color:      solicitudesPorPaciente[p.id].status === 'tomada' ? C.green700 : '#B45309',
-                        background: solicitudesPorPaciente[p.id].status === 'tomada' ? C.green50  : '#FFFBEB',
-                        padding: '2px 8px', borderRadius: 10,
-                      }}>
-                        {solicitudesPorPaciente[p.id].status === 'tomada'
-                          ? '✅ Médico asignado — falta pagar'
-                          : '🔔 Turno de guardia solicitado'}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                        <div style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          fontSize: 10, fontWeight: 700,
+                          color:      solicitudesPorPaciente[p.id].status === 'tomada' ? C.green700 : '#B45309',
+                          background: solicitudesPorPaciente[p.id].status === 'tomada' ? C.green50  : '#FFFBEB',
+                          padding: '2px 8px', borderRadius: 10,
+                        }}>
+                          {solicitudesPorPaciente[p.id].status === 'tomada'
+                            ? '✅ Médico asignado — falta pagar'
+                            : '🔔 Turno de guardia solicitado'}
+                        </div>
+                        {solicitudesPorPaciente[p.id].status === 'pendiente' && (
+                          <button
+                            onClick={() => cancelarSolicitudTurno(p.id)}
+                            style={{
+                              border: 'none', background: 'none', padding: 0,
+                              fontSize: 10, fontWeight: 700, color: C.gray400,
+                              textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

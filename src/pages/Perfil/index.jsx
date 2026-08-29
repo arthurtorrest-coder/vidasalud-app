@@ -30,7 +30,7 @@ function getInitials(fullName, email) {
   return (email?.[0] ?? 'U').toUpperCase()
 }
 
-function Field({ label, value, icon, readOnly, inputProps }) {
+function Field({ label, value, icon, readOnly, alwaysLocked, inputProps }) {
   const [focused, setFocused] = useState(false)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -59,7 +59,7 @@ function Field({ label, value, icon, readOnly, inputProps }) {
             }}
           />
         )}
-        {readOnly && (
+        {alwaysLocked && (
           <span style={{ fontSize: 12, color: C.gray400, fontWeight: 600, flexShrink: 0 }}>No editable</span>
         )}
       </div>
@@ -278,6 +278,7 @@ export default function Perfil() {
             icon="📧"
             value={email}
             readOnly
+            alwaysLocked
           />
         </div>
 

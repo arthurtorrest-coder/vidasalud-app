@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { precioTotalPaciente } from '../../lib/finanzas'
 
 const C = {
   green900: '#064E3B', green800: '#065F46', green700: '#047857',
@@ -90,7 +91,8 @@ function formatDoc(row) {
   const apellidos = row.apellidos ?? ''
   const spec      = row.especialidad ?? row.specialty ?? ''
   const cmp       = row.cmp ?? row.cmp_code ?? ''
-  const precio    = row.precio ?? (row.consultation_fee ? Math.round(row.consultation_fee / 100) : 0)
+  const precioNeto = row.precio ?? (row.consultation_fee ? Math.round(row.consultation_fee / 100) : 0)
+  const precio    = precioTotalPaciente({ especialidad: spec, precioMedico: precioNeto })
   const isCPsP    = cmp.startsWith('CPsP')
   const femenino  = nombres.trimEnd().endsWith('a')
   const titulo    = isCPsP ? 'Psic.' : femenino ? 'Dra.' : 'Dr.'

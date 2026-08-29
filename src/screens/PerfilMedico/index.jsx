@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { C, S } from '../../lib/tokens'
+import { precioTotalPaciente } from '../../lib/finanzas'
 
 const DIAS     = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 const DIAS_ABR = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
@@ -202,7 +203,7 @@ export default function PerfilMedico() {
   const initials  = (nombres[0] ?? '?').toUpperCase() + (apellidos[0] ?? '?').toUpperCase()
   const rating    = Number(doctor.rating ?? 0)
   const revCount  = doctor.total_reviews ?? 0
-  const price     = doctor.precio ?? 0
+  const price     = precioTotalPaciente({ especialidad: doctor.especialidad, precioMedico: doctor.precio })
   const bio       = doctor.bio ?? doctor.descripcion ?? null
 
   const slots = getAvailableSlotsThisWeek(schedules)

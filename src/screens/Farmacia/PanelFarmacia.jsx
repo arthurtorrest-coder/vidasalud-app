@@ -4,7 +4,7 @@ import toast, { Toaster } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import { C } from '../../lib/tokens'
-import { COMISION_BOTICA } from '../../lib/finanzas'
+import { COMISION_BOTICA, precioTotalPaciente } from '../../lib/finanzas'
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -1290,7 +1290,7 @@ export default function PanelFarmacia() {
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: C.green700 }}>
-                        S/. {d.precio ?? '—'}
+                        S/. {d.precio != null ? precioTotalPaciente({ especialidad: d.especialidad, precioMedico: d.precio }) : '—'}
                       </div>
                       {isNow && (
                         <div style={{ fontSize: 9, fontWeight: 700, color: C.green700, marginTop: 2 }}>
@@ -1512,7 +1512,7 @@ export default function PanelFarmacia() {
                       {bookingDoctor?.nombres} {bookingDoctor?.apellidos}
                     </div>
                     <div style={{ fontSize: 11, color: C.green700 }}>
-                      {bookingDoctor?.especialidad} · S/. {bookingDoctor?.precio}
+                      {bookingDoctor?.especialidad} · S/. {bookingDoctor ? precioTotalPaciente({ especialidad: bookingDoctor.especialidad, precioMedico: bookingDoctor.precio }) : '—'}
                     </div>
                   </div>
                   <button

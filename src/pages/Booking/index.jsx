@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import { C } from '../../lib/tokens'
+import { precioTotalPaciente } from '../../lib/finanzas'
 
 /* Nombres cortos por getDay() — 0=Dom … 6=Sáb */
 const DIAS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
@@ -479,6 +480,10 @@ export default function Booking() {
   })
   const [submitting,    setSubmitting]    = useState(false)
 
+  const precioPaciente = doctor
+    ? precioTotalPaciente({ especialidad: doctor.especialidad, precioMedico: doctor.precio })
+    : 0
+
   /* cargar datos del médico + días de horario configurados */
   useEffect(() => {
     supabase
@@ -690,7 +695,7 @@ export default function Booking() {
                     ({doctor.total_reviews} reseñas)
                   </span>
                   <span style={{ fontSize: 14, fontWeight: 800, color: C.green700, marginLeft: 'auto' }}>
-                    S/. {doctor.precio}
+                    S/. {precioPaciente}
                   </span>
                 </div>
               </div>
@@ -854,7 +859,7 @@ export default function Booking() {
               <ResumenFila label="🕐 Hora"       value={`${selectedTime} · hora Lima`} />
               <ResumenFila label="⏱ Duración"   value="20 minutos" />
               <div style={{ borderTop: `1px solid ${C.green200}`, paddingTop: 10, marginTop: 2 }}>
-                <ResumenFila label="Total a pagar" value={`S/. ${doctor.precio}`} grande />
+                <ResumenFila label="Total a pagar" value={`S/. ${precioPaciente}`} grande />
               </div>
             </div>
           </div>

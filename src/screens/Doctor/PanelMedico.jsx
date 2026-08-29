@@ -1434,7 +1434,7 @@ export default function PanelMedico() {
         status:           'pending',
         scheduled_at:     new Date().toISOString(),
         duration_minutes: 20,
-        precio_total:     doctorInfo.precio ?? 25,
+        precio_total:     doctorInfo.precio ?? 31,
       })
       .select('id')
       .single()

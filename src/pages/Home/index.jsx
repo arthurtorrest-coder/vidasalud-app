@@ -5,9 +5,10 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import VideoRoom from '../../components/VideoRoom'
 import { C } from '../../lib/tokens'
+import { precioTotalPaciente } from '../../lib/finanzas'
 
 const SPECIALTIES = [
-  { icon: '🩺', label: 'General',     price: 25 },
+  { icon: '🩺', label: 'General',     price: 31 },
   { icon: '👶', label: 'Pediatría',   price: 45 },
   { icon: '🧠', label: 'Psicología',  price: 50 },
   { icon: '🥗', label: 'Nutrición',   price: 40 },
@@ -77,7 +78,8 @@ function formatDoc(row) {
   const apellidos  = row.apellidos ?? ''
   const spec       = row.especialidad ?? row.specialty ?? ''
   const cmp        = row.cmp       ?? row.cmp_code   ?? ''
-  const precio     = row.precio    ?? (row.consultation_fee ? Math.round(row.consultation_fee / 100) : 0)
+  const precioNeto = row.precio    ?? (row.consultation_fee ? Math.round(row.consultation_fee / 100) : 0)
+  const precio     = precioTotalPaciente({ especialidad: spec, precioMedico: precioNeto })
   const isCPsP     = cmp.startsWith('CPsP')
   const esFemenino = nombres.trimEnd().endsWith('a')
   const titulo     = isCPsP ? 'Psic.' : esFemenino ? 'Dra.' : 'Dr.'

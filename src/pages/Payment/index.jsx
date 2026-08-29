@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { C } from '../../lib/tokens'
+import { precioTotalPaciente } from '../../lib/finanzas'
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 function codigoCita(id) {
@@ -376,6 +377,9 @@ function VistaConfirmada({ appointment, doctor, onInicio, onMensaje, onCola }) {
   const { fecha, hora } = formatScheduledAt(appointment.scheduled_at)
   const codigo    = codigoCita(appointment.id)
   const docName   = doctor ? `${doctor.nombres} ${doctor.apellidos}` : 'tu médico'
+  const precioPaciente = doctor
+    ? precioTotalPaciente({ especialidad: doctor.especialidad, precioMedico: doctor.precio })
+    : 0
 
   return (
     <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -541,7 +545,7 @@ function VistaConfirmada({ appointment, doctor, onInicio, onMensaje, onCola }) {
           }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: C.green800 }}>✅ Total pagado</span>
             <span style={{ fontSize: 20, fontWeight: 900, color: C.green700 }}>
-              S/. {doctor?.precio}.00
+              S/. {precioPaciente}.00
             </span>
           </div>
         </div>
@@ -735,6 +739,9 @@ export default function Payment() {
   /* ── Pantalla de pago ── */
   const { fecha, hora } = appointment ? formatScheduledAt(appointment.scheduled_at) : {}
   const titulo          = doctor ? doctorTitle(doctor.cmp, doctor.nombres) : ''
+  const precioPaciente  = doctor
+    ? precioTotalPaciente({ especialidad: doctor.especialidad, precioMedico: doctor.precio })
+    : 0
 
   return (
     <>
@@ -830,7 +837,7 @@ export default function Payment() {
               </div>
             </div>
             <div style={{ fontSize: 18, fontWeight: 900, color: C.green700, flexShrink: 0 }}>
-              S/. {doctor.precio}
+              S/. {precioPaciente}
             </div>
           </div>
         )}
@@ -848,14 +855,14 @@ export default function Payment() {
         {(metodo === 'yape' || metodo === 'plin') && (
           <MetodoQR
             metodo={metodo}
-            precio={doctor?.precio ?? 0}
+            precio={precioPaciente}
             loading={processing}
             onConfirm={handlePay}
           />
         )}
         {metodo === 'tarjeta' && (
           <MetodoTarjeta
-            precio={doctor?.precio ?? 0}
+            precio={precioPaciente}
             loading={processing}
             onConfirm={handlePay}
           />

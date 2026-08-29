@@ -17,7 +17,7 @@ export function esGeneralista(especialidad) {
 }
 
 // Pago al médico por una consulta completada.
-// Medicina General: S/. 10 fijo. Especialista: su precio neto configurado.
+// Medicina General: S/. 15 fijo. Especialista: su precio neto configurado.
 export function pagoMedico({ esGeneral, precioNeto }) {
   return esGeneral ? TARIFA_GENERAL : (Number(precioNeto) || 0)
 }
@@ -43,4 +43,13 @@ export function repartoConsulta({ especialidad, precioNeto, tieneBotica, tieneCo
   const medico    = pagoMedico({ esGeneral, precioNeto })
   const margen    = repartoMargen({ tieneBotica, tieneCoordinador })
   return { medico, ...margen }
+}
+
+// Precio total que paga el paciente: pago al médico + margen completo (S/. 16).
+// El margen total no cambia con botica/coordinador — solo cambia cómo se
+// reparte internamente (ver repartoMargen) — por eso aquí siempre se suma
+// MARGEN_TOTAL completo, sin importar si la consulta viene referida.
+export function precioTotalPaciente({ especialidad, precioMedico }) {
+  const esGeneral = esGeneralista(especialidad)
+  return pagoMedico({ esGeneral, precioNeto: precioMedico }) + MARGEN_TOTAL
 }

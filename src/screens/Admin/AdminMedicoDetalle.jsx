@@ -2,15 +2,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { C } from '../../lib/tokens'
+import { TARIFA_GENERAL, esGeneralista } from '../../lib/finanzas'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts'
-
-// ── Modelo financiero ─────────────────────────────────────────────
-// Medicina General: médico recibe S/. 10 fijo
-// Especialista:     médico recibe su precio configurado (precio neto)
-const TARIFA_GENERAL = 10
 
 // ── Helpers ───────────────────────────────────────────────────────
 const MESES_ABR  = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
@@ -32,10 +28,6 @@ function getMesRango(m, y) {
     inicio: new Date(Date.UTC(y, m,     1,  5,  0,  0)).toISOString(),
     fin:    new Date(Date.UTC(y, m + 1, 1,  4, 59, 59)).toISOString(),
   }
-}
-
-function esGeneralista(especialidad) {
-  return (especialidad ?? '').toLowerCase().includes('general')
 }
 
 function getIniciales(doc) {

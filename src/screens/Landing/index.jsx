@@ -36,7 +36,7 @@ const BENEFICIOS = [
 ]
 
 const ESPECIALIDADES = [
-  { icon: '🩺', label: 'Medicina general',    price: 35 },
+  { icon: '🩺', label: 'Medicina general',    price: 31 },
   { icon: '👶', label: 'Pediatría',           price: 45 },
   { icon: '🧠', label: 'Psicología',          price: 50 },
   { icon: '🥗', label: 'Nutrición',           price: 40 },
@@ -242,7 +242,7 @@ export default function Landing() {
           <p style={{
             fontSize: 15, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6, marginBottom: 32,
           }}>
-            Consulta médica por video con doctores certificados. Receta electrónica válida en todo el Perú. Desde <strong style={{ color: C.white }}>S/. 35</strong>.
+            Consulta médica por video con doctores certificados. Receta electrónica válida en todo el Perú. Desde <strong style={{ color: C.white }}>S/. 31</strong>.
           </p>
 
           {/* CTAs */}
@@ -798,7 +798,7 @@ export default function Landing() {
           ✨ Crear cuenta gratis
         </button>
         <div style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
-          Sin tarjeta requerida · Primera consulta desde S/. 20
+          Sin tarjeta requerida · Consultas desde S/. 31
         </div>
       </section>
 

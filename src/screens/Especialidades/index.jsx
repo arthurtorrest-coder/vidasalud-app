@@ -69,7 +69,7 @@ function getNextAvailabilityText(doctorId, allSchedules) {
 }
 
 const ESPECIALIDADES = [
-  { icon: '🩺', label: 'Medicina General',  precioBase: 35, bg: '#ECFDF5', accent: '#059669', border: '#A7F3D0' },
+  { icon: '🩺', label: 'Medicina General',  precioBase: 31, bg: '#ECFDF5', accent: '#059669', border: '#A7F3D0' },
   { icon: '👶', label: 'Pediatría',          precioBase: 45, bg: '#EFF6FF', accent: '#2563EB', border: '#BFDBFE' },
   { icon: '🧠', label: 'Psicología',         precioBase: 50, bg: '#F5F3FF', accent: '#7C3AED', border: '#DDD6FE' },
   { icon: '🥗', label: 'Nutrición',          precioBase: 40, bg: '#FFF7ED', accent: '#EA580C', border: '#FED7AA' },

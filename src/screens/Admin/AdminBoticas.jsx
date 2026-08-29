@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast, Toaster } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { C } from '../../lib/tokens'
+import { COMISION_BOTICA } from '../../lib/finanzas'
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleDateString('es-PE', {
@@ -22,8 +23,6 @@ function getMesRango() {
     fin:    new Date(Date.UTC(y, m + 1, 1,  4, 59, 59)).toISOString(),
   }
 }
-
-const COMISION_BOTICA = 5 // S/. por paciente referido atendido
 
 export default function AdminBoticas() {
   const navigate = useNavigate()

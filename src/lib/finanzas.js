@@ -1,13 +1,13 @@
 /* ─────────────────────────────────────────────────────────────
    VIDASALUD — Modelo financiero compartido
-   Medicina General S/. 26 total: médico S/.10 fijo + margen S/.16
+   Medicina General S/. 31 total: médico S/.15 fijo + margen S/.16
    Especialistas: precio neto médico + margen S/.16
    El margen (16) se reparte entre clínica / botica / coordinador
    según si la consulta llegó referida por una botica y si esa
    botica tiene un coordinador de zona asignado.
 ───────────────────────────────────────────────────────────── */
 
-export const TARIFA_GENERAL       = 10   // médico de medicina general: pago fijo
+export const TARIFA_GENERAL       = 15   // médico de medicina general: pago fijo
 export const MARGEN_TOTAL         = 16   // margen total sobre el pago al médico
 export const COMISION_BOTICA      = 4    // botica, cuando refiere al paciente
 export const COMISION_COORDINADOR = 2    // coordinador, cuando su botica refiere

@@ -4,6 +4,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
+import { enviarWhatsapp } from '../lib/whatsapp'
 
 const C = {
   green900: '#064E3B', green800: '#065F46', green700: '#047857',
@@ -491,6 +492,14 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
       doc.save(fileName)
 
       toast.success('Receta generada y descargada correctamente', { duration: 4000 })
+
+      // WhatsApp al paciente (fire-and-forget)
+      enviarWhatsapp({
+        to: patient.phone,
+        template_name: 'receta_lista',
+        parameters: [patientName],
+      })
+
       onSuccess?.()
     } catch (err) {
       console.error('[RecetaForm] Error generating PDF:', err)

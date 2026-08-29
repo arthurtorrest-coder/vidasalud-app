@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { C } from '../../lib/tokens'
 import { precioTotalPaciente } from '../../lib/finanzas'
+import { enviarWhatsapp } from '../../lib/whatsapp'
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 function codigoCita(id) {
@@ -703,6 +704,21 @@ export default function Payment() {
       return
     }
     setConfirmed(true)
+
+    // WhatsApp de confirmación (fire-and-forget)
+    if (appointment && doctor) {
+      const { data: pat } = await supabase
+        .from('profiles')
+        .select('phone')
+        .eq('id', appointment.patient_id)
+        .maybeSingle()
+      const { fecha, hora } = formatScheduledAt(appointment.scheduled_at)
+      enviarWhatsapp({
+        to: pat?.phone,
+        template_name: 'confirmacion_cita',
+        parameters: [`${doctor.nombres} ${doctor.apellidos}`.trim(), `${fecha} ${hora}`],
+      })
+    }
   }
 
   /* ── Pantalla de carga ── */

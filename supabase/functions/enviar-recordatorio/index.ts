@@ -15,6 +15,27 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 )
 
+// Llamada server-to-server a enviar-whatsapp (usa el service_role como JWT
+// porque enviar-whatsapp corre con verificación de JWT activada por defecto)
+async function enviarWhatsapp(to: string, template_name: string, parameters: string[]) {
+  try {
+    const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/enviar-whatsapp`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify({ to, template_name, parameters }),
+    })
+    const data = await res.json()
+    if (!data?.ok) console.warn('[enviar-recordatorio] whatsapp falló:', data?.error)
+    return data?.ok === true
+  } catch (err) {
+    console.warn('[enviar-recordatorio] whatsapp excepción:', String(err))
+    return false
+  }
+}
+
 Deno.serve(async (req) => {
   console.log('[enviar-recordatorio] invocada —', req.method, new Date().toISOString())
 
@@ -47,7 +68,7 @@ Deno.serve(async (req) => {
       .select(`
         id,
         scheduled_at,
-        patient:profiles!appointments_patient_id_fkey(push_token),
+        patient:profiles!appointments_patient_id_fkey(full_name, phone, push_token),
         doctor:doctors(nombres, apellidos)
       `)
       .eq('status', 'paid')
@@ -62,36 +83,46 @@ Deno.serve(async (req) => {
     console.log('[enviar-recordatorio] citas encontradas:', appointments?.length ?? 0)
 
     let sent = 0
+    let sentWhatsapp = 0
     type Appt = {
       id: string
       scheduled_at: string
-      patient: { push_token?: string } | null
+      patient: { full_name?: string; phone?: string; push_token?: string } | null
       doctor: { nombres?: string; apellidos?: string } | null
     }
 
     const results = await Promise.allSettled(
       (appointments as Appt[] ?? []).map(async (appt) => {
-        const token = (appt.patient as { push_token?: string } | null)?.push_token
-        if (!token) {
-          console.log('[enviar-recordatorio] cita', appt.id, '— paciente sin push_token, omitida')
-          return
+        const patient   = appt.patient as { full_name?: string; phone?: string; push_token?: string } | null
+        const doc       = appt.doctor as { nombres?: string; apellidos?: string } | null
+        const docName   = [doc?.nombres, doc?.apellidos].filter(Boolean).join(' ') || 'tu médico'
+
+        if (patient?.push_token) {
+          const subscription = JSON.parse(patient.push_token)
+          await webpush.sendNotification(
+            subscription,
+            JSON.stringify({
+              title: '⏰ Recordatorio VIDASALUD',
+              body:  `Tu consulta con Dr. ${docName} es en 1 hora. ¡Prepárate!`,
+              url:   '/citas',
+              tag:   `reminder-${appt.id}`,
+            }),
+          )
+          console.log('[enviar-recordatorio] push enviado — cita', appt.id)
+          sent++
+        } else {
+          console.log('[enviar-recordatorio] cita', appt.id, '— paciente sin push_token, omitido')
         }
 
-        const subscription = JSON.parse(token)
-        const doc     = appt.doctor as { nombres?: string; apellidos?: string } | null
-        const docName = [doc?.nombres, doc?.apellidos].filter(Boolean).join(' ') || 'tu médico'
-
-        await webpush.sendNotification(
-          subscription,
-          JSON.stringify({
-            title: '⏰ Recordatorio VIDASALUD',
-            body:  `Tu consulta con Dr. ${docName} es en 1 hora. ¡Prepárate!`,
-            url:   '/citas',
-            tag:   `reminder-${appt.id}`,
-          }),
-        )
-        console.log('[enviar-recordatorio] notificación enviada — cita', appt.id)
-        sent++
+        if (patient?.phone) {
+          const ok = await enviarWhatsapp(patient.phone, 'recordatorio_cita', [
+            patient.full_name || 'Paciente',
+            docName,
+          ])
+          if (ok) { sentWhatsapp++; console.log('[enviar-recordatorio] whatsapp enviado — cita', appt.id) }
+        } else {
+          console.log('[enviar-recordatorio] cita', appt.id, '— paciente sin teléfono, whatsapp omitido')
+        }
       }),
     )
 
@@ -99,7 +130,7 @@ Deno.serve(async (req) => {
     if (failed > 0) console.warn('[enviar-recordatorio] fallos al enviar:', failed)
 
     return new Response(
-      JSON.stringify({ ok: true, sent, failed }),
+      JSON.stringify({ ok: true, sent, sentWhatsapp, failed }),
       { headers: { ...CORS, 'Content-Type': 'application/json' } },
     )
   } catch (err) {

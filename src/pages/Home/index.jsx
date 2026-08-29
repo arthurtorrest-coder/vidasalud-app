@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore'
 import VideoRoom from '../../components/VideoRoom'
 import { C } from '../../lib/tokens'
 import { precioTotalPaciente } from '../../lib/finanzas'
+import { enviarWhatsapp } from '../../lib/whatsapp'
 
 const SPECIALTIES = [
   { icon: '🩺', label: 'General',     price: 31 },
@@ -519,13 +520,18 @@ export default function Home() {
           if (payload.new.status === 'tomada' && payload.new.appointment_id) {
             setSolicitudActiva(null)
             toast.success('¡Un médico tomó tu turno! Redirigiendo al pago…', { duration: 4000 })
+            enviarWhatsapp({
+              to: profile?.phone,
+              template_name: 'medico_disponible',
+              parameters: [profile?.full_name ?? 'Paciente'],
+            })
             navigate(`/pago/${payload.new.appointment_id}`)
           }
         }
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [user?.id, navigate])
+  }, [user?.id, profile, navigate])
 
   async function crearSolicitud() {
     if (!user?.id) return

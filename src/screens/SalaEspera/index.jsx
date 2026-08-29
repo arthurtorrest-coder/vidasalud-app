@@ -272,6 +272,26 @@ export default function SalaEspera() {
         {/* Estado principal de la cola */}
         {!loading && !esDone && (
           <>
+            {/* Pago confirmado, aún sin sala de video (status='paid' sin video_url) */}
+            {appt?.status === 'paid' && !appt?.video_url && (
+              <div style={{
+                background: C.green50, border: `1.5px solid ${C.green200}`,
+                borderRadius: 16, padding: '16px 18px',
+                display: 'flex', alignItems: 'center', gap: 12,
+                animation: 'se-slide 0.4s ease both',
+              }}>
+                <Spinner />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: C.green800, lineHeight: 1.4 }}>
+                    ✅ Pago confirmado · Esperando que el médico inicie la consulta
+                  </div>
+                  <div style={{ fontSize: 12, color: C.green700, marginTop: 3, lineHeight: 1.4 }}>
+                    Recibirás una notificación cuando esté listo.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Tarjeta de estado */}
             <div style={{
               background: C.white,

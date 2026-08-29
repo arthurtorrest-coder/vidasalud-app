@@ -266,6 +266,39 @@ function ActiveCallBanner({ appt, onEnter }) {
   )
 }
 
+// ─── Banner: consulta pagada, esperando que el médico inicie ──
+
+function PagoPendienteBanner({ onIr }) {
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #065F46, #059669)',
+      padding: '14px 20px', flexShrink: 0,
+      display: 'flex', alignItems: 'center', gap: 12,
+    }}>
+      <span style={{ fontSize: 22, animation: 'dot-blink 2s step-end infinite' }}>🪑</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
+          Tienes una consulta pendiente
+        </div>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
+          El médico iniciará pronto
+        </div>
+      </div>
+      <button
+        onClick={onIr}
+        style={{
+          background: 'rgba(255,255,255,0.15)', border: 'none',
+          color: '#FFFFFF', borderRadius: 20, padding: '8px 16px',
+          fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+          flexShrink: 0, whiteSpace: 'nowrap',
+        }}
+      >
+        Ir a sala →
+      </button>
+    </div>
+  )
+}
+
 // ─── Modal: sin médico disponible ────────────────────────────
 
 function AgendarModal({ onAviso, onEspecialidades, onDespues, onClose, loading }) {
@@ -461,6 +494,7 @@ export default function Home() {
   const [loadingDocs,     setLoadingDocs]     = useState(true)
   const [errorDocs,       setErrorDocs]       = useState(null)
   const [activeAppt,      setActiveAppt]      = useState(null)
+  const [pagoPendienteAppt, setPagoPendienteAppt] = useState(null)
   const [videoUrl,        setVideoUrl]        = useState(null)
   const [showAllSpecs,    setShowAllSpecs]    = useState(false)
   const [showAgendarModal, setShowAgendarModal] = useState(false)
@@ -480,6 +514,21 @@ export default function Home() {
   }, [user?.id])
 
   useEffect(() => { checkActiveAppt() }, [checkActiveAppt])
+
+  // Consulta ya pagada, esperando que el médico la inicie (verificado al cargar el Home)
+  const checkPagoPendiente = useCallback(async () => {
+    if (!user?.id) return
+    const { data } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('patient_id', user.id)
+      .eq('status', 'paid')
+      .order('scheduled_at', { ascending: true })
+      .limit(1)
+    setPagoPendienteAppt(data?.[0] ?? null)
+  }, [user?.id])
+
+  useEffect(() => { checkPagoPendiente() }, [checkPagoPendiente])
 
   useEffect(() => {
     if (!user?.id) return
@@ -705,7 +754,11 @@ export default function Home() {
         <ActiveCallBanner appt={activeAppt} onEnter={setVideoUrl} />
       )}
 
-      {solicitudActiva && profile?.role === 'patient' && !activeAppt && (
+      {pagoPendienteAppt && profile?.role === 'patient' && !activeAppt && (
+        <PagoPendienteBanner onIr={() => navigate(`/sala-espera/${pagoPendienteAppt.id}`)} />
+      )}
+
+      {solicitudActiva && profile?.role === 'patient' && !activeAppt && !pagoPendienteAppt && (
         <TurnoEsperaBanner solicitud={solicitudActiva} onCancel={cancelarSolicitud} />
       )}
 

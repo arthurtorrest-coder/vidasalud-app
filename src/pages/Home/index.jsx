@@ -25,6 +25,13 @@ const STATUS_COLORS = {
 
 // ─── Helpers ──────────────────────────────────────────────────
 
+// Medianoche de hoy en hora Lima, como ISO — para descartar citas 'paid' viejas
+function startOfTodayLimaISO() {
+  const lima = new Date(Date.now() - 5 * 3_600_000)
+  const y = lima.getUTCFullYear(), m = lima.getUTCMonth(), d = lima.getUTCDate()
+  return new Date(Date.UTC(y, m, d, 5, 0, 0)).toISOString()
+}
+
 function getLimaDateTime() {
   const now  = new Date()
   const lima = new Date(now.getTime() + (now.getTimezoneOffset() - 300) * 60000)
@@ -523,6 +530,7 @@ export default function Home() {
       .select('id')
       .eq('patient_id', user.id)
       .eq('status', 'paid')
+      .gte('scheduled_at', startOfTodayLimaISO())
       .order('scheduled_at', { ascending: true })
       .limit(1)
     setPagoPendienteAppt(data?.[0] ?? null)

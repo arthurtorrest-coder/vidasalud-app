@@ -10,7 +10,9 @@ const CORS = {
 }
 
 const GRAPH_VERSION = 'v18.0'
-const LANGUAGE_CODE = 'es'
+// Meta exige el código de idioma exacto con el que se aprobó la plantilla
+// en Meta Business Manager — debe coincidir carácter por carácter.
+const LANGUAGE_CODE = 'es_PE'
 
 // ── Plantillas configuradas en Meta Business Manager ────────────
 // (referencia local para validar el número de parámetros antes de

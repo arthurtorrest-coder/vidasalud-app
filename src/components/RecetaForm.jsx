@@ -4,7 +4,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { enviarWhatsapp } from '../lib/whatsapp'
+import { enviarRecetaListaWhatsapp } from '../lib/whatsapp'
 
 const C = {
   green900: '#064E3B', green800: '#065F46', green700: '#047857',
@@ -466,6 +466,7 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
       }
 
       // Save record in prescriptions table
+      let accessToken = null
       if (pdfUrl && appointment?.id) {
         const appointment_id = appointment.id
         const doctor_id      = doctorInfo?.id
@@ -484,6 +485,7 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
           })
           .select()
         console.log('[RecetaForm] insert result:', { data, error })
+        accessToken = data?.[0]?.access_token ?? null
       } else {
         console.warn('[RecetaForm] insert skipped — pdfUrl:', pdfUrl, '| appointment?.id:', appointment?.id)
       }
@@ -493,11 +495,12 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
 
       toast.success('Receta generada y descargada correctamente', { duration: 4000 })
 
-      // WhatsApp al paciente (fire-and-forget)
-      enviarWhatsapp({
+      // WhatsApp al paciente (fire-and-forget) — link directo sin login si vino por botica
+      enviarRecetaListaWhatsapp({
         to: patient.phone,
-        template_name: 'receta_lista',
-        parameters: [patientName],
+        nombrePaciente: patientName,
+        accessToken,
+        tieneBotica: !!appointment?.farmacia_referente_id,
       })
 
       onSuccess?.()

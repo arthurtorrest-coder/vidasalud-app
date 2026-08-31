@@ -31,8 +31,8 @@ const TEMPLATES = {
     paramsCount: 2,
   },
   receta_lista: {
-    body: 'Hola {{1}}, tu receta electrónica está lista. Descárgala en: clinicavidasalud.com/historial',
-    paramsCount: 1,
+    body: 'Hola {{1}}, tu receta electrónica está lista. Descárgala en: {{2}}',
+    paramsCount: 2,
   },
 }
 

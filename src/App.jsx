@@ -45,6 +45,7 @@ import RegisterFarmacia from './screens/Auth/RegisterFarmacia'
 import Farmacias        from './screens/Farmacias'
 import PlanFamilia      from './screens/Corporativo/PlanFamilia'
 import RegistroPlan     from './screens/Corporativo/RegistroPlan'
+import RecetaPublica    from './pages/RecetaPublica'
 
 const C = { green100: '#D1FAE5', green600: '#059669', gray100: '#F3F4F6' }
 
@@ -100,6 +101,7 @@ export default function App() {
         <Route path="/nueva-contrasena"   element={<NuevaContrasena />}    />
         <Route path="/registro-farmacia" element={<RegisterFarmacia />}  />
         <Route path="/planes/familia"    element={<PlanFamilia />}      />
+        <Route path="/receta/:accessToken" element={<RecetaPublica />}  />
 
         {/* Rutas protegidas — redirigen a /login si no hay sesión */}
         <Route element={<ProtectedRoute />}>

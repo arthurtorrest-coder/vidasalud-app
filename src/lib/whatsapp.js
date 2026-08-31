@@ -21,3 +21,27 @@ export async function enviarWhatsapp({ to, template_name, parameters }) {
     console.warn(`[whatsapp] "${template_name}" excepción:`, err)
   }
 }
+
+const SITE_URL = 'https://clinicavidasalud.com'
+
+// Envía "receta_lista". Si el paciente vino referido por una botica
+// (tieneBotica=true) y hay accessToken, incluye el link directo de
+// descarga sin login (/receta/:accessToken) en vez del link genérico
+// a /historial (que requiere sesión iniciada).
+//
+// IMPORTANTE: esto asume que la plantilla "receta_lista" aprobada en Meta
+// tiene 2 variables — {{1}} nombre, {{2}} link — no solo 1. Si en Meta
+// Business Manager la plantilla real solo tiene {{1}}, el envío fallará
+// y hay que actualizar la plantilla aprobada (o quitar el 2º parámetro
+// y ajustar TEMPLATES.receta_lista en enviar-whatsapp/index.ts a la vez).
+export async function enviarRecetaListaWhatsapp({ to, nombrePaciente, accessToken, tieneBotica }) {
+  const link = tieneBotica && accessToken
+    ? `${SITE_URL}/receta/${accessToken}`
+    : `${SITE_URL}/historial`
+
+  return enviarWhatsapp({
+    to,
+    template_name: 'receta_lista',
+    parameters: [nombrePaciente || 'Paciente', link],
+  })
+}

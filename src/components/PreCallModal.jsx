@@ -7,9 +7,14 @@ const WHITE = '#FFFFFF'
 const PASOS = [
   { icon: '1️⃣', text: 'Toca el botón "Entendido, entrar ahora".' },
   { icon: '2️⃣', text: 'Cuando tu celular muestre el mensaje de permisos, toca PERMITIR o ALLOW.' },
-  { icon: '3️⃣', text: 'Cuando aparezca la sala de video, busca y aplasta el botón verde "Join" para conectarte con el médico.', highlight: true },
-  { icon: '4️⃣', text: 'Si no ves al médico, recarga la página y vuelve a entrar.' },
-  { icon: '5️⃣', text: 'Asegúrate de tener buena conexión a internet (WiFi o datos 4G).' },
+  {
+    icon: '⚠️',
+    text: 'Cuando el navegador te pida permiso para usar el micrófono y la cámara, toca PERMITIR. Si no aparece ese mensaje, ve a Configuración del sitio en tu navegador y activa Micrófono y Cámara para clinicavidasalud.com.',
+    warn: true,
+  },
+  { icon: '4️⃣', text: 'Cuando aparezca la sala de video, busca y aplasta el botón verde "Join" para conectarte con el médico.', highlight: true },
+  { icon: '5️⃣', text: 'Si no ves al médico, recarga la página y vuelve a entrar.' },
+  { icon: '6️⃣', text: 'Asegúrate de tener buena conexión a internet (WiFi o datos 4G).' },
 ]
 
 // ─── SVG: diálogo de permisos del celular ─────────────────────
@@ -197,14 +202,15 @@ export default function PreCallModal({ onEnter, onClose }) {
               {PASOS.map((p, i) => (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'flex-start', gap: 12,
-                  background: p.highlight ? '#065F46' : '#F9FAFB',
+                  background: p.warn ? '#DC2626' : p.highlight ? '#065F46' : '#F9FAFB',
                   borderRadius: 12, padding: '11px 14px',
-                  border: p.highlight ? '1.5px solid #34D399' : '1px solid #E5E7EB',
+                  border: p.warn ? '1.5px solid #FCA5A5' : p.highlight ? '1.5px solid #34D399' : '1px solid #E5E7EB',
+                  boxShadow: p.warn ? '0 2px 10px rgba(220,38,38,0.3)' : 'none',
                 }}>
                   <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.25 }}>{p.icon}</span>
                   <span style={{
                     fontSize: 13, lineHeight: 1.55, fontWeight: 600,
-                    color: p.highlight ? WHITE : '#374151',
+                    color: (p.warn || p.highlight) ? WHITE : '#374151',
                   }}>
                     {p.text}
                   </span>

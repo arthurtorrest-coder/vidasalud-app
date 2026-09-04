@@ -268,11 +268,12 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
   const canStart  = appt.status === 'paid' && !hasAnyActive
   const blocked   = appt.status === 'paid' && hasAnyActive && !isActive
   const canChat   = ['paid', 'active', 'done'].includes(appt.status)
-  // Pagada hace más de 30 min sin que el médico la haya iniciado (updated_at
-  // se actualiza automáticamente al confirmarse el pago vía trigger de DB)
+  // Atascada: pagada hace más de 30 min sin iniciarse, O pendiente de pago
+  // hace más de 30 min (el paciente tomó un turno de guardia y nunca pagó,
+  // o abandonó la reserva). updated_at se actualiza solo vía trigger de DB.
   const MINUTOS_ATASCADA = 30
   const minutosDesdeUpdate = (Date.now() - new Date(appt.updated_at).getTime()) / 60000
-  const atascada  = appt.status === 'paid' && minutosDesdeUpdate > MINUTOS_ATASCADA
+  const atascada  = ['paid', 'pending'].includes(appt.status) && minutosDesdeUpdate > MINUTOS_ATASCADA
 
   return (
     <div style={{
@@ -404,7 +405,9 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <span style={{ fontSize: 12, color: C.red600, flex: 1, lineHeight: 1.4 }}>
-            ⚠️ Pagada hace más de {MINUTOS_ATASCADA} min y aún no se inicia.
+            {appt.status === 'pending'
+              ? `⚠️ Sin pagar hace más de ${MINUTOS_ATASCADA} min — el paciente pudo abandonar antes de pagar.`
+              : `⚠️ Pagada hace más de ${MINUTOS_ATASCADA} min y aún no se inicia.`}
           </span>
           <button
             onClick={() => onCancelar?.(appt)}
@@ -1199,7 +1202,10 @@ export default function PanelMedico() {
   // Cita pagada cuya hora ya pasó y nunca se atendió (quedó "atascada" en 'paid')
   async function handleCancelarCita(appt) {
     const nombre = appt.patient?.full_name ?? 'este paciente'
-    if (!window.confirm(`¿Cancelar la cita de ${nombre}? El paciente ya pagó pero la consulta nunca se realizó. Esta acción no se puede deshacer.`)) {
+    const motivo = appt.status === 'pending'
+      ? 'El paciente nunca completó el pago.'
+      : 'El paciente ya pagó pero la consulta nunca se realizó.'
+    if (!window.confirm(`¿Cancelar la cita de ${nombre}? ${motivo} Esta acción no se puede deshacer.`)) {
       return
     }
     const { error } = await supabase

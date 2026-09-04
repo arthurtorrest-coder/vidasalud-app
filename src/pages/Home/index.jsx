@@ -275,8 +275,21 @@ function ActiveCallBanner({ appt, onEnter }) {
 
 // ─── Banner: consulta pagada, esperando que el médico inicie ──
 
-function PagoPendienteBanner({ status, onIr }) {
-  const esPago = status === 'pending'
+function PagoPendienteBanner({ status, esDeGuardia, onIr }) {
+  const faltaPagar = status === 'pending'
+
+  let titulo    = 'Tienes una consulta pendiente'
+  let subtitulo = 'El médico iniciará pronto'
+  let boton     = 'Continuar con tu pago →'
+
+  if (faltaPagar && esDeGuardia) {
+    titulo    = 'Un médico está esperando'
+    subtitulo = 'Completa tu pago para iniciar la consulta'
+    boton     = 'Ir a pagar →'
+  } else if (faltaPagar) {
+    subtitulo = 'Completa tu pago para confirmar tu cita'
+  }
+
   return (
     <div style={{
       background: 'linear-gradient(135deg, #065F46, #059669)',
@@ -286,10 +299,10 @@ function PagoPendienteBanner({ status, onIr }) {
       <span style={{ fontSize: 22, animation: 'dot-blink 2s step-end infinite' }}>🪑</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
-          Tienes una consulta pendiente
+          {titulo}
         </div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
-          {esPago ? 'Completa tu pago para confirmar tu cita' : 'El médico iniciará pronto'}
+          {subtitulo}
         </div>
       </div>
       <button
@@ -301,7 +314,7 @@ function PagoPendienteBanner({ status, onIr }) {
           flexShrink: 0, whiteSpace: 'nowrap',
         }}
       >
-        Continuar con tu pago →
+        {boton}
       </button>
     </div>
   )
@@ -531,16 +544,37 @@ export default function Home() {
     // 'pending' cubre el caso de un turno de guardia tomado cuyo pago quedó a
     // medias (el paciente cerró /pago/:id o volvió atrás antes de confirmar).
     // 'paid' cubre la cita ya pagada, esperando que el médico la inicie.
-    const { data, error } = await supabase
-      .from('appointments')
-      .select('id, status, scheduled_at')
-      .eq('patient_id', user.id)
-      .in('status', ['pending', 'paid'])
-      .gte('scheduled_at', desde)
-      .order('scheduled_at', { ascending: true })
-      .limit(1)
-    console.log('[checkPagoPendiente] resultado:', { data, error: error?.message ?? null })
-    setPagoPendienteAppt(data?.[0] ?? null)
+    // NOTA: doctor_id es NOT NULL en toda la tabla appointments (reserva normal
+    // o turno de guardia), así que .not('doctor_id','is',null) no filtra nada
+    // por sí solo — para distinguir "viene de un turno tomado" de verdad, se
+    // cruza contra solicitudes_turno más abajo (esDeGuardia).
+    const [apptRes, turnoRes] = await Promise.all([
+      supabase
+        .from('appointments')
+        .select('id, status, scheduled_at, doctor_id')
+        .eq('patient_id', user.id)
+        .in('status', ['pending', 'paid'])
+        .not('doctor_id', 'is', null)
+        .gte('scheduled_at', desde)
+        .order('scheduled_at', { ascending: true })
+        .limit(1),
+      supabase
+        .from('solicitudes_turno')
+        .select('appointment_id')
+        .eq('patient_id', user.id)
+        .eq('status', 'tomada')
+        .not('appointment_id', 'is', null),
+    ])
+
+    const { data, error } = apptRes
+    const turnoApptIds = new Set((turnoRes.data ?? []).map(t => t.appointment_id))
+    console.log('[checkPagoPendiente] resultado:', {
+      data, error: error?.message ?? null,
+      turnoError: turnoRes.error?.message ?? null, turnoApptIds: [...turnoApptIds],
+    })
+
+    const appt = data?.[0] ?? null
+    setPagoPendienteAppt(appt ? { ...appt, esDeGuardia: turnoApptIds.has(appt.id) } : null)
   }, [user?.id])
 
   useEffect(() => { checkPagoPendiente() }, [checkPagoPendiente])
@@ -774,7 +808,11 @@ export default function Home() {
       )}
 
       {pagoPendienteAppt && profile?.role === 'patient' && !activeAppt && (
-        <PagoPendienteBanner status={pagoPendienteAppt.status} onIr={() => navigate(`/pago/${pagoPendienteAppt.id}`)} />
+        <PagoPendienteBanner
+          status={pagoPendienteAppt.status}
+          esDeGuardia={pagoPendienteAppt.esDeGuardia}
+          onIr={() => navigate(`/pago/${pagoPendienteAppt.id}`)}
+        />
       )}
 
       {solicitudActiva && profile?.role === 'patient' && !activeAppt && !pagoPendienteAppt && (

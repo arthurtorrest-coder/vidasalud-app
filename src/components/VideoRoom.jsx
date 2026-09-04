@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { withSpanish } from '../lib/daily'
 
 const C = {
   green800: '#065F46', green600: '#059669',
@@ -10,6 +11,7 @@ const C = {
 export default function VideoRoom({ url, onLeave, extraActions }) {
   const [loaded, setLoaded] = useState(false)
   const iframeRef = useRef(null)
+  const src = withSpanish(url)
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -105,7 +107,7 @@ export default function VideoRoom({ url, onLeave, extraActions }) {
 
           <iframe
             ref={iframeRef}
-            src={url}
+            src={src}
             allow="camera; microphone; display-capture; fullscreen; autoplay; clipboard-write"
             allowFullScreen
             onLoad={() => setLoaded(true)}

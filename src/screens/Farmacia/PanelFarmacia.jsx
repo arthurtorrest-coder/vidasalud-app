@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import { C } from '../../lib/tokens'
 import { COMISION_BOTICA, precioTotalPaciente } from '../../lib/finanzas'
+import { withSpanish } from '../../lib/daily'
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -1071,7 +1072,7 @@ export default function PanelFarmacia() {
                         </div>
                         {citaStatusPorPaciente[p.id].status === 'active' && citaStatusPorPaciente[p.id].video_url && (
                           <button
-                            onClick={() => window.open(citaStatusPorPaciente[p.id].video_url, '_blank', 'noopener,noreferrer')}
+                            onClick={() => window.open(withSpanish(citaStatusPorPaciente[p.id].video_url), '_blank', 'noopener,noreferrer')}
                             style={{
                               border: 'none', background: C.green600, color: C.white,
                               padding: '2px 10px', borderRadius: 10,

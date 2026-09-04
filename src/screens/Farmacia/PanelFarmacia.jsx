@@ -994,12 +994,12 @@ export default function PanelFarmacia() {
                           <button
                             onClick={() => cancelarSolicitudTurno(p.id)}
                             style={{
-                              border: 'none', background: 'none', padding: 0,
-                              fontSize: 10, fontWeight: 700, color: C.gray400,
-                              textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit',
+                              border: '1.5px solid #FCA5A5', background: '#FEF2F2', padding: '2px 10px',
+                              borderRadius: 10, fontSize: 10, fontWeight: 800, color: '#DC2626',
+                              cursor: 'pointer', fontFamily: 'inherit',
                             }}
                           >
-                            Cancelar
+                            ✕ Cancelar espera
                           </button>
                         )}
                       </div>
@@ -1367,6 +1367,17 @@ export default function PanelFarmacia() {
                               Te avisamos aquí en cuanto un médico tome el turno
                             </div>
                           </div>
+                          <button
+                            onClick={() => cancelarSolicitudTurno(bookingState.patientId)}
+                            style={{
+                              padding: '7px 12px', border: '1.5px solid rgba(255,255,255,0.4)',
+                              background: 'rgba(255,255,255,0.12)', color: C.white, borderRadius: 8,
+                              fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+                              whiteSpace: 'nowrap', flexShrink: 0,
+                            }}
+                          >
+                            ✕ Cancelar espera
+                          </button>
                         </div>
                       ) : (
                         <button

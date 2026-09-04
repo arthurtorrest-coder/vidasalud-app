@@ -261,13 +261,14 @@ function SoapForm({ soap, onChange, onFinish, saving }) {
 }
 
 // ─── Tarjeta de cita ──────────────────────────────────────────
-function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving, onOpenVideo, onChat, unreadCount = 0 }) {
+function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving, onOpenVideo, onChat, unreadCount = 0, onCancelar }) {
   const navigate  = useNavigate()
   const patient   = appt.patient
   const name      = patient?.full_name ?? 'Paciente'
   const canStart  = appt.status === 'paid' && !hasAnyActive
   const blocked   = appt.status === 'paid' && hasAnyActive && !isActive
   const canChat   = ['paid', 'active', 'done'].includes(appt.status)
+  const atascada  = appt.status === 'paid' && new Date(appt.scheduled_at) < new Date()
 
   return (
     <div style={{
@@ -388,6 +389,30 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
       {blocked && (
         <div style={{ marginTop: 10, fontSize: 12, color: C.amberText, textAlign: 'center', fontWeight: 600 }}>
           ⏳ Hay una consulta en curso — termínala primero
+        </div>
+      )}
+
+      {/* Cita pagada, con hora ya pasada, que nunca se atendió */}
+      {atascada && (
+        <div style={{
+          marginTop: 10, background: C.redBg, border: `1px solid #FECACA`,
+          borderRadius: 10, padding: '10px 12px',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 12, color: C.red600, flex: 1, lineHeight: 1.4 }}>
+            ⚠️ Esta cita ya pasó su hora y nunca se atendió.
+          </span>
+          <button
+            onClick={() => onCancelar?.(appt)}
+            style={{
+              flexShrink: 0, padding: '6px 12px', border: `1.5px solid ${C.red600}`,
+              background: C.white, color: C.red600, borderRadius: 8,
+              fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            🗑️ Cancelar cita
+          </button>
         </div>
       )}
 
@@ -1165,6 +1190,25 @@ export default function PanelMedico() {
 
   function handleSoapChange(field, value) {
     setSoap(prev => ({ ...prev, [field]: value }))
+  }
+
+  // Cita pagada cuya hora ya pasó y nunca se atendió (quedó "atascada" en 'paid')
+  async function handleCancelarCita(appt) {
+    const nombre = appt.patient?.full_name ?? 'este paciente'
+    if (!window.confirm(`¿Cancelar la cita de ${nombre}? El paciente ya pagó pero la consulta nunca se realizó. Esta acción no se puede deshacer.`)) {
+      return
+    }
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: 'cancelled' })
+      .eq('id', appt.id)
+
+    if (error) {
+      toast.error('No se pudo cancelar la cita: ' + error.message)
+      return
+    }
+    setAppointments(prev => prev.map(a => a.id === appt.id ? { ...a, status: 'cancelled' } : a))
+    toast.success('Cita cancelada')
   }
 
   async function handlePhotoChange(e) {
@@ -2662,6 +2706,7 @@ export default function PanelMedico() {
                 onOpenVideo={setVideoUrl}
                 onChat={id => navigate(`/chat/${id}`)}
                 unreadCount={unreadCounts[appt.id] ?? 0}
+                onCancelar={handleCancelarCita}
               />
             ))}
 

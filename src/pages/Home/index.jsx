@@ -300,7 +300,7 @@ function PagoPendienteBanner({ onIr }) {
           flexShrink: 0, whiteSpace: 'nowrap',
         }}
       >
-        Ir a sala →
+        Continuar →
       </button>
     </div>
   )
@@ -763,7 +763,7 @@ export default function Home() {
       )}
 
       {pagoPendienteAppt && profile?.role === 'patient' && !activeAppt && (
-        <PagoPendienteBanner onIr={() => navigate(`/sala-espera/${pagoPendienteAppt.id}`)} />
+        <PagoPendienteBanner onIr={() => navigate(`/pago/${pagoPendienteAppt.id}`)} />
       )}
 
       {solicitudActiva && profile?.role === 'patient' && !activeAppt && !pagoPendienteAppt && (

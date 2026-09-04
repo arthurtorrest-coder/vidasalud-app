@@ -525,14 +525,17 @@ export default function Home() {
   // Consulta ya pagada, esperando que el médico la inicie (verificado al cargar el Home)
   const checkPagoPendiente = useCallback(async () => {
     if (!user?.id) return
-    const { data } = await supabase
+    const desde = startOfTodayLimaISO()
+    console.log('[checkPagoPendiente] buscando — patient:', user.id, '| scheduled_at >=', desde)
+    const { data, error } = await supabase
       .from('appointments')
-      .select('id')
+      .select('id, status, scheduled_at')
       .eq('patient_id', user.id)
       .eq('status', 'paid')
-      .gte('scheduled_at', startOfTodayLimaISO())
+      .gte('scheduled_at', desde)
       .order('scheduled_at', { ascending: true })
       .limit(1)
+    console.log('[checkPagoPendiente] resultado:', { data, error: error?.message ?? null })
     setPagoPendienteAppt(data?.[0] ?? null)
   }, [user?.id])
 
@@ -544,10 +547,14 @@ export default function Home() {
       .channel(`home-active-appt-${user.id}`)
       .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'appointments', filter: `patient_id=eq.${user.id}` },
-        () => { checkActiveAppt() })
+        (payload) => {
+          console.log('[home-active-appt] UPDATE recibido —', payload.new?.id, 'status:', payload.new?.status)
+          checkActiveAppt()
+          checkPagoPendiente()
+        })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [user?.id, checkActiveAppt])
+  }, [user?.id, checkActiveAppt, checkPagoPendiente])
 
   const checkSolicitud = useCallback(async () => {
     if (!user?.id) return

@@ -268,7 +268,11 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
   const canStart  = appt.status === 'paid' && !hasAnyActive
   const blocked   = appt.status === 'paid' && hasAnyActive && !isActive
   const canChat   = ['paid', 'active', 'done'].includes(appt.status)
-  const atascada  = appt.status === 'paid' && new Date(appt.scheduled_at) < new Date()
+  // Pagada hace más de 30 min sin que el médico la haya iniciado (updated_at
+  // se actualiza automáticamente al confirmarse el pago vía trigger de DB)
+  const MINUTOS_ATASCADA = 30
+  const minutosDesdeUpdate = (Date.now() - new Date(appt.updated_at).getTime()) / 60000
+  const atascada  = appt.status === 'paid' && minutosDesdeUpdate > MINUTOS_ATASCADA
 
   return (
     <div style={{
@@ -400,7 +404,7 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <span style={{ fontSize: 12, color: C.red600, flex: 1, lineHeight: 1.4 }}>
-            ⚠️ Esta cita ya pasó su hora y nunca se atendió.
+            ⚠️ Pagada hace más de {MINUTOS_ATASCADA} min y aún no se inicia.
           </span>
           <button
             onClick={() => onCancelar?.(appt)}

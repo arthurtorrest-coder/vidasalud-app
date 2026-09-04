@@ -8,23 +8,54 @@ const C = {
   white:    '#FFFFFF',
 }
 
+// Nombre fijo de la ventana: si ya está abierta, window.open() la enfoca
+// en vez de abrir una pestaña duplicada.
+const POPUP_NAME = 'vidasalud_videollamada'
+
 export default function VideoRoom({ url, onLeave, extraActions }) {
-  const [loaded, setLoaded] = useState(false)
-  const iframeRef = useRef(null)
   const src = withSpanish(url)
+  const popupRef = useRef(null)
+  const [estado, setEstado] = useState('opening') // 'opening' | 'open' | 'blocked' | 'closed'
+
+  function abrirVentana() {
+    const win = window.open(src, POPUP_NAME)
+    if (!win) {
+      popupRef.current = null
+      setEstado('blocked')
+    } else {
+      popupRef.current = win
+      setEstado('open')
+    }
+  }
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = ''
-      if (iframeRef.current) iframeRef.current.src = ''
-    }
+    return () => { document.body.style.overflow = '' }
   }, [])
+
+  useEffect(() => {
+    abrirVentana()
+    // Daily.co corre en otra pestaña (origen distinto) — no hay evento que
+    // avise cuando el usuario la cierra, así que se sondea periódicamente.
+    const interval = setInterval(() => {
+      if (popupRef.current && popupRef.current.closed) setEstado('closed')
+    }, 1000)
+    return () => {
+      clearInterval(interval)
+      popupRef.current?.close()
+    }
+  }, [src]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const mensaje = {
+    opening: 'Abriendo tu videollamada…',
+    open:    'Cambia a esa pestaña para continuar tu consulta.',
+    blocked: 'Tu navegador bloqueó la ventana emergente. Habilítala o vuelve a intentarlo.',
+    closed:  'Parece que cerraste la pestaña — puedes volver a abrirla.',
+  }[estado]
 
   return createPortal(
     <>
       <style>{`
-        @keyframes vs-spin  { to { transform: rotate(360deg) } }
         @keyframes vs-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
       `}</style>
 
@@ -43,7 +74,7 @@ export default function VideoRoom({ url, onLeave, extraActions }) {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {loaded && (
+            {estado === 'open' && (
               <span style={{
                 width: 8, height: 8, borderRadius: '50%', background: '#4ade80',
                 animation: 'vs-pulse 2s infinite', display: 'inline-block',
@@ -52,12 +83,12 @@ export default function VideoRoom({ url, onLeave, extraActions }) {
             <span style={{ fontSize: 13, fontWeight: 700, color: C.white }}>
               VIDASALUD · Videoconsulta
             </span>
-            {loaded && (
+            {estado === 'open' && (
               <span style={{
                 fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.6)',
                 background: 'rgba(255,255,255,0.12)', borderRadius: 20, padding: '2px 8px',
               }}>
-                En vivo
+                En otra pestaña
               </span>
             )}
           </div>
@@ -78,47 +109,36 @@ export default function VideoRoom({ url, onLeave, extraActions }) {
           </div>
         </div>
 
-        {/* ── Área de video ── */}
-        <div style={{ flex: 1, position: 'relative', background: '#111', overflow: 'hidden' }}>
+        {/* ── Aviso de videollamada en otra pestaña ── */}
+        <div style={{
+          flex: 1, position: 'relative', background: '#111',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 18,
+          padding: '32px 24px', textAlign: 'center',
+        }}>
+          <span style={{ fontSize: 52 }}>📹</span>
 
-          {/* Spinner mientras carga Daily.co */}
-          {!loaded && (
-            <div style={{
-              position: 'absolute', inset: 0, zIndex: 10,
-              background: '#111', display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 20,
-            }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: '50%',
-                border: '3px solid rgba(255,255,255,0.15)',
-                borderTopColor: C.green600,
-                animation: 'vs-spin 0.8s linear infinite',
-              }} />
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.white }}>
-                  Conectando a la videoconsulta…
-                </div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 4 }}>
-                  Permite el acceso a cámara y micrófono cuando se solicite
-                </div>
-              </div>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: C.white }}>
+              Tu videollamada está abierta en otra pestaña
             </div>
-          )}
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 8, maxWidth: 340, lineHeight: 1.5 }}>
+              {mensaje}
+            </div>
+          </div>
 
-          <iframe
-            ref={iframeRef}
-            src={src}
-            allow="camera; microphone; display-capture; fullscreen; autoplay; clipboard-write"
-            allowFullScreen
-            onLoad={() => setLoaded(true)}
+          <button
+            onClick={abrirVentana}
             style={{
-              position: 'absolute', inset: 0,
-              width: '100%', height: '100%',
-              border: 'none',
-              opacity: loaded ? 1 : 0,
-              transition: 'opacity 0.25s ease',
+              padding: '13px 26px', border: 'none', borderRadius: 12,
+              background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
+              color: C.white, fontSize: 14, fontWeight: 800, cursor: 'pointer',
+              fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(5,150,105,0.35)',
+              display: 'flex', alignItems: 'center', gap: 8,
             }}
-          />
+          >
+            {estado === 'closed' ? '🔁 Reabrir videollamada' : '↗ Abrir / enfocar pestaña'}
+          </button>
         </div>
 
       </div>

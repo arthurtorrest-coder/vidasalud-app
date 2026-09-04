@@ -1070,18 +1070,25 @@ export default function PanelFarmacia() {
                       </div>
                     )}
                   </div>
-                  <button
-                    onClick={() => openBooking(p.id, p.full_name)}
-                    style={{
-                      padding: '7px 12px', border: 'none', borderRadius: 8,
-                      background: `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
-                      color: C.white, fontSize: 11, fontWeight: 800,
-                      cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                    }}
-                  >
-                    🩺 Reservar
-                  </button>
+                  {citaStatusPorPaciente[p.id]?.status !== 'active' && (
+                    <button
+                      onClick={() => openBooking(p.id, p.full_name)}
+                      disabled={citaStatusPorPaciente[p.id]?.status === 'paid'}
+                      style={{
+                        padding: '7px 12px', border: 'none', borderRadius: 8,
+                        background: citaStatusPorPaciente[p.id]?.status === 'paid'
+                          ? C.gray200
+                          : `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
+                        color: citaStatusPorPaciente[p.id]?.status === 'paid' ? C.gray500 : C.white,
+                        fontSize: 11, fontWeight: 800,
+                        cursor: citaStatusPorPaciente[p.id]?.status === 'paid' ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit', whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      }}
+                    >
+                      🩺 Reservar
+                    </button>
+                  )}
                 </div>
               ))
             )}

@@ -271,9 +271,24 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
   // Atascada: pagada hace más de 30 min sin iniciarse, O pendiente de pago
   // hace más de 30 min (el paciente tomó un turno de guardia y nunca pagó,
   // o abandonó la reserva). updated_at se actualiza solo vía trigger de DB.
+  // Fallback a created_at por si updated_at llegara null/undefined (no debería,
+  // la columna es NOT NULL DEFAULT NOW() en las 3 variantes de schema del repo).
   const MINUTOS_ATASCADA = 30
-  const minutosDesdeUpdate = (Date.now() - new Date(appt.updated_at).getTime()) / 60000
+  const referenciaFecha  = appt.updated_at ?? appt.created_at
+  const minutosDesdeUpdate = (Date.now() - new Date(referenciaFecha).getTime()) / 60000
   const atascada  = ['paid', 'pending'].includes(appt.status) && minutosDesdeUpdate > MINUTOS_ATASCADA
+
+  if (appt.status === 'pending') {
+    console.log('[AppointmentCard] cita pending —', {
+      id: appt.id,
+      updated_at: appt.updated_at,
+      created_at: appt.created_at,
+      referenciaFecha,
+      minutosDesdeUpdate,
+      MINUTOS_ATASCADA,
+      atascada,
+    })
+  }
 
   return (
     <div style={{

@@ -41,6 +41,7 @@ function esGeneral(d) {
 
 // Estado en tiempo real de la cita más reciente de un paciente
 const CITA_STATUS_CFG = {
+  pending:   { label: '⏳ Esperando pago',               color: '#B45309', bg: '#FFFBEB' },
   paid:      { label: '⏳ Esperando que médico inicie', color: '#B45309', bg: '#FFFBEB' },
   active:    { label: '🟢 En consulta ahora',            color: '#047857', bg: '#ECFDF5' },
   done:      { label: '✅ Consulta completada',          color: '#4B5563', bg: '#F3F4F6' },
@@ -1080,6 +1081,18 @@ export default function PanelFarmacia() {
                             }}
                           >
                             📹 Iniciar videollamada
+                          </button>
+                        )}
+                        {citaStatusPorPaciente[p.id].status === 'pending' && (
+                          <button
+                            onClick={() => navigate(`/farmacia/pago/${citaStatusPorPaciente[p.id].id}`)}
+                            style={{
+                              border: 'none', background: C.green600, color: C.white,
+                              padding: '2px 10px', borderRadius: 10,
+                              fontSize: 10, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            💳 Completar pago
                           </button>
                         )}
                       </div>

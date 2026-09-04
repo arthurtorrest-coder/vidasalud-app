@@ -296,7 +296,7 @@ export default function PanelFarmacia() {
     // Estado en tiempo real de la cita más reciente de cada paciente (paid/active/done/cancelled/pending)
     const { data: estadoAppts, error: estadoError } = await supabase
       .from('appointments')
-      .select('id, patient_id, status, scheduled_at')
+      .select('id, patient_id, status, scheduled_at, video_url')
       .in('patient_id', patIds)
       .order('scheduled_at', { ascending: false })
     console.log('[PanelFarmacia] query estado citas:', {
@@ -1059,14 +1059,28 @@ export default function PanelFarmacia() {
                       </div>
                     )}
                     {citaStatusPorPaciente[p.id] && CITA_STATUS_CFG[citaStatusPorPaciente[p.id].status] && (
-                      <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4,
-                        fontSize: 10, fontWeight: 700,
-                        color:      CITA_STATUS_CFG[citaStatusPorPaciente[p.id].status].color,
-                        background: CITA_STATUS_CFG[citaStatusPorPaciente[p.id].status].bg,
-                        padding: '2px 8px', borderRadius: 10,
-                      }}>
-                        {CITA_STATUS_CFG[citaStatusPorPaciente[p.id].status].label}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                        <div style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          fontSize: 10, fontWeight: 700,
+                          color:      CITA_STATUS_CFG[citaStatusPorPaciente[p.id].status].color,
+                          background: CITA_STATUS_CFG[citaStatusPorPaciente[p.id].status].bg,
+                          padding: '2px 8px', borderRadius: 10,
+                        }}>
+                          {CITA_STATUS_CFG[citaStatusPorPaciente[p.id].status].label}
+                        </div>
+                        {citaStatusPorPaciente[p.id].status === 'active' && citaStatusPorPaciente[p.id].video_url && (
+                          <button
+                            onClick={() => window.open(citaStatusPorPaciente[p.id].video_url, '_blank', 'noopener,noreferrer')}
+                            style={{
+                              border: 'none', background: C.green600, color: C.white,
+                              padding: '2px 10px', borderRadius: 10,
+                              fontSize: 10, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+                            }}
+                          >
+                            📹 Iniciar videollamada
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

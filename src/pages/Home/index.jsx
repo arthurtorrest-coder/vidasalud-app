@@ -275,7 +275,8 @@ function ActiveCallBanner({ appt, onEnter }) {
 
 // ─── Banner: consulta pagada, esperando que el médico inicie ──
 
-function PagoPendienteBanner({ onIr }) {
+function PagoPendienteBanner({ status, onIr }) {
+  const esPago = status === 'pending'
   return (
     <div style={{
       background: 'linear-gradient(135deg, #065F46, #059669)',
@@ -288,7 +289,7 @@ function PagoPendienteBanner({ onIr }) {
           Tienes una consulta pendiente
         </div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
-          El médico iniciará pronto
+          {esPago ? 'Completa tu pago para confirmar tu cita' : 'El médico iniciará pronto'}
         </div>
       </div>
       <button
@@ -300,7 +301,7 @@ function PagoPendienteBanner({ onIr }) {
           flexShrink: 0, whiteSpace: 'nowrap',
         }}
       >
-        Continuar →
+        Continuar con tu pago →
       </button>
     </div>
   )
@@ -527,11 +528,14 @@ export default function Home() {
     if (!user?.id) return
     const desde = startOfTodayLimaISO()
     console.log('[checkPagoPendiente] buscando — patient:', user.id, '| scheduled_at >=', desde)
+    // 'pending' cubre el caso de un turno de guardia tomado cuyo pago quedó a
+    // medias (el paciente cerró /pago/:id o volvió atrás antes de confirmar).
+    // 'paid' cubre la cita ya pagada, esperando que el médico la inicie.
     const { data, error } = await supabase
       .from('appointments')
       .select('id, status, scheduled_at')
       .eq('patient_id', user.id)
-      .eq('status', 'paid')
+      .in('status', ['pending', 'paid'])
       .gte('scheduled_at', desde)
       .order('scheduled_at', { ascending: true })
       .limit(1)
@@ -770,7 +774,7 @@ export default function Home() {
       )}
 
       {pagoPendienteAppt && profile?.role === 'patient' && !activeAppt && (
-        <PagoPendienteBanner onIr={() => navigate(`/pago/${pagoPendienteAppt.id}`)} />
+        <PagoPendienteBanner status={pagoPendienteAppt.status} onIr={() => navigate(`/pago/${pagoPendienteAppt.id}`)} />
       )}
 
       {solicitudActiva && profile?.role === 'patient' && !activeAppt && !pagoPendienteAppt && (

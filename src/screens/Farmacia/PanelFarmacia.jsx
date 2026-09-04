@@ -38,6 +38,14 @@ function esGeneral(d) {
   return (d?.especialidad ?? '').toLowerCase().includes('general')
 }
 
+// Estado en tiempo real de la cita más reciente de un paciente
+const CITA_STATUS_CFG = {
+  paid:      { label: '⏳ Esperando que médico inicie', color: '#B45309', bg: '#FFFBEB' },
+  active:    { label: '🟢 En consulta ahora',            color: '#047857', bg: '#ECFDF5' },
+  done:      { label: '✅ Consulta completada',          color: '#4B5563', bg: '#F3F4F6' },
+  cancelled: { label: '❌ Cancelada',                     color: '#DC2626', bg: '#FEF2F2' },
+}
+
 // ─── Sub-componentes ──────────────────────────────────────────
 
 function StatCard({ icon, value, label, color = C.green700 }) {
@@ -209,6 +217,9 @@ export default function PanelFarmacia() {
   const [solicitudCreando,       setSolicitudCreando]       = useState(false)
   const patientIdsRef = useRef(new Set())
 
+  // Estado en tiempo real de la cita más reciente de cada paciente referido
+  const [citaStatusPorPaciente, setCitaStatusPorPaciente] = useState({}) // patientId -> { id, status, scheduled_at }
+
   // Form: registrar paciente
   const [form,           setForm]           = useState({ nombre: '', dni: '', telefono: '', email: '' })
   const [registering,    setRegistering]    = useState(false)
@@ -264,6 +275,7 @@ export default function PanelFarmacia() {
     if (patIds.length === 0) {
       setComisiones([])
       setSolicitudesPorPaciente({})
+      setCitaStatusPorPaciente({})
       setStats({ pacientes: 0, consultas: 0, comisionMes: 0, pacientesMes: 0 })
       setLoading(false)
       return
@@ -280,6 +292,21 @@ export default function PanelFarmacia() {
       sols_count: sols?.length ?? 'null', error: solsError?.message ?? null,
     })
     setSolicitudesPorPaciente(Object.fromEntries((sols ?? []).map(s => [s.patient_id, s])))
+
+    // Estado en tiempo real de la cita más reciente de cada paciente (paid/active/done/cancelled/pending)
+    const { data: estadoAppts, error: estadoError } = await supabase
+      .from('appointments')
+      .select('id, patient_id, status, scheduled_at')
+      .in('patient_id', patIds)
+      .order('scheduled_at', { ascending: false })
+    console.log('[PanelFarmacia] query estado citas:', {
+      count: estadoAppts?.length ?? 'null', error: estadoError?.message ?? null,
+    })
+    const estadoMap = {}
+    for (const a of estadoAppts ?? []) {
+      if (!estadoMap[a.patient_id]) estadoMap[a.patient_id] = a // el primero es el más reciente (orden desc)
+    }
+    setCitaStatusPorPaciente(estadoMap)
 
     // 2. Citas de esos pacientes (completadas)
     const { data: appts } = await supabase
@@ -362,6 +389,33 @@ export default function PanelFarmacia() {
         if (payload.new?.status === 'tomada') {
           const nombre = patients.find(p => p.id === row.patient_id)?.full_name ?? 'el paciente'
           toast.success(`🎉 Un médico tomó el turno de ${nombre}`, { duration: 5000 })
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, (payload) => {
+        const row = payload.new ?? payload.old
+        if (!row?.patient_id || !patientIdsRef.current.has(row.patient_id)) return
+
+        if (payload.eventType === 'DELETE') {
+          setCitaStatusPorPaciente(prev => {
+            const next = { ...prev }
+            delete next[row.patient_id]
+            return next
+          })
+          return
+        }
+
+        setCitaStatusPorPaciente(prev => {
+          const actual = prev[row.patient_id]
+          // Solo reemplazar si es la cita más reciente de este paciente
+          if (actual && actual.id !== payload.new.id && new Date(actual.scheduled_at) > new Date(payload.new.scheduled_at)) {
+            return prev
+          }
+          return { ...prev, [row.patient_id]: payload.new }
+        })
+
+        if (payload.new.status === 'active' && payload.old?.status !== 'active') {
+          const nombre = patients.find(p => p.id === row.patient_id)?.full_name ?? 'el paciente'
+          toast.success(`🟢 El médico inició la consulta de ${nombre}`, { duration: 5000 })
         }
       })
       .subscribe()
@@ -1002,6 +1056,17 @@ export default function PanelFarmacia() {
                             ✕ Cancelar espera
                           </button>
                         )}
+                      </div>
+                    )}
+                    {citaStatusPorPaciente[p.id] && CITA_STATUS_CFG[citaStatusPorPaciente[p.id].status] && (
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4,
+                        fontSize: 10, fontWeight: 700,
+                        color:      CITA_STATUS_CFG[citaStatusPorPaciente[p.id].status].color,
+                        background: CITA_STATUS_CFG[citaStatusPorPaciente[p.id].status].bg,
+                        padding: '2px 8px', borderRadius: 10,
+                      }}>
+                        {CITA_STATUS_CFG[citaStatusPorPaciente[p.id].status].label}
                       </div>
                     )}
                   </div>

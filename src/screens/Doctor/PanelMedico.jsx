@@ -995,6 +995,22 @@ export default function PanelMedico() {
       toast.error('Error al cargar las citas: ' + apptErr.message)
     }
     setAppointments(appts ?? [])
+
+    const listaAppts = appts ?? []
+    const pendientes = listaAppts.filter(a => a.status === 'pending')
+    console.log('[PanelMedico] setAppointments —', {
+      selectedDate,
+      start,
+      end,
+      total: listaAppts.length,
+      pendingCount: pendientes.length,
+      pendingDetalle: pendientes.map(a => ({
+        id: a.id,
+        scheduled_at: a.scheduled_at,
+        updated_at:   a.updated_at,
+      })),
+    })
+
     setLoading(false)
     loadUnreadCounts(appts ?? [])
   }

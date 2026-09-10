@@ -467,6 +467,7 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
 
       // Save record in prescriptions table
       let accessToken = null
+      let dbError = null
       if (pdfUrl && appointment?.id) {
         const appointment_id = appointment.id
         const doctor_id      = doctorInfo?.id
@@ -478,14 +479,18 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
             appointment_id,
             doctor_id,
             patient_id,
-            verification_code: verificationCode,
             diagnosis,
-            medicines:         filled,
-            pdf_url:           pdfUrl,
+            medicines: filled,
+            notes:     indications || null,
+            pdf_url:   pdfUrl,
           })
           .select()
         console.log('[RecetaForm] insert result:', { data, error })
-        accessToken = data?.[0]?.access_token ?? null
+        if (error) {
+          dbError = error
+        } else {
+          accessToken = data?.[0]?.access_token ?? null
+        }
       } else {
         console.warn('[RecetaForm] insert skipped — pdfUrl:', pdfUrl, '| appointment?.id:', appointment?.id)
       }
@@ -493,7 +498,11 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
       // Download locally
       doc.save(fileName)
 
-      toast.success('Receta generada y descargada correctamente', { duration: 4000 })
+      if (dbError) {
+        toast.error(`La receta se descargó, pero no se pudo guardar en el sistema: ${dbError.message}`, { duration: 7000 })
+      } else {
+        toast.success('Receta generada y descargada correctamente', { duration: 4000 })
+      }
 
       // WhatsApp al paciente (fire-and-forget) — link directo sin login si vino por botica
       enviarRecetaListaWhatsapp({

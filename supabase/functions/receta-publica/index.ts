@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     const { data, error } = await svc
       .from('prescriptions')
       .select(`
-        id, diagnosis, medicines, indications, pdf_url, verification_code, created_at,
+        id, diagnosis, medicines, notes, pdf_url, firma_url, created_at,
         doctor:doctors(nombres, apellidos, especialidad, cmp),
         patient:profiles!patient_id(full_name)
       `)

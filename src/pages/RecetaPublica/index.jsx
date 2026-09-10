@@ -191,9 +191,9 @@ export default function RecetaPublica() {
                   ))}
                 </div>
               )}
-              {receta.indications && (
+              {receta.notes && (
                 <div style={{ marginTop: 12, fontSize: 12, color: C.gray700, lineHeight: 1.5 }}>
-                  <strong>Indicaciones:</strong> {receta.indications}
+                  <strong>Indicaciones:</strong> {receta.notes}
                 </div>
               )}
             </div>
@@ -221,11 +221,6 @@ export default function RecetaPublica() {
               </div>
             )}
 
-            {receta.verification_code && (
-              <div style={{ textAlign: 'center', fontSize: 11, color: C.gray500 }}>
-                Código de verificación: <strong style={{ color: C.gray700 }}>{receta.verification_code}</strong>
-              </div>
-            )}
           </div>
         )}
 

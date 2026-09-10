@@ -22,7 +22,7 @@ export async function enviarWhatsapp({ to, template_name, parameters }) {
   }
 }
 
-const SITE_URL = 'https://clinicavidasalud.com'
+export const SITE_URL = 'https://clinicavidasalud.com'
 
 // Envía "receta_lista". Si el paciente vino referido por una botica
 // (tieneBotica=true) y hay accessToken, incluye el link directo de
@@ -38,6 +38,8 @@ export async function enviarRecetaListaWhatsapp({ to, nombrePaciente, accessToke
   const link = tieneBotica && accessToken
     ? `${SITE_URL}/receta/${accessToken}`
     : `${SITE_URL}/historial`
+
+  console.log('[enviarRecetaListaWhatsapp]', { accessToken, tieneBotica, link })
 
   return enviarWhatsapp({
     to,

@@ -4,7 +4,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
-import { enviarRecetaListaWhatsapp } from '../lib/whatsapp'
+import { enviarRecetaListaWhatsapp, SITE_URL } from '../lib/whatsapp'
 
 const C = {
   green900: '#064E3B', green800: '#065F46', green700: '#047857',
@@ -505,11 +505,22 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
       }
 
       // WhatsApp al paciente (fire-and-forget) — link directo sin login si vino por botica
+      const tieneBotica = !!appointment?.farmacia_referente_id
+      const linkWhatsapp = tieneBotica && accessToken
+        ? `${SITE_URL}/receta/${accessToken}`
+        : `${SITE_URL}/historial`
+      console.log('[RecetaForm] datos para WhatsApp —', {
+        accessToken,
+        farmacia_referente_id: appointment?.farmacia_referente_id ?? null,
+        tieneBotica,
+        linkWhatsapp,
+      })
+
       enviarRecetaListaWhatsapp({
         to: patient.phone,
         nombrePaciente: patientName,
         accessToken,
-        tieneBotica: !!appointment?.farmacia_referente_id,
+        tieneBotica,
       })
 
       onSuccess?.()

@@ -472,18 +472,19 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
         const appointment_id = appointment.id
         const doctor_id      = doctorInfo?.id
         const patient_id     = appointment.patient_id
-        console.log('[RecetaForm] insert payload:', { appointment_id, doctor_id, patient_id })
+        const insertPayload = {
+          appointment_id,
+          doctor_id,
+          patient_id,
+          diagnosis,
+          medicines:    filled,
+          instructions: indications || null,
+          pdf_url:      pdfUrl,
+        }
+        console.log('[RecetaForm] insert payload:', insertPayload)
         const { data, error } = await supabase
           .from('prescriptions')
-          .insert({
-            appointment_id,
-            doctor_id,
-            patient_id,
-            diagnosis,
-            medicines:    filled,
-            instructions: indications || null,
-            pdf_url:      pdfUrl,
-          })
+          .insert(insertPayload)
           .select()
         console.log('[RecetaForm] insert result:', { data, error })
         if (error) {

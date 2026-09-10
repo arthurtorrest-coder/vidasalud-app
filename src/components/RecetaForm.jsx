@@ -480,9 +480,9 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
             doctor_id,
             patient_id,
             diagnosis,
-            medicines: filled,
-            notes:     indications || null,
-            pdf_url:   pdfUrl,
+            medicines:    filled,
+            instructions: indications || null,
+            pdf_url:      pdfUrl,
           })
           .select()
         console.log('[RecetaForm] insert result:', { data, error })

@@ -191,9 +191,9 @@ export default function RecetaPublica() {
                   ))}
                 </div>
               )}
-              {receta.notes && (
+              {receta.instructions && (
                 <div style={{ marginTop: 12, fontSize: 12, color: C.gray700, lineHeight: 1.5 }}>
-                  <strong>Indicaciones:</strong> {receta.notes}
+                  <strong>Indicaciones:</strong> {receta.instructions}
                 </div>
               )}
             </div>

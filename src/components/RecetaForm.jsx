@@ -472,6 +472,11 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
         const appointment_id = appointment.id
         const doctor_id      = doctorInfo?.id
         const patient_id     = appointment.patient_id
+        console.log('[RecetaForm] variables justo antes del insert —', {
+          diagnosis, tipoDiagnosis: typeof diagnosis,
+          filled, tipoFilled: typeof filled, filledLength: filled?.length,
+          indications, tipoIndications: typeof indications,
+        })
         const insertPayload = {
           appointment_id,
           doctor_id,

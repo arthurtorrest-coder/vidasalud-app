@@ -490,7 +490,7 @@ export default function RecetaForm({ appointment, doctorInfo, doctorName, soap, 
         const { data, error } = await supabase
           .from('prescriptions')
           .insert(insertPayload)
-          .select()
+          .select('access_token')
         console.log('[RecetaForm] insert result:', { data, error })
         if (error) {
           dbError = error

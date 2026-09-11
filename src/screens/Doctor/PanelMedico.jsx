@@ -978,7 +978,7 @@ export default function PanelMedico() {
 
     const { data: appts, error: apptErr } = await supabase
       .from('appointments')
-      .select(`*, patient:profiles!patient_id ( full_name, phone, dni )`)
+      .select(`*, farmacia_referente_id, patient:profiles!patient_id ( full_name, phone, dni )`)
       .eq('doctor_id', info.id)
       .gte('scheduled_at', start)
       .lte('scheduled_at', end)

@@ -56,20 +56,12 @@ const HAMBURGER = (
   </svg>
 )
 
-const VIDEO_ICON = (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14" />
-    <rect x="1" y="6" width="14" height="12" rx="2" ry="2" />
-  </svg>
-)
-
 // ─── Items de navegación ──────────────────────────────────────
 
 const NAV_ITEMS = [
   { to: '/inicio',         icon: ICONS.home,     label: 'Inicio',         roots: ['/inicio', '/booking', '/pago', '/medico'] },
   { to: '/citas',          icon: ICONS.calendar, label: 'Citas',          roots: ['/citas'],                                  isCitas: true },
   { to: '/farmacias',      icon: ICONS.pharmacy, label: 'Farmacias',      roots: ['/farmacias', '/registro-farmacia']         },
-  { to: '/planes/familia', icon: '📋',           label: 'Nuestros planes', roots: ['/planes/familia'],                        highlight: true },
   { to: '/perfil',         icon: ICONS.user,     label: 'Perfil',         roots: ['/perfil']                                  },
 ]
 
@@ -304,50 +296,3 @@ export function TopBar() {
   )
 }
 
-// ─── BottomNav — solo botón Consultar ────────────────────────
-
-export default function BottomNav() {
-  const navigate        = useNavigate()
-  const [pressed, setPressed] = useState(false)
-
-  return (
-    <div style={{
-      display: 'flex', justifyContent: 'center', alignItems: 'center',
-      borderTop: `1px solid ${C.gray200}`,
-      background: C.white, flexShrink: 0,
-      padding: '6px 0',
-      paddingBottom: 'calc(6px + env(safe-area-inset-bottom, 0px))',
-    }}>
-      <button
-        data-tour="nav-consultar"
-        onClick={() => navigate('/especialidades')}
-        onPointerDown={() => setPressed(true)}
-        onPointerUp={() => setPressed(false)}
-        onPointerLeave={() => setPressed(false)}
-        style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-          WebkitTapHighlightColor: 'transparent',
-        }}
-        aria-label="Consultar"
-      >
-        <div style={{
-          width: 52, height: 52, borderRadius: '50%',
-          background: `linear-gradient(145deg, ${C.green900}, ${C.green700})`,
-          border: `3px solid ${C.white}`,
-          boxShadow: pressed
-            ? '0 2px 8px rgba(5,150,105,0.3)'
-            : '0 4px 16px rgba(5,150,105,0.45), 0 0 0 1px rgba(5,150,105,0.15)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transform: pressed ? 'scale(0.91)' : 'scale(1)',
-          transition: 'transform 0.12s, box-shadow 0.12s',
-        }}>
-          {VIDEO_ICON}
-        </div>
-        <span style={{ fontSize: 12, fontWeight: 700, color: C.green700, fontFamily: "'DM Sans', sans-serif" }}>
-          Consultar
-        </span>
-      </button>
-    </div>
-  )
-}

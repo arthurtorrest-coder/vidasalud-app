@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import BottomNav, { TopBar } from './BottomNav'
+import { TopBar } from './BottomNav'
 import TourGuiado, { TOUR_KEY } from '../TourGuiado'
 import BotoAyuda from '../BotoAyuda'
 
@@ -136,8 +136,6 @@ export default function AppShell() {
           >
             <Outlet />
           </div>
-
-          <BottomNav />
 
           {/* ── Tour guiado (solo en /inicio si no completado) ── */}
           {showTour && pathname === '/inicio' && (

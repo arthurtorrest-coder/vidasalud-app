@@ -322,7 +322,7 @@ function PagoPendienteBanner({ status, esDeGuardia, onIr }) {
 
 // ─── Modal: sin médico disponible ────────────────────────────
 
-function AgendarModal({ onAviso, onEspecialidades, onDespues, onClose, loading }) {
+function AgendarModal({ onAviso, onEspecialidades, onClose, loading }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 1000,
@@ -411,29 +411,6 @@ function AgendarModal({ onAviso, onEspecialidades, onDespues, onClose, loading }
               </div>
             </div>
           </button>
-
-          {/* Opción 3: blanco con borde */}
-          <button
-            onClick={onDespues}
-            style={{
-              width: '100%', padding: '13px 16px',
-              background: C.white,
-              border: `1.5px solid ${C.gray300}`,
-              borderRadius: 14,
-              fontSize: 14, fontWeight: 600, color: C.gray600,
-              cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 12,
-              fontFamily: 'inherit',
-            }}
-          >
-            <span style={{ fontSize: 20, flexShrink: 0 }}>📅</span>
-            <div style={{ textAlign: 'left', flex: 1 }}>
-              <div>Agendar para después</div>
-              <div style={{ fontSize: 11, fontWeight: 400, color: C.gray400, marginTop: 2 }}>
-                Elige un horario disponible próximamente
-              </div>
-            </div>
-          </button>
         </div>
       </div>
     </div>
@@ -516,6 +493,7 @@ export default function Home() {
   const [errorDocs,       setErrorDocs]       = useState(null)
   const [activeAppt,      setActiveAppt]      = useState(null)
   const [pagoPendienteAppt, setPagoPendienteAppt] = useState(null)
+  const [hasHistory,      setHasHistory]      = useState(false)
   const [videoUrl,        setVideoUrl]        = useState(null)
   const [showAllSpecs,    setShowAllSpecs]    = useState(false)
   const [showAgendarModal, setShowAgendarModal] = useState(false)
@@ -578,6 +556,21 @@ export default function Home() {
   }, [user?.id])
 
   useEffect(() => { checkPagoPendiente() }, [checkPagoPendiente])
+
+  // ¿Tiene al menos una consulta completada? Determina si se muestran
+  // los accesos rápidos a "Receta digital" / "Mi historial".
+  const checkHistory = useCallback(async () => {
+    if (!user?.id) return
+    const { count, error } = await supabase
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('patient_id', user.id)
+      .eq('status', 'done')
+    console.log('[checkHistory] citas completadas —', { count, error: error?.message ?? null })
+    setHasHistory((count ?? 0) > 0)
+  }, [user?.id])
+
+  useEffect(() => { checkHistory() }, [checkHistory])
 
   useEffect(() => {
     if (!user?.id) return
@@ -885,8 +878,10 @@ export default function Home() {
         {[
           { icon: '📹', label: 'Agendar cita',  bg: '#1D4ED8', border: '#3B82F6', color: '#FFFFFF', h: 48, shadow: '0 6px 20px rgba(6,95,70,0.45)',  shadowPress: '0 2px 6px rgba(6,95,70,0.25)',  action: handleAgendarCita },
           { icon: '📅', label: 'Mis citas',      bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/citas') },
-          { icon: '💊', label: 'Receta digital', bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
-          { icon: '📋', label: 'Mi historial',   bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/historial') },
+          ...(hasHistory ? [
+            { icon: '💊', label: 'Receta digital', bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
+            { icon: '📋', label: 'Mi historial',   bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/historial') },
+          ] : []),
         ].map((a, i) => (
           <button
             key={i}
@@ -1095,7 +1090,6 @@ export default function Home() {
           loading={solicitudLoading}
           onAviso={crearSolicitud}
           onEspecialidades={() => { setShowAgendarModal(false); navigate('/especialidades') }}
-          onDespues={() => { setShowAgendarModal(false); navigate('/especialidades') }}
           onClose={() => setShowAgendarModal(false)}
         />
       )}

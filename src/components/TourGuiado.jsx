@@ -33,13 +33,6 @@ const STEPS = [
     tooltipSide: 'above',
   },
   {
-    selector:    '[data-tour="nav-consultar"]',
-    emoji:       '📹',
-    title:       'Botón Consultar',
-    text:        'Este botón verde en el centro te lleva directamente a elegir una especialidad y reservar una consulta hoy.',
-    tooltipSide: 'above',
-  },
-  {
     selector:    '[data-tour="nav-citas"]',
     emoji:       '📅',
     title:       'Mis Citas',

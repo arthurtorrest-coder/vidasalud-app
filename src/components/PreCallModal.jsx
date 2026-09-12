@@ -5,16 +5,8 @@ const GREEN = '#059669'
 const WHITE = '#FFFFFF'
 
 const PASOS = [
-  { icon: '1️⃣', text: 'Toca el botón "Entendido, entrar ahora".' },
-  { icon: '2️⃣', text: 'Cuando tu celular muestre el mensaje de permisos, toca PERMITIR o ALLOW.' },
-  {
-    icon: '⚠️',
-    text: 'Cuando el navegador te pida permiso para usar el micrófono y la cámara, toca PERMITIR. Si no aparece ese mensaje, ve a Configuración del sitio en tu navegador y activa Micrófono y Cámara para clinicavidasalud.com.',
-    warn: true,
-  },
-  { icon: '4️⃣', text: 'Cuando aparezca la sala de video, busca y aplasta el botón verde "Join" para conectarte con el médico.', highlight: true },
-  { icon: '5️⃣', text: 'Si no ves al médico, recarga la página y vuelve a entrar.' },
-  { icon: '6️⃣', text: 'Asegúrate de tener buena conexión a internet (WiFi o datos 4G).' },
+  { icon: '1️⃣', text: 'Permite el acceso a tu cámara y micrófono cuando el navegador te lo pida.' },
+  { icon: '2️⃣', text: 'Cuando aparezca la sala, presiona el botón verde "Join" para conectarte.', highlight: true },
 ]
 
 // ─── SVG: diálogo de permisos del celular ─────────────────────

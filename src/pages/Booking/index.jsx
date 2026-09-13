@@ -36,7 +36,8 @@ function doctorTitle(cmp, nombres) {
 function fmtHora12(hhmm) {
   if (!hhmm) return ''
   const [h, m] = hhmm.slice(0, 5).split(':').map(Number)
-  return `${h % 12 || 12}:${String(m).padStart(2, '0')}${h >= 12 ? 'pm' : 'am'}`
+  const suffix = h >= 12 ? 'PM' : 'AM'
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${suffix}`
 }
 
 function nowLimaHHMM() {
@@ -709,7 +710,12 @@ export default function Booking() {
                   {doctor.especialidad} · {doctor.cmp}
                 </div>
                 {horarioRango && (
-                  <div style={{ fontSize: 11, color: C.green700, fontWeight: 700, marginTop: 3 }}>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    fontSize: 11, color: C.green700, fontWeight: 700,
+                    marginTop: 4, background: C.white, border: `1px solid ${C.green200}`,
+                    borderRadius: 20, padding: '2px 9px', width: 'fit-content',
+                  }}>
                     🕐 Disponible de {fmtHora12(horarioRango.inicio)} a {fmtHora12(horarioRango.fin)}
                   </div>
                 )}

@@ -353,7 +353,7 @@ export default function PerfilMedico() {
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     background: s.esHoy ? C.green50 : C.gray50,
                     border: `1.5px solid ${s.esHoy ? C.green300 : C.gray200}`,
-                    borderRadius: 12, padding: '8px 12px', minWidth: 60,
+                    borderRadius: 12, padding: '8px 12px', minWidth: 84,
                   }}
                 >
                   <span style={{
@@ -364,10 +364,10 @@ export default function PerfilMedico() {
                     {s.esHoy ? 'Hoy' : s.esMañana ? 'Mañana' : s.dia}
                   </span>
                   <span style={{
-                    fontSize: 15, fontWeight: 800, marginTop: 3,
+                    fontSize: 13, fontWeight: 800, marginTop: 3, whiteSpace: 'nowrap',
                     color: s.esHoy ? C.green800 : C.gray700,
                   }}>
-                    {s.hora}
+                    {s.horaFin ? `${s.hora} - ${s.horaFin}` : s.hora}
                   </span>
                 </div>
               ))}

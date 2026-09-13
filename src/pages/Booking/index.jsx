@@ -558,11 +558,14 @@ export default function Booking() {
       const slotsSet = new Set(slotsEnHorario)
 
       // Rango completo de horario del día (para mostrar "Disponible de X a Y")
+      console.log('[Booking] bloques recibidos de doctor_schedules:', bloques)
       if ((bloques ?? []).length > 0) {
         const inicio = [...bloques].map(b => b.hora_inicio).sort()[0]
         const fin    = [...bloques].map(b => b.hora_fin).sort().slice(-1)[0]
+        console.log('[Booking] horarioRango calculado:', { inicio, fin })
         setHorarioRango({ inicio, fin })
       } else {
+        console.log('[Booking] sin bloques para este día — horarioRango = null')
         setHorarioRango(null)
       }
 
@@ -645,6 +648,8 @@ export default function Booking() {
   const readyToSubmit = !!selectedTime && motivo.trim().length >= 10
   const titulo        = doctor ? doctorTitle(doctor.cmp, doctor.nombres) : ''
   const motivoFaltante = 10 - motivo.trim().length
+
+  console.log('[Booking] render — horarioRango:', horarioRango, '| doctor:', doctor?.id)
 
   /* ── Render ─────────────────────────────────────────────────── */
   return (

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { supabase } from '../../lib/supabase'
 import { C } from '../../lib/tokens'
 import VideoRoom    from '../../components/VideoRoom'
@@ -37,9 +39,7 @@ function fmtHoraDesdeISO(iso) {
 
 function fmtFechaDesdeISO(iso) {
   if (!iso) return ''
-  return new Date(iso).toLocaleDateString('es-PE', {
-    timeZone: 'America/Lima', day: 'numeric', month: 'long',
-  })
+  return format(new Date(iso), 'd MMM', { locale: es })
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────

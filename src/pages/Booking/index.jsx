@@ -33,6 +33,12 @@ function doctorTitle(cmp, nombres) {
   return nombres.trimEnd().endsWith('a') ? 'Dra.' : 'Dr.'
 }
 
+function fmtHora12(hhmm) {
+  if (!hhmm) return ''
+  const [h, m] = hhmm.slice(0, 5).split(':').map(Number)
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')}${h >= 12 ? 'pm' : 'am'}`
+}
+
 function nowLimaHHMM() {
   return new Date().toLocaleTimeString('es-PE', {
     timeZone: 'America/Lima',
@@ -473,6 +479,7 @@ export default function Booking() {
   const [booked,         setBooked]         = useState(new Set())
   const [loadingSlots,   setLoadingSlots]   = useState(true)
   const [availableSlots, setAvailableSlots] = useState([])
+  const [horarioRango,   setHorarioRango]   = useState(null)
   const [motivo,        setMotivo]        = useState(() => {
     const saved = sessionStorage.getItem('vidasalud_triaje')
     if (saved) sessionStorage.removeItem('vidasalud_triaje')
@@ -549,6 +556,15 @@ export default function Booking() {
         (bloques ?? []).flatMap(b => generateSlots(b.hora_inicio, b.hora_fin))
       )].sort()
       const slotsSet = new Set(slotsEnHorario)
+
+      // Rango completo de horario del día (para mostrar "Disponible de X a Y")
+      if ((bloques ?? []).length > 0) {
+        const inicio = [...bloques].map(b => b.hora_inicio).sort()[0]
+        const fin    = [...bloques].map(b => b.hora_fin).sort().slice(-1)[0]
+        setHorarioRango({ inicio, fin })
+      } else {
+        setHorarioRango(null)
+      }
 
       // Convertir citas UTC → hora Lima; solo las que caen en un slot del horario
       // se mostrarán como "Ocupado" (las fuera de horario no tienen slot visible)
@@ -687,6 +703,11 @@ export default function Booking() {
                 <div style={{ fontSize: 12, color: C.gray500, marginTop: 2 }}>
                   {doctor.especialidad} · {doctor.cmp}
                 </div>
+                {horarioRango && (
+                  <div style={{ fontSize: 11, color: C.green700, fontWeight: 700, marginTop: 3 }}>
+                    🕐 Disponible de {fmtHora12(horarioRango.inicio)} a {fmtHora12(horarioRango.fin)}
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8, marginTop: 5, alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: C.amber, fontWeight: 700 }}>
                     ★ {Number(doctor.rating).toFixed(1)}

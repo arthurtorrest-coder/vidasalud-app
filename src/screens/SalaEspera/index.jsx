@@ -27,6 +27,21 @@ function doctorTitle(cmp = '', nombres = '') {
   return nombres.trimEnd().endsWith('a') ? 'Dra.' : 'Dr.'
 }
 
+function fmtHoraDesdeISO(iso) {
+  if (!iso) return ''
+  return new Date(iso)
+    .toLocaleTimeString('es-PE', { timeZone: 'America/Lima', hour: 'numeric', minute: '2-digit', hour12: true })
+    .replace(/\s?a\.?\s?m\.?/i, 'am')
+    .replace(/\s?p\.?\s?m\.?/i, 'pm')
+}
+
+function fmtFechaDesdeISO(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('es-PE', {
+    timeZone: 'America/Lima', day: 'numeric', month: 'long',
+  })
+}
+
 // ─── Sub-componentes ──────────────────────────────────────────
 
 function Spinner() {
@@ -174,6 +189,14 @@ export default function SalaEspera() {
   const minEsp    = adelante * 20
   const myIndex   = Math.max(0, totalCola - adelante - 1)
 
+  // Cita programada a futuro (>5 min) vs. inmediata (turno de guardia): sin timer/cola para la primera
+  const minutosHastaCita  = appt?.scheduled_at
+    ? (new Date(appt.scheduled_at).getTime() - Date.now()) / 60_000
+    : 0
+  const esProgramadaFutura = !esActiva && !esDone && minutosHastaCita > 5
+  const horaCitaProg       = fmtHoraDesdeISO(appt?.scheduled_at)
+  const fechaCitaProg      = fmtFechaDesdeISO(appt?.scheduled_at)
+
   return (
     <div style={{
       minHeight: '100vh', background: C.gray50,
@@ -272,8 +295,29 @@ export default function SalaEspera() {
         {/* Estado principal de la cola */}
         {!loading && !esDone && (
           <>
+            {/* Cita programada a futuro: sin timer ni cola, solo aviso de horario */}
+            {esProgramadaFutura && (
+              <div style={{
+                background: C.white, border: `1.5px solid ${C.green200}`,
+                borderRadius: 20, padding: '32px 20px', textAlign: 'center',
+                animation: 'se-slide 0.4s ease both',
+              }}>
+                <div style={{ fontSize: 44 }}>📅</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: C.gray900, marginTop: 14, lineHeight: 1.4 }}>
+                  Tu cita está programada
+                </div>
+                <div style={{ fontSize: 15, color: C.green700, fontWeight: 700, marginTop: 8, lineHeight: 1.5 }}>
+                  Para las {horaCitaProg} del {fechaCitaProg}
+                </div>
+                <div style={{ fontSize: 12, color: C.gray500, marginTop: 12, lineHeight: 1.6 }}>
+                  {titulo} {docName} te atenderá a esa hora.<br />
+                  Vuelve a esta pantalla unos minutos antes para ingresar a la sala de espera.
+                </div>
+              </div>
+            )}
+
             {/* Pago confirmado, aún sin sala de video (status='paid' sin video_url) */}
-            {appt?.status === 'paid' && !appt?.video_url && (
+            {!esProgramadaFutura && appt?.status === 'paid' && !appt?.video_url && (
               <div style={{
                 background: C.green50, border: `1.5px solid ${C.green200}`,
                 borderRadius: 16, padding: '16px 18px',
@@ -293,6 +337,7 @@ export default function SalaEspera() {
             )}
 
             {/* Tarjeta de estado */}
+            {!esProgramadaFutura && (
             <div style={{
               background: C.white,
               border: `1.5px solid ${esActiva ? C.green300 : adelante === 0 ? C.green200 : C.gray200}`,
@@ -428,9 +473,10 @@ export default function SalaEspera() {
                 )}
               </div>
             </div>
+            )}
 
             {/* Tiempo estimado — solo cuando hay pacientes delante */}
-            {!esActiva && adelante > 0 && (
+            {!esProgramadaFutura && !esActiva && adelante > 0 && (
               <div style={{
                 background: C.amberBg, border: `1.5px solid #FDE68A`,
                 borderRadius: 16, padding: '14px 16px',
@@ -496,6 +542,7 @@ export default function SalaEspera() {
             </div>
 
             {/* Indicador de actualización */}
+            {!esProgramadaFutura && (
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '0 2px',
@@ -525,12 +572,15 @@ export default function SalaEspera() {
                 ↻ Actualizar
               </button>
             </div>
+            )}
 
             {/* Nota de privacidad */}
+            {!esProgramadaFutura && (
             <div style={{ textAlign: 'center', fontSize: 10, color: C.gray400, lineHeight: 1.6 }}>
               🔒 Los datos de los demás pacientes son privados.<br />
               Solo ves tu posición en la cola, no los nombres de otros.
             </div>
+            )}
           </>
         )}
       </div>

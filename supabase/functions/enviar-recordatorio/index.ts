@@ -59,9 +59,11 @@ Deno.serve(async (req) => {
 
     webpush.setVapidDetails('mailto:soporte@vidasalud.pe', vapidPublic, vapidPrivate)
 
+    // Ventana de 1 hora: el cron corre cada hora, así que una ventana más
+    // ancha (p.ej. 2h) haría que la misma cita reciba el recordatorio dos veces.
     const now  = new Date()
-    const in2h = new Date(now.getTime() + 2 * 60 * 60 * 1000)
-    console.log('[enviar-recordatorio] buscando citas entre', now.toISOString(), 'y', in2h.toISOString())
+    const in1h = new Date(now.getTime() + 1 * 60 * 60 * 1000)
+    console.log('[enviar-recordatorio] buscando citas entre', now.toISOString(), 'y', in1h.toISOString())
 
     const { data: appointments, error } = await supabase
       .from('appointments')
@@ -73,7 +75,7 @@ Deno.serve(async (req) => {
       `)
       .eq('status', 'paid')
       .gte('scheduled_at', now.toISOString())
-      .lte('scheduled_at', in2h.toISOString())
+      .lte('scheduled_at', in1h.toISOString())
 
     if (error) {
       console.error('[enviar-recordatorio] error al consultar citas:', error.message)

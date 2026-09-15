@@ -47,3 +47,13 @@ export async function enviarRecetaListaWhatsapp({ to, nombrePaciente, accessToke
     parameters: [nombrePaciente || 'Paciente', link],
   })
 }
+
+// Envía "ayuda_videollamada" — el médico inició la sala pero el paciente no se
+// unió tras varios minutos. Le manda el link directo de la videollamada.
+export async function enviarAyudaVideollamadaWhatsapp({ to, nombrePaciente, videoUrl }) {
+  return enviarWhatsapp({
+    to,
+    template_name: 'ayuda_videollamada',
+    parameters: [nombrePaciente || 'Paciente', videoUrl],
+  })
+}

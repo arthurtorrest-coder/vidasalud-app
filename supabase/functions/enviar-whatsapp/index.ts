@@ -34,6 +34,10 @@ const TEMPLATES = {
     body: 'Hola {{1}}, tu receta electrónica está lista. Descárgala en: {{2}}',
     paramsCount: 2,
   },
+  ayuda_videollamada: {
+    body: 'Hola {{1}}, tu médico ya te está esperando en la videollamada. Ingresa aquí: {{2}} — y presiona el botón verde "Join" para conectarte.',
+    paramsCount: 2,
+  },
 }
 
 function json(body, status = 200) {

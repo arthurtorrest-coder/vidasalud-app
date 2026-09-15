@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore'
 import VideoRoom from '../../components/VideoRoom'
 import RecetaForm from '../../components/RecetaForm'
 import { C } from '../../lib/tokens'
+import { enviarAyudaVideollamadaWhatsapp } from '../../lib/whatsapp'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -261,7 +262,7 @@ function SoapForm({ soap, onChange, onFinish, saving }) {
 }
 
 // ─── Tarjeta de cita ──────────────────────────────────────────
-function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving, onOpenVideo, onChat, unreadCount = 0, onCancelar }) {
+function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap, onSoapChange, onFinish, saving, onOpenVideo, onChat, unreadCount = 0, onCancelar, pacienteConectado, minutosActiva, onEnviarAyuda, enviandoAyuda, ayudaEnviada }) {
   const navigate  = useNavigate()
   const patient   = appt.patient
   const name      = patient?.full_name ?? 'Paciente'
@@ -440,20 +441,54 @@ function AppointmentCard({ appt, isActive, hasAnyActive, onStart, starting, soap
 
       {/* Botón de videollamada (cita activa con sala creada) */}
       {isActive && appt.video_url && (
-        <button
-          onClick={() => onOpenVideo(appt.video_url)}
-          style={{
-            marginTop: 12, width: '100%', padding: '12px 0',
-            background: `linear-gradient(135deg, #1D4ED8, #2563EB)`,
-            color: C.white, border: 'none', borderRadius: 12,
-            fontSize: 14, fontWeight: 700, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
-            transition: 'all 0.15s',
-          }}
-        >
-          📹 Abrir videollamada
-        </button>
+        <>
+          <button
+            onClick={() => onOpenVideo(appt.video_url)}
+            style={{
+              marginTop: 12, width: '100%', padding: '12px 0',
+              background: `linear-gradient(135deg, #1D4ED8, #2563EB)`,
+              color: C.white, border: 'none', borderRadius: 12,
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
+              transition: 'all 0.15s',
+            }}
+          >
+            📹 Abrir videollamada
+          </button>
+
+          {/* Indicador de conexión del paciente */}
+          <div style={{
+            marginTop: 8, display: 'flex', alignItems: 'center', gap: 6,
+            fontSize: 11, fontWeight: 700,
+            color: pacienteConectado ? C.green700 : C.amberText,
+          }}>
+            <div style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: pacienteConectado ? C.green500 : C.amber,
+            }} />
+            {pacienteConectado ? 'Paciente conectado' : 'Paciente aún no se conecta'}
+          </div>
+
+          {/* Ayuda por WhatsApp — solo si pasaron 5+ min y el paciente no se conectó */}
+          {!pacienteConectado && minutosActiva > 5 && (
+            <button
+              onClick={() => onEnviarAyuda(appt)}
+              disabled={enviandoAyuda}
+              style={{
+                marginTop: 8, width: '100%', padding: '10px 0',
+                background: enviandoAyuda ? C.gray100 : '#ECFDF5',
+                border: `1.5px solid ${enviandoAyuda ? C.gray200 : '#25D366'}`,
+                borderRadius: 12, color: enviandoAyuda ? C.gray400 : '#128C3E',
+                fontSize: 12, fontWeight: 800, cursor: enviandoAyuda ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              {enviandoAyuda ? 'Enviando…' : ayudaEnviada ? '✅ Ayuda enviada · Reenviar' : '📱 Enviar ayuda por WhatsApp'}
+            </button>
+          )}
+        </>
       )}
 
       {/* Formulario SOAP (solo cuando está activa) */}
@@ -611,6 +646,12 @@ export default function PanelMedico() {
   const [pushActivo,   setPushActivo]   = useState(false)
   const [activandoPush, setActivandoPush] = useState(false)
   const fetchTurnosGenRef = useRef(0)   // evita race conditions entre llamadas concurrentes
+
+  // Presencia del paciente en la videollamada activa (Daily.co presence API)
+  const [presenceCount,  setPresenceCount]  = useState(0)
+  const [enviandoAyuda,  setEnviandoAyuda]  = useState(false)
+  const [ayudaEnviadaId, setAyudaEnviadaId] = useState(null)
+  const [, setTick] = useState(0)   // fuerza re-render periódico para revisar el umbral de 5 min
 
   // ── Formulario "Mi perfil" ────────────────────────────────
   const perfilRef   = useRef(null)
@@ -914,6 +955,37 @@ export default function PanelMedico() {
     return () => { supabase.removeChannel(channel) }
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-render periódico — sin esto, minutosActiva quedaría congelado si
+  // presenceCount no cambia de valor entre polls (React no re-renderiza
+  // ante un setState con el mismo valor primitivo).
+  useEffect(() => {
+    const t = setInterval(() => setTick(x => x + 1), 30_000)
+    return () => clearInterval(t)
+  }, [])
+
+  // Presencia en la sala de la cita activa — Daily recomienda no consultar
+  // /v1/presence más de una vez cada 15s, así que hacemos poll cada 20s.
+  useEffect(() => {
+    if (!activeAppt?.id || !activeAppt?.video_url) { setPresenceCount(0); return }
+    let cancelled = false
+
+    async function checkPresence() {
+      const { data, error } = await supabase.functions.invoke('daily-room-presence', {
+        body: { appointmentId: activeAppt.id },
+      })
+      if (cancelled) return
+      if (error || !data?.ok) {
+        console.warn('[daily-room-presence] falló:', error?.message ?? data?.error)
+        return
+      }
+      setPresenceCount(data.count ?? 0)
+    }
+
+    checkPresence()
+    const interval = setInterval(checkPresence, 20_000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [activeAppt?.id, activeAppt?.video_url])
+
   // Verificar estado de suscripción push al cargar
   useEffect(() => {
     if (!doctorInfo?.id) return
@@ -1170,6 +1242,22 @@ export default function PanelMedico() {
     setSesionInicio(new Date())
     toast.success('Consulta iniciada · Sala de video lista')
     setStartingId(null)
+  }
+
+  async function handleEnviarAyudaWhatsapp(appt) {
+    if (!appt.patient?.phone) {
+      toast.error('El paciente no tiene teléfono registrado')
+      return
+    }
+    setEnviandoAyuda(true)
+    await enviarAyudaVideollamadaWhatsapp({
+      to:             appt.patient.phone,
+      nombrePaciente: appt.patient.full_name,
+      videoUrl:       appt.video_url,
+    })
+    setEnviandoAyuda(false)
+    setAyudaEnviadaId(appt.id)
+    toast.success('📱 Mensaje de ayuda enviado por WhatsApp')
   }
 
   async function handleFinish() {
@@ -2732,24 +2820,38 @@ export default function PanelMedico() {
             {!loading && appointments.length === 0 && <EmptyState />}
 
             {/* Lista de citas */}
-            {!loading && appointments.map(appt => (
-              <AppointmentCard
-                key={appt.id}
-                appt={appt}
-                isActive={appt.id === activeAppt?.id}
-                hasAnyActive={hasAnyActive}
-                onStart={handleStart}
-                starting={startingId === appt.id}
-                soap={soap}
-                onSoapChange={handleSoapChange}
-                onFinish={handleFinish}
-                saving={saving}
-                onOpenVideo={setVideoUrl}
-                onChat={id => navigate(`/chat/${id}`)}
-                unreadCount={unreadCounts[appt.id] ?? 0}
-                onCancelar={handleCancelarCita}
-              />
-            ))}
+            {!loading && appointments.map(appt => {
+              const esActiva = appt.id === activeAppt?.id
+              const minutosActiva = esActiva
+                ? (Date.now() - new Date(activeAppt.updated_at).getTime()) / 60000
+                : 0
+              const pacienteConectado = esActiva
+                ? presenceCount > (videoUrl ? 1 : 0)
+                : false
+              return (
+                <AppointmentCard
+                  key={appt.id}
+                  appt={appt}
+                  isActive={esActiva}
+                  hasAnyActive={hasAnyActive}
+                  onStart={handleStart}
+                  starting={startingId === appt.id}
+                  soap={soap}
+                  onSoapChange={handleSoapChange}
+                  onFinish={handleFinish}
+                  saving={saving}
+                  onOpenVideo={setVideoUrl}
+                  onChat={id => navigate(`/chat/${id}`)}
+                  unreadCount={unreadCounts[appt.id] ?? 0}
+                  onCancelar={handleCancelarCita}
+                  pacienteConectado={pacienteConectado}
+                  minutosActiva={minutosActiva}
+                  onEnviarAyuda={handleEnviarAyudaWhatsapp}
+                  enviandoAyuda={enviandoAyuda}
+                  ayudaEnviada={ayudaEnviadaId === appt.id}
+                />
+              )
+            })}
 
             {/* Sello regulatorio */}
             {!loading && (

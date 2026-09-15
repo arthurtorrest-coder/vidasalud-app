@@ -117,7 +117,6 @@ function Input({ value, onChange, placeholder, type = 'text', inputMode }) {
 
 // ─── Disponibilidad de médicos (igual que Home y Especialidades) ─
 
-const DIAS      = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 const DIAS_FULL = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
 function getLimaDateTime() {
@@ -166,36 +165,28 @@ function getNextAvailabilityText(doctorId, allSchedules) {
   return null
 }
 
-function getProximosSlots(doctorId, allSchedules) {
-  const { diaSemana: diaHoy } = getLimaDateTime()
-  const scheds = allSchedules.filter(s => s.doctor_id === doctorId && s.activo !== false)
-  const result = []
-  for (let i = 0; i < 7 && result.length < 3; i++) {
-    const dia     = (diaHoy + i) % 7
-    const bloques = scheds
-      .filter(s => s.dia_semana === dia)
-      .sort((a, b) => (a.hora_inicio ?? '').localeCompare(b.hora_inicio ?? ''))
-    if (bloques.length > 0)
-      result.push({ dia: DIAS[dia], hora: (bloques[0].hora_inicio ?? '00:00').slice(0,5), esHoy: i === 0 })
-  }
-  return result
+// Fecha Lima (UTC-5) como "YYYY-MM-DD", offsetDays permite navegar día a día
+function getLimaDateStr(offsetDays = 0) {
+  const lima = new Date(Date.now() - 5 * 3_600_000 + offsetDays * 86_400_000)
+  return [
+    lima.getUTCFullYear(),
+    String(lima.getUTCMonth() + 1).padStart(2, '0'),
+    String(lima.getUTCDate()).padStart(2, '0'),
+  ].join('-')
 }
 
-// Convierte un slot {dia, hora, esHoy} al valor "YYYY-MM-DDTHH:MM" para datetime-local
-function slotToLocalDatetime(slot) {
-  const today    = new Date()
-  const todayDay = today.getDay()
-  const slotDay  = DIAS.indexOf(slot.dia)
-  const daysAhead = ((slotDay - todayDay + 7) % 7) || (slot.esHoy ? 0 : 7)
-  const d = new Date(today)
-  d.setDate(today.getDate() + daysAhead)
-  const [h, m] = slot.hora.split(':').map(Number)
-  d.setHours(h, m, 0, 0)
-  return [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2,'0'),
-    String(d.getDate()).padStart(2,'0'),
-  ].join('-') + 'T' + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0')
+// Genera slots de durMin minutos dentro de un bloque hora_inicio→hora_fin (igual que Booking.jsx)
+function generateSlots(horaInicio, horaFin, durMin = 20) {
+  const [sh, sm] = horaInicio.split(':').map(Number)
+  const [eh, em] = horaFin.split(':').map(Number)
+  let   cur      = sh * 60 + sm
+  const end      = eh * 60 + em
+  const slots    = []
+  while (cur + durMin <= end) {
+    slots.push(`${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`)
+    cur += durMin
+  }
+  return slots
 }
 
 // ─── Panel principal ──────────────────────────────────────────
@@ -237,11 +228,19 @@ export default function PanelFarmacia() {
   const [bookingDoctors,    setBookingDoctors]     = useState([])
   const [bookingDoctor,     setBookingDoctor]      = useState(null)
   const [doctorSearch,      setDoctorSearch]       = useState('')
-  const [bookingDatetime,   setBookingDatetime]    = useState('')
   const [bookingStep,       setBookingStep]        = useState(1)      // 1=médico 2=fecha/hora
   const [bookingSubmitting, setBookingSubmitting]  = useState(false)
   const [bookingSchedules,  setBookingSchedules]   = useState([])
   const [openSpecs,         setOpenSpecs]          = useState(new Set())
+
+  // Selector de fecha/hora en horario específico (paso 2, médico no disponible ahora)
+  // — mismo enfoque de generación de slots que Booking.jsx: bloques de doctor_schedules
+  // + citas ocupadas de ese día, en vez de un <input datetime-local> sin restricciones.
+  const [bookingSlotsDate,    setBookingSlotsDate]    = useState('')
+  const [bookingSelectedTime, setBookingSelectedTime] = useState('')
+  const [bookingDaySlots,     setBookingDaySlots]     = useState([])
+  const [bookingBooked,       setBookingBooked]       = useState(new Set())
+  const [bookingSlotsLoading, setBookingSlotsLoading] = useState(false)
 
   const loadData = useCallback(async () => {
     console.log('[PanelFarmacia] loadData — farmacia:', {
@@ -486,8 +485,11 @@ export default function PanelFarmacia() {
     setBookingState({ patientId, patientName })
     setBookingStep(1)
     setBookingDoctor(null)
-    setBookingDatetime('')
     setDoctorSearch('')
+    setBookingSlotsDate('')
+    setBookingSelectedTime('')
+    setBookingDaySlots([])
+    setBookingBooked(new Set())
     if (bookingDoctors.length === 0) {
       const [{ data: docs }, { data: scheds }] = await Promise.all([
         supabase
@@ -514,16 +516,71 @@ export default function PanelFarmacia() {
   function closeBooking() {
     setBookingState(null)
     setBookingDoctor(null)
-    setBookingDatetime('')
     setDoctorSearch('')
     setBookingStep(1)
     setOpenSpecs(new Set())
+    setBookingSlotsDate('')
+    setBookingSelectedTime('')
+    setBookingDaySlots([])
+    setBookingBooked(new Set())
   }
+
+  // Cargar slots reales del día seleccionado (bloques de doctor_schedules menos
+  // las citas ya ocupadas) cuando el médico elegido no está disponible ahora mismo
+  useEffect(() => {
+    if (bookingStep !== 2 || !bookingDoctor) return
+    const isNow = computeAvailableNowIds(bookingSchedules).has(bookingDoctor.id)
+    if (isNow) return
+
+    const dateStr = bookingSlotsDate || getLimaDateStr()
+    if (!bookingSlotsDate) { setBookingSlotsDate(dateStr); return }
+
+    let cancelled = false
+    setBookingSlotsLoading(true)
+    setBookingSelectedTime('')
+
+    async function loadDaySlots() {
+      const [y, mo, d] = dateStr.split('-').map(Number)
+      const dayOfWeek  = new Date(Date.UTC(y, mo - 1, d, 12)).getUTCDay()
+      const dayStart   = new Date(Date.UTC(y, mo - 1, d,     5, 0,  0)).toISOString()
+      const dayEnd     = new Date(Date.UTC(y, mo - 1, d + 1, 4, 59, 59)).toISOString()
+
+      const bloques = bookingSchedules.filter(s =>
+        s.doctor_id === bookingDoctor.id && s.dia_semana === dayOfWeek && s.activo !== false
+      )
+      const slotsEnHorario = [...new Set(
+        bloques.flatMap(b => generateSlots(b.hora_inicio, b.hora_fin))
+      )].sort()
+      const slotsSet = new Set(slotsEnHorario)
+
+      const { data: apptData } = await supabase
+        .from('appointments')
+        .select('scheduled_at')
+        .eq('doctor_id', bookingDoctor.id)
+        .gte('scheduled_at', dayStart)
+        .lte('scheduled_at', dayEnd)
+        .in('status', ['pending', 'paid', 'active'])
+
+      if (cancelled) return
+
+      const bookedTimes = (apptData ?? []).map(a => {
+        const t = new Date(new Date(a.scheduled_at).getTime() - 5 * 3600000)
+        return `${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}`
+      }).filter(s => slotsSet.has(s))
+
+      setBookingDaySlots(slotsEnHorario)
+      setBookingBooked(new Set(bookedTimes))
+      setBookingSlotsLoading(false)
+    }
+
+    loadDaySlots()
+    return () => { cancelled = true }
+  }, [bookingStep, bookingDoctor, bookingSlotsDate, bookingSchedules])
 
   async function handleCreateCita() {
     const isNow = computeAvailableNowIds(bookingSchedules).has(bookingDoctor?.id)
-    if (!bookingDoctor || (!isNow && !bookingDatetime)) {
-      toast.error('Selecciona médico y fecha/hora')
+    if (!bookingDoctor || (!isNow && !bookingSelectedTime)) {
+      toast.error('Selecciona médico, fecha y horario')
       return
     }
     setBookingSubmitting(true)
@@ -532,7 +589,9 @@ export default function PanelFarmacia() {
         body: {
           patient_id:   bookingState.patientId,
           doctor_id:    bookingDoctor.id,
-          scheduled_at: isNow ? new Date().toISOString() : new Date(bookingDatetime).toISOString(),
+          scheduled_at: isNow
+            ? new Date().toISOString()
+            : new Date(`${bookingSlotsDate}T${bookingSelectedTime}:00-05:00`).toISOString(),
         },
       })
       if (error || !data?.ok) throw new Error(data?.error ?? error?.message ?? 'Error al crear cita')
@@ -1605,11 +1664,10 @@ export default function PanelFarmacia() {
               )
             })()}
 
-            {/* Paso 2 — Confirmar (disponible ahora) o elegir fecha (otro momento) */}
+            {/* Paso 2 — Confirmar (disponible ahora) o reservar en horario específico */}
             {bookingStep === 2 && (() => {
               const isNow  = computeAvailableNowIds(bookingSchedules).has(bookingDoctor?.id)
-              const slots  = isNow ? [] : getProximosSlots(bookingDoctor?.id, bookingSchedules)
-              const canSubmit = isNow || (!!bookingDatetime && !bookingSubmitting)
+              const canSubmit = isNow || (!!bookingSelectedTime && !bookingSubmitting)
 
               // Resumen del médico — compartido entre ambos modos
               const DoctorSummary = () => (
@@ -1661,48 +1719,20 @@ export default function PanelFarmacia() {
                       </div>
                     </div>
                   ) : (
-                    /* ── Modo "agendar para otro momento" ── */
+                    /* ── Modo "📅 Reservar en horario" — slots reales del día elegido ── */
                     <>
-                      {slots.length > 0 && (
-                        <div>
-                          <div style={{
-                            fontSize: 10, fontWeight: 800, color: C.gray500,
-                            letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8,
-                          }}>
-                            Próximos horarios disponibles
-                          </div>
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            {slots.map((s, i) => (
-                              <button
-                                key={i}
-                                onClick={() => setBookingDatetime(slotToLocalDatetime(s))}
-                                style={{
-                                  padding: '7px 14px', borderRadius: 20, cursor: 'pointer',
-                                  fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
-                                  border: `1.5px solid ${C.green200}`,
-                                  background: bookingDatetime === slotToLocalDatetime(s) ? C.green700 : C.green50,
-                                  color:      bookingDatetime === slotToLocalDatetime(s) ? C.white    : C.green700,
-                                }}
-                              >
-                                {s.esHoy ? 'Hoy' : s.dia} {formatHora12(s.hora)}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
                       <div>
                         <label style={{
                           display: 'block', fontSize: 11, fontWeight: 700, color: C.gray600,
                           marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5,
                         }}>
-                          O elige fecha y hora manualmente
+                          📅 Elige el día
                         </label>
                         <input
-                          type="datetime-local"
-                          value={bookingDatetime}
-                          onChange={e => setBookingDatetime(e.target.value)}
-                          min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+                          type="date"
+                          value={bookingSlotsDate}
+                          onChange={e => setBookingSlotsDate(e.target.value)}
+                          min={getLimaDateStr()}
                           style={{
                             width: '100%', padding: '11px 13px', boxSizing: 'border-box',
                             border: `1.5px solid ${C.gray300}`, borderRadius: 10,
@@ -1711,6 +1741,55 @@ export default function PanelFarmacia() {
                           onFocus={e => { e.target.style.borderColor = C.green500 }}
                           onBlur={e  => { e.target.style.borderColor = C.gray300  }}
                         />
+                      </div>
+
+                      <div>
+                        <div style={{
+                          fontSize: 10, fontWeight: 800, color: C.gray500,
+                          letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8,
+                        }}>
+                          🕐 Horarios disponibles ese día
+                        </div>
+                        {bookingSlotsLoading ? (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {[1, 2, 3, 4].map(i => (
+                              <div key={i} style={{ width: 74, height: 34, borderRadius: 20, background: C.gray100 }} />
+                            ))}
+                          </div>
+                        ) : bookingDaySlots.length === 0 ? (
+                          <div style={{
+                            textAlign: 'center', padding: '18px 0', color: C.gray400,
+                            fontSize: 12, background: C.gray50, borderRadius: 10,
+                          }}>
+                            Sin horario configurado para este día — elige otra fecha
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {bookingDaySlots.map(slot => {
+                              const ocupado    = bookingBooked.has(slot)
+                              const pasado     = bookingSlotsDate === getLimaDateStr() && slot <= getLimaDateTime().horaActual
+                              const disabled   = ocupado || pasado
+                              const selected   = bookingSelectedTime === slot
+                              return (
+                                <button
+                                  key={slot}
+                                  disabled={disabled}
+                                  onClick={() => setBookingSelectedTime(slot)}
+                                  style={{
+                                    padding: '7px 14px', borderRadius: 20,
+                                    cursor: disabled ? 'not-allowed' : 'pointer',
+                                    fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
+                                    border: `1.5px solid ${selected ? C.green700 : disabled ? C.gray200 : C.green200}`,
+                                    background: selected ? C.green700 : disabled ? C.gray100 : C.green50,
+                                    color:      selected ? C.white    : disabled ? C.gray400  : C.green700,
+                                  }}
+                                >
+                                  {formatHora12(slot)}{ocupado && !pasado ? ' · ocupado' : ''}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     </>
                   )}

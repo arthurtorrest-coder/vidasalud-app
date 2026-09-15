@@ -19,6 +19,8 @@ const schema = z.object({
   nombre_completo: z.string().min(3, 'Ingresa al menos 3 caracteres').trim(),
   email:           z.string().email('Correo electrónico no válido'),
   password:        z.string().min(6, 'Mínimo 6 caracteres'),
+  dni:             z.string().regex(/^\d{8}$/, 'El DNI debe tener 8 dígitos'),
+  telefono:        z.string().regex(/^\d{9}$/, 'El teléfono debe tener 9 dígitos'),
 })
 
 function inputStyle(hasError) {
@@ -49,15 +51,17 @@ export default function Register() {
 
   if (user) return <Navigate to="/inicio" replace />
 
-  async function onSubmit({ nombre_completo, email, password }) {
+  async function onSubmit({ nombre_completo, email, password, dni, telefono }) {
     setLoading(true)
     const fullName = nombre_completo.trim()
     const firstName = fullName.split(' ')[0]
+    const dniTrim = dni.trim()
+    const telTrim = telefono.trim()
 
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName, role: 'patient' } },
+      options: { data: { full_name: fullName, role: 'patient', dni: dniTrim, phone: telTrim } },
     })
 
     if (error) {
@@ -75,6 +79,8 @@ export default function Register() {
         id:                   data.user.id,
         role:                 'patient',
         full_name:            fullName,
+        dni:                  dniTrim,
+        phone:                telTrim,
         onboarding_completado: true,   // el tour del Home se encarga de la bienvenida
       })
       toast.success(`¡Bienvenido/a, ${firstName}! 🎉`)
@@ -148,6 +154,55 @@ export default function Register() {
                 {errors.nombre_completo && (
                   <span style={{ display: 'block', marginTop: 5, fontSize: 12, color: C.red, fontWeight: 600 }}>
                     ⚠ {errors.nombre_completo.message}
+                  </span>
+                )}
+              </div>
+
+              {/* DNI */}
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.gray700, marginBottom: 7 }}>
+                  DNI
+                </label>
+                <input
+                  {...register('dni')}
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={8}
+                  autoComplete="off"
+                  placeholder="12345678"
+                  style={inputStyle(!!errors.dni)}
+                />
+                {errors.dni && (
+                  <span style={{ display: 'block', marginTop: 5, fontSize: 12, color: C.red, fontWeight: 600 }}>
+                    ⚠ {errors.dni.message}
+                  </span>
+                )}
+              </div>
+
+              {/* Teléfono */}
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.gray700, marginBottom: 7 }}>
+                  Teléfono
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    padding: '14px 12px', border: `1.5px solid ${C.gray300}`,
+                    borderRadius: 12, fontSize: 14, color: C.gray500,
+                    background: C.gray100, flexShrink: 0, fontWeight: 600,
+                  }}>+51</span>
+                  <input
+                    {...register('telefono')}
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={9}
+                    autoComplete="tel-national"
+                    placeholder="987654321"
+                    style={{ ...inputStyle(!!errors.telefono), flex: 1 }}
+                  />
+                </div>
+                {errors.telefono && (
+                  <span style={{ display: 'block', marginTop: 5, fontSize: 12, color: C.red, fontWeight: 600 }}>
+                    ⚠ {errors.telefono.message}
                   </span>
                 )}
               </div>

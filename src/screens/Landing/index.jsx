@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 
 const C = {
   green900: '#064E3B', green800: '#065F46', green700: '#047857',
@@ -332,8 +332,82 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ══════════ PRECIOS ══════════ */}
+      <section style={{ padding: '48px 20px', background: C.white }}>
+        <SectionTitle
+          eyebrow="PRECIOS"
+          title="Precios claros, sin sorpresas"
+          subtitle="Pagas antes de la consulta, en soles. Sin membresías ni cargos ocultos."
+        />
+        <div style={{
+          maxWidth: 480, margin: '0 auto',
+          background: `linear-gradient(160deg, ${C.green900}, ${C.green700})`,
+          borderRadius: 22, padding: '28px 24px', position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute', top: -40, right: -40, width: 140, height: 140,
+            borderRadius: '50%', background: 'rgba(52,211,153,0.12)', pointerEvents: 'none',
+          }} />
+          <div style={{ position: 'relative' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.green200, marginBottom: 6, letterSpacing: 1 }}>
+              CONSULTA MÁS SOLICITADA
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: C.white, marginBottom: 6 }}>
+              🩺 Consulta de Medicina General
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 12 }}>
+              <span style={{ fontSize: 40, fontWeight: 900, color: C.white }}>S/. 30</span>
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>por consulta</span>
+            </div>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.78)', lineHeight: 1.6, marginBottom: 22 }}>
+              Videoconsulta con un médico colegiado (CMP), evaluación de síntomas, diagnóstico e
+              indicaciones, y receta electrónica con validez legal en farmacias de todo el Perú —
+              todo incluido en el precio, sin costos adicionales.
+            </p>
+
+            {/* Íconos del flujo de teleconsulta */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 24 }}>
+              {[
+                { icon: '📱', label: 'Desde tu celular' },
+                { icon: '🎥', label: 'Videollamada' },
+                { icon: '👨‍⚕️', label: 'Médico colegiado' },
+                { icon: '📄', label: 'Receta digital' },
+              ].map(s => (
+                <div key={s.label} style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{
+                    width: 44, height: 44, margin: '0 auto 6px', borderRadius: 12,
+                    background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+                  }}>
+                    {s.icon}
+                  </div>
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.65)', lineHeight: 1.3 }}>
+                    {s.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => navigate('/registro')}
+              style={{
+                width: '100%', padding: '15px 0', border: 'none', borderRadius: 14,
+                background: C.white, color: C.green800, fontSize: 15, fontWeight: 800,
+                cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+              }}
+            >
+              Reservar consulta ahora →
+            </button>
+          </div>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: C.gray500 }}>
+          Otras especialidades desde S/. 40 —{' '}
+          <a href="#especialidades" style={{ color: C.green700, fontWeight: 700 }}>ver todas</a>
+        </div>
+      </section>
+
       {/* ══════════ ESPECIALIDADES ══════════ */}
-      <section style={{
+      <section id="especialidades" style={{
         padding: '48px 20px',
         background: `linear-gradient(180deg, ${C.gray50} 0%, ${C.white} 100%)`,
       }}>
@@ -817,14 +891,14 @@ export default function Landing() {
             VIDA<span style={{ color: C.green400 }}>SALUD</span>
           </div>
           <div style={{ fontSize: 12, marginBottom: 20, lineHeight: 1.5 }}>
-            Plataforma de telemedicina con sede en Huaraz, Ancash, Perú.
+            Plataforma de telemedicina con sede en Carhuaz, Ancash, Perú.
             Conectamos pacientes con médicos certificados a nivel nacional.
           </div>
 
           {/* Grid info */}
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr',
-            gap: '16px 20px', marginBottom: 24, fontSize: 12,
+            gap: '16px 20px', marginBottom: 20, fontSize: 12,
           }}>
             <div>
               <div style={{ color: C.green300 ?? C.green200, fontWeight: 700, marginBottom: 6 }}>
@@ -842,11 +916,31 @@ export default function Landing() {
                 Contacto
               </div>
               <div style={{ lineHeight: 1.8 }}>
-                Huaraz, Ancash, Perú<br />
-                ayuda@vidasalud.pe<br />
-                0800-SALUD (gratuito)<br />
+                Carhuaz, Ancash, Perú<br />
+                clinicavidasaludintegral@gmail.com<br />
+                +51 991 297 354<br />
                 Lun–Sáb 8am–8pm
               </div>
+            </div>
+          </div>
+
+          {/* Datos legales — RUC y enlaces requeridos por el checkout de Culqi */}
+          <div style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 12, padding: '12px 16px', marginBottom: 20,
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.75)' }}>
+              RUC 20616174984
+            </span>
+            <div style={{ display: 'flex', gap: 16, fontSize: 12, fontWeight: 700 }}>
+              <Link to="/terminos" style={{ color: C.green300 ?? C.green200 }}>
+                Términos y condiciones
+              </Link>
+              <Link to="/privacidad" style={{ color: C.green300 ?? C.green200 }}>
+                Política de privacidad
+              </Link>
             </div>
           </div>
 

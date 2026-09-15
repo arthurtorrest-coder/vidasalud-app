@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { format, addDays, addWeeks, startOfWeek, startOfDay, isToday, isSameDay, isBefore } from 'date-fns'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { format, addDays, addWeeks, startOfWeek, startOfDay, isToday, isSameDay, isBefore, differenceInCalendarWeeks } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
@@ -467,15 +467,23 @@ function ProfileCompleteModal({ onSaved, onClose }) {
 export default function Booking() {
   const { doctorId } = useParams()
   const navigate     = useNavigate()
+  const location      = useLocation()
   const { user, profile } = useAuthStore()
+
+  // Fecha preseleccionada al venir desde el perfil del médico (cuadro de día tocado)
+  const preselectedDate = location.state?.selectedDate ?? null
 
   const [needsProfile, setNeedsProfile] = useState(false)
   const [doctor,          setDoctor]          = useState(null)
   const [loadingDoctor,   setLoadingDoctor]   = useState(true)
-  const [weekOffset,           setWeekOffset]           = useState(0)
+  const [weekOffset,           setWeekOffset]           = useState(() =>
+    preselectedDate
+      ? Math.max(0, differenceInCalendarWeeks(preselectedDate, new Date(), { weekStartsOn: 1 }))
+      : 0
+  )
   const [docScheduleDays,      setDocScheduleDays]      = useState(new Set())
   const [loadingScheduleDays,  setLoadingScheduleDays]  = useState(true)
-  const [selectedDate,    setSelectedDate]    = useState(() => new Date())
+  const [selectedDate,    setSelectedDate]    = useState(() => preselectedDate ?? new Date())
   const [selectedTime,  setSelectedTime]  = useState(null)
   const [booked,         setBooked]         = useState(new Set())
   const [loadingSlots,   setLoadingSlots]   = useState(true)

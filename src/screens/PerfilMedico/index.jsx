@@ -22,12 +22,15 @@ function getAvailableSlotsThisWeek(schedules) {
       .filter(s => s.dia_semana === dia && s.activo !== false)
       .sort((a, b) => (a.hora_inicio ?? '').localeCompare(b.hora_inicio ?? ''))
     if (bloques.length > 0) {
+      const fecha = new Date()
+      fecha.setDate(fecha.getDate() + i)
       result.push({
         dia:     DIAS_ABR[dia],
         hora:    (bloques[0].hora_inicio ?? '00:00').slice(0, 5),
         horaFin: (bloques[0].hora_fin   ?? '').slice(0, 5),
         esHoy:     i === 0,
         esMañana:  i === 1,
+        fecha,
       })
     }
   }
@@ -210,6 +213,11 @@ export default function PerfilMedico() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', background: C.gray50 }}>
+      <style>{`
+        .pm-day-slot { cursor: pointer; transition: background 0.15s, border-color 0.15s, transform 0.1s; }
+        .pm-day-slot:hover { background: ${C.green50} !important; border-color: ${C.green400} !important; transform: translateY(-1px); }
+        .pm-day-slot:active { transform: translateY(0); }
+      `}</style>
 
       {/* ── Header ──────────────────────────────────────────── */}
       <div style={{
@@ -338,22 +346,33 @@ export default function PerfilMedico() {
           </div>
 
           {slots.length === 0 ? (
-            <div style={{
-              fontSize: 12, color: C.gray400, textAlign: 'center',
-              padding: '12px 0', fontStyle: 'italic',
-            }}>
-              Sin horarios configurados — consulta disponibilidad al reservar
-            </div>
+            <button
+              type="button"
+              onClick={() => navigate(`/booking/${doctorId}`)}
+              className="pm-day-slot"
+              style={{
+                width: '100%', fontSize: 12, color: C.gray400, textAlign: 'center',
+                padding: '12px 0', fontStyle: 'italic',
+                background: 'none', border: `1.5px dashed ${C.gray200}`, borderRadius: 12,
+                fontFamily: 'inherit',
+              }}
+            >
+              Sin horarios configurados — toca para ver disponibilidad al reservar
+            </button>
           ) : (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {slots.map((s, i) => (
-                <div
+                <button
                   key={i}
+                  type="button"
+                  className="pm-day-slot"
+                  onClick={() => navigate(`/booking/${doctorId}`, { state: { selectedDate: s.fecha } })}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     background: s.esHoy ? C.green50 : C.gray50,
                     border: `1.5px solid ${s.esHoy ? C.green300 : C.gray200}`,
                     borderRadius: 12, padding: '8px 12px', minWidth: 84,
+                    fontFamily: 'inherit',
                   }}
                 >
                   <span style={{
@@ -369,16 +388,22 @@ export default function PerfilMedico() {
                   }}>
                     {s.horaFin ? `${s.hora} - ${s.horaFin}` : s.hora}
                   </span>
-                </div>
+                </button>
               ))}
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                background: C.gray50, border: `1.5px dashed ${C.gray200}`,
-                borderRadius: 12, padding: '8px 12px', minWidth: 60,
-              }}>
+              <button
+                type="button"
+                className="pm-day-slot"
+                onClick={() => navigate(`/booking/${doctorId}`)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  background: C.gray50, border: `1.5px dashed ${C.gray200}`,
+                  borderRadius: 12, padding: '8px 12px', minWidth: 60,
+                  fontFamily: 'inherit',
+                }}
+              >
                 <span style={{ fontSize: 10, color: C.green600, fontWeight: 700 }}>+más al</span>
                 <span style={{ fontSize: 10, color: C.green600, fontWeight: 700 }}>reservar</span>
-              </div>
+              </button>
             </div>
           )}
         </div>
@@ -482,36 +507,6 @@ export default function PerfilMedico() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* ── CTA sticky ──────────────────────────────────────── */}
-      <div style={{
-        flexShrink: 0,
-        padding: '12px 16px 16px',
-        background: C.white,
-        borderTop: `1px solid ${C.gray100}`,
-        boxShadow: '0 -4px 20px rgba(0,0,0,0.07)',
-      }}>
-        <button
-          type="button"
-          onClick={() => navigate(`/booking/${doctorId}`)}
-          style={{
-            width: '100%', padding: '16px 0',
-            background: `linear-gradient(135deg, ${C.green700}, ${C.green500})`,
-            color: C.white, border: 'none', borderRadius: 14,
-            fontSize: 15, fontWeight: 800, cursor: 'pointer',
-            fontFamily: 'inherit',
-            boxShadow: S.greenMd,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            WebkitTapHighlightColor: 'transparent',
-            transition: 'opacity 0.15s',
-          }}
-          onPointerDown={e => { e.currentTarget.style.opacity = '0.88' }}
-          onPointerUp={e => { e.currentTarget.style.opacity = '1' }}
-          onPointerLeave={e => { e.currentTarget.style.opacity = '1' }}
-        >
-          📅 Reservar consulta — S/. {price}
-        </button>
       </div>
 
     </div>

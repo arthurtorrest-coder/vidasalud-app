@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { useAuthStore } from './stores/authStore'
+import { cargarConfiguracionPrecios, suscribirConfiguracionPrecios } from './lib/finanzas'
 import ProtectedRoute  from './components/layout/ProtectedRoute'
 import AppShell        from './components/layout/AppShell'
 import Login           from './screens/Auth/Login'
@@ -26,6 +28,7 @@ import AdminCoordinadores  from './screens/Admin/AdminCoordinadores'
 import AdminCobertura      from './screens/Admin/AdminCobertura'
 import AdminConsultas      from './screens/Admin/AdminConsultas'
 import AdminFinanzas       from './screens/Admin/AdminFinanzas'
+import AdminPrecios        from './screens/Admin/AdminPrecios'
 import HistoriaClinica  from './screens/HistoriaClinica'
 import Landing         from './screens/Landing'
 import Home            from './pages/Home'
@@ -51,6 +54,18 @@ const C = { green100: '#D1FAE5', green600: '#059669', gray100: '#F3F4F6' }
 
 function AuthInit() {
   useAuth()
+  return null
+}
+
+// Carga la configuración de precios una vez al iniciar la app y se suscribe
+// a cambios en tiempo real (ver src/lib/finanzas.js) — así el admin puede
+// actualizar precios desde /admin/precios sin necesidad de un redeploy.
+function PreciosInit() {
+  useEffect(() => {
+    cargarConfiguracionPrecios()
+    const channel = suscribirConfiguracionPrecios()
+    return () => { channel?.unsubscribe?.() }
+  }, [])
   return null
 }
 
@@ -89,6 +104,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthInit />
+      <PreciosInit />
       <Routes>
 
         {/* Raíz pública — Landing o redirect a /inicio */}
@@ -135,6 +151,7 @@ export default function App() {
             <Route path="/admin/cobertura"                 element={<AdminCobertura />}      />
             <Route path="/admin/consultas"                 element={<AdminConsultas />}      />
             <Route path="/admin/finanzas"                  element={<AdminFinanzas />}       />
+            <Route path="/admin/precios"                   element={<AdminPrecios />}        />
           </Route>
 
           {/* Solo farmacias aprobadas */}

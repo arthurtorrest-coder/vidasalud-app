@@ -9,7 +9,7 @@ import { precioTotalPaciente } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
 
 const SPECIALTIES = [
-  { icon: '🩺', label: 'General',     price: 31 },
+  { icon: '🩺', label: 'General',     price: 30 },
   { icon: '👶', label: 'Pediatría',   price: 45 },
   { icon: '🧠', label: 'Psicología',  price: 50 },
   { icon: '🥗', label: 'Nutrición',   price: 40 },

@@ -2233,11 +2233,10 @@ export default function PanelMedico() {
                       }}
                     >
                       <option value="">— Selecciona tu especialidad —</option>
+                      {/* Las 8 especialidades oficiales — mismos nombres que especialidades_precios */}
                       {[
-                        'Medicina General','Pediatría','Psicología','Nutrición',
-                        'Cardiología','Odontología','Oftalmología','Traumatología',
-                        'Dermatología','Endocrinología','Neumología','Gastroenterología',
-                        'Ginecología','Urología','Neurología','Reumatología','Oncología',
+                        'Medicina General', 'Pediatría', 'Psicología', 'Ginecología',
+                        'Medicina Interna', 'Nutrición', 'Dermatología', 'Medicina Ocupacional',
                       ].map(esp => (
                         <option key={esp} value={esp}>{esp}</option>
                       ))}

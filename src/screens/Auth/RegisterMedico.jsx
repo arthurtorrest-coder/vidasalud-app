@@ -26,11 +26,11 @@ const C = {
   amberText: '#B45309',
 }
 
+// Las 8 especialidades oficiales de VIDASALUD — mismos nombres que la tabla
+// Supabase `especialidades_precios`.
 const ESPECIALIDADES = [
-  'Medicina general', 'Pediatría', 'Psicología', 'Nutrición',
-  'Cardiología', 'Dermatología', 'Ginecología', 'Neurología',
-  'Odontología', 'Oftalmología', 'Ortopedia', 'Psiquiatría',
-  'Reumatología', 'Traumatología', 'Urología',
+  'Medicina General', 'Pediatría', 'Psicología', 'Ginecología',
+  'Medicina Interna', 'Nutrición', 'Dermatología', 'Medicina Ocupacional',
 ]
 
 const schema = z.object({

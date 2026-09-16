@@ -362,7 +362,7 @@ export default function TriajeBot({ onClose, onSelectSpecialty, onBookNow }) {
     if (onBookNow) {
       onBookNow()
     } else {
-      onSelectSpecialty?.('Medicina general')
+      onSelectSpecialty?.('Medicina General')
       onClose()
     }
   }

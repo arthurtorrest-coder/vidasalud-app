@@ -8,13 +8,17 @@ import { C } from '../../lib/tokens'
 import { precioTotalPaciente } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
 
+// Las 8 especialidades oficiales de VIDASALUD — mismos nombres y precios
+// que la tabla Supabase `especialidades_precios`.
 const SPECIALTIES = [
-  { icon: '🩺', label: 'General',     price: 30 },
-  { icon: '👶', label: 'Pediatría',   price: 45 },
-  { icon: '🧠', label: 'Psicología',  price: 50 },
-  { icon: '🥗', label: 'Nutrición',   price: 40 },
-  { icon: '❤️', label: 'Cardiología', price: 70 },
-  { icon: '🦷', label: 'Odontología', price: 60 },
+  { icon: '🩺', label: 'Medicina General',     price: 30 },
+  { icon: '👶', label: 'Pediatría',            price: 45 },
+  { icon: '🧠', label: 'Psicología',           price: 50 },
+  { icon: '🤰', label: 'Ginecología',          price: 55 },
+  { icon: '🧪', label: 'Medicina Interna',     price: 50 },
+  { icon: '🥗', label: 'Nutrición',            price: 45 },
+  { icon: '🌿', label: 'Dermatología',         price: 55 },
+  { icon: '🦺', label: 'Medicina Ocupacional', price: 60 },
 ]
 
 const STATUS_COLORS = {

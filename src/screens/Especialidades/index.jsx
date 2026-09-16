@@ -69,6 +69,8 @@ function getNextAvailabilityText(doctorId, allSchedules) {
   return null
 }
 
+// Las 8 especialidades oficiales de VIDASALUD — mismos nombres y precios
+// que la tabla Supabase `especialidades_precios`.
 const ESPECIALIDADES = [
   { icon: '🩺', label: 'Medicina General',      precioBase: 30, bg: '#ECFDF5', accent: '#059669', border: '#A7F3D0' },
   { icon: '👶', label: 'Pediatría',              precioBase: 45, bg: '#EFF6FF', accent: '#2563EB', border: '#BFDBFE' },
@@ -78,13 +80,6 @@ const ESPECIALIDADES = [
   { icon: '🥗', label: 'Nutrición',              precioBase: 45, bg: '#FFF7ED', accent: '#EA580C', border: '#FED7AA' },
   { icon: '🌿', label: 'Dermatología',           precioBase: 55, bg: '#F0FDFA', accent: '#0D9488', border: '#99F6E4' },
   { icon: '🦺', label: 'Medicina Ocupacional',   precioBase: 60, bg: '#FEF3C7', accent: '#B45309', border: '#FDE68A' },
-  { icon: '❤️', label: 'Cardiología',            precioBase: 70, bg: '#FEF2F2', accent: '#DC2626', border: '#FECACA' },
-  { icon: '🦷', label: 'Odontología',            precioBase: 60, bg: '#FFFBEB', accent: '#D97706', border: '#FDE68A' },
-  { icon: '👁️', label: 'Oftalmología',           precioBase: 65, bg: '#F0FDF4', accent: '#15803D', border: '#BBF7D0' },
-  { icon: '🦴', label: 'Traumatología',          precioBase: 75, bg: '#FFF1F2', accent: '#BE123C', border: '#FECDD3' },
-  { icon: '💊', label: 'Endocrinología',         precioBase: 70, bg: '#FDF4FF', accent: '#9333EA', border: '#E9D5FF' },
-  { icon: '🫁', label: 'Neumología',             precioBase: 65, bg: '#F0F9FF', accent: '#0284C7', border: '#BAE6FD' },
-  { icon: '🔬', label: 'Gastroenterología',      precioBase: 75, bg: '#FEFCE8', accent: '#CA8A04', border: '#FEF08A' },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────

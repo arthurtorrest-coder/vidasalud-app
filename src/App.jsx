@@ -51,6 +51,8 @@ import RegistroPlan     from './screens/Corporativo/RegistroPlan'
 import RecetaPublica    from './pages/RecetaPublica'
 import Terminos         from './pages/Terminos'
 import Privacidad       from './pages/Privacidad'
+import Devoluciones     from './pages/Devoluciones'
+import Reclamaciones    from './pages/Reclamaciones'
 
 const C = { green100: '#D1FAE5', green600: '#059669', gray100: '#F3F4F6' }
 
@@ -122,6 +124,8 @@ export default function App() {
         <Route path="/receta/:accessToken" element={<RecetaPublica />}  />
         <Route path="/terminos"          element={<Terminos />}         />
         <Route path="/privacidad"        element={<Privacidad />}       />
+        <Route path="/devoluciones"      element={<Devoluciones />}     />
+        <Route path="/reclamaciones"     element={<Reclamaciones />}    />
 
         {/* Rutas protegidas — redirigen a /login si no hay sesión */}
         <Route element={<ProtectedRoute />}>

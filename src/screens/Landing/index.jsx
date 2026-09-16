@@ -39,7 +39,8 @@ const ESPECIALIDADES = [
   { icon: '🩺', label: 'Medicina general',    price: 30 },
   { icon: '👶', label: 'Pediatría',           price: 45 },
   { icon: '🧠', label: 'Psicología',          price: 50 },
-  { icon: '🥗', label: 'Nutrición',           price: 40 },
+  { icon: '🤰', label: 'Ginecología',         price: 55 },
+  { icon: '🥗', label: 'Nutrición',           price: 45 },
   { icon: '❤️', label: 'Cardiología',         price: 70 },
   { icon: '🦷', label: 'Odontología',         price: 60 },
   { icon: '🔬', label: 'Dermatología',        price: 65 },
@@ -48,6 +49,27 @@ const ESPECIALIDADES = [
   { icon: '🦴', label: 'Traumatología',       price: 70 },
   { icon: '👁️', label: 'Oftalmología',        price: 65 },
   { icon: '🧪', label: 'Medicina interna',    price: 60 },
+]
+
+// Servicios destacados — mostrados con ícono, descripción e imagen/precio
+// visibles en la sección de Precios (requisito de Culqi para el checkout).
+const SERVICIOS_DESTACADOS = [
+  {
+    icon: '👶', title: 'Consulta de Pediatría', price: 45,
+    desc: 'Atención especializada para bebés, niños y adolescentes, a cargo de médicos pediatras colegiados.',
+  },
+  {
+    icon: '🧠', title: 'Consulta de Psicología', price: 50,
+    desc: 'Acompañamiento emocional confidencial con profesionales colegiados en el Colegio de Psicólogos del Perú.',
+  },
+  {
+    icon: '🤰', title: 'Consulta de Ginecología', price: 55,
+    desc: 'Orientación y seguimiento en salud femenina, planificación familiar y control ginecológico.',
+  },
+  {
+    icon: '🥗', title: 'Consulta de Nutrición', price: 45,
+    desc: 'Planes de alimentación personalizados y seguimiento nutricional con especialistas certificados.',
+  },
 ]
 
 const PASOS = [
@@ -400,8 +422,44 @@ export default function Landing() {
             </button>
           </div>
         </div>
-        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: C.gray500 }}>
-          Otras especialidades desde S/. 40 —{' '}
+
+        {/* Otros servicios destacados — ícono, descripción y precio */}
+        <div style={{
+          maxWidth: 480, margin: '18px auto 0',
+          display: 'flex', flexDirection: 'column', gap: 12,
+        }}>
+          {SERVICIOS_DESTACADOS.map(s => (
+            <div key={s.title} style={{
+              display: 'flex', gap: 14, alignItems: 'center',
+              background: C.white, border: `1.5px solid ${C.gray200}`,
+              borderRadius: 16, padding: '14px 16px',
+            }}>
+              <div style={{
+                width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+                background: C.green50, border: `1px solid ${C.green100}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
+              }}>
+                {s.icon}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: C.gray900, marginBottom: 3 }}>
+                  {s.title}
+                </div>
+                <div style={{ fontSize: 12, color: C.gray500, lineHeight: 1.45 }}>
+                  {s.desc}
+                </div>
+              </div>
+              <div style={{
+                flexShrink: 0, textAlign: 'right', fontSize: 16, fontWeight: 900, color: C.green700,
+              }}>
+                S/. {s.price}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ textAlign: 'center', marginTop: 18, fontSize: 12, color: C.gray500 }}>
+          Y muchas otras especialidades —{' '}
           <a href="#especialidades" style={{ color: C.green700, fontWeight: 700 }}>ver todas</a>
         </div>
       </section>
@@ -934,12 +992,18 @@ export default function Landing() {
             <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.75)' }}>
               RUC 20616174984
             </span>
-            <div style={{ display: 'flex', gap: 16, fontSize: 12, fontWeight: 700 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, fontWeight: 700 }}>
               <Link to="/terminos" style={{ color: C.green300 ?? C.green200 }}>
                 Términos y condiciones
               </Link>
               <Link to="/privacidad" style={{ color: C.green300 ?? C.green200 }}>
                 Política de privacidad
+              </Link>
+              <Link to="/devoluciones" style={{ color: C.green300 ?? C.green200 }}>
+                Devoluciones
+              </Link>
+              <Link to="/reclamaciones" style={{ color: C.green300 ?? C.green200 }}>
+                Libro de reclamaciones
               </Link>
             </div>
           </div>

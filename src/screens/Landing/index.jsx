@@ -36,19 +36,20 @@ const BENEFICIOS = [
 ]
 
 const ESPECIALIDADES = [
-  { icon: '🩺', label: 'Medicina general',    price: 30 },
-  { icon: '👶', label: 'Pediatría',           price: 45 },
-  { icon: '🧠', label: 'Psicología',          price: 50 },
-  { icon: '🤰', label: 'Ginecología',         price: 55 },
-  { icon: '🥗', label: 'Nutrición',           price: 45 },
-  { icon: '❤️', label: 'Cardiología',         price: 70 },
-  { icon: '🦷', label: 'Odontología',         price: 60 },
-  { icon: '🔬', label: 'Dermatología',        price: 65 },
-  { icon: '🫁', label: 'Neumología',          price: 70 },
-  { icon: '🧬', label: 'Endocrinología',      price: 75 },
-  { icon: '🦴', label: 'Traumatología',       price: 70 },
-  { icon: '👁️', label: 'Oftalmología',        price: 65 },
-  { icon: '🧪', label: 'Medicina interna',    price: 60 },
+  { icon: '🩺', label: 'Medicina general',      price: 30 },
+  { icon: '👶', label: 'Pediatría',             price: 45 },
+  { icon: '🧠', label: 'Psicología',            price: 50 },
+  { icon: '🤰', label: 'Ginecología',           price: 55 },
+  { icon: '🧪', label: 'Medicina interna',      price: 50 },
+  { icon: '🥗', label: 'Nutrición',             price: 45 },
+  { icon: '🌿', label: 'Dermatología',          price: 55 },
+  { icon: '🦺', label: 'Medicina ocupacional',  price: 60 },
+  { icon: '❤️', label: 'Cardiología',           price: 70 },
+  { icon: '🦷', label: 'Odontología',           price: 60 },
+  { icon: '🫁', label: 'Neumología',            price: 70 },
+  { icon: '🧬', label: 'Endocrinología',        price: 75 },
+  { icon: '🦴', label: 'Traumatología',         price: 70 },
+  { icon: '👁️', label: 'Oftalmología',          price: 65 },
 ]
 
 // Servicios destacados — mostrados con ícono, descripción e imagen/precio

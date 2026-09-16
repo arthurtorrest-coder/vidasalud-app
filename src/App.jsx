@@ -2,7 +2,10 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { useAuthStore } from './stores/authStore'
-import { cargarConfiguracionPrecios, suscribirConfiguracionPrecios } from './lib/finanzas'
+import {
+  cargarConfiguracionPrecios, suscribirConfiguracionPrecios,
+  cargarEspecialidadesPrecios, suscribirEspecialidadesPrecios,
+} from './lib/finanzas'
 import ProtectedRoute  from './components/layout/ProtectedRoute'
 import AppShell        from './components/layout/AppShell'
 import Login           from './screens/Auth/Login'
@@ -67,8 +70,10 @@ function AuthInit() {
 function PreciosInit() {
   useEffect(() => {
     cargarConfiguracionPrecios()
-    const channel = suscribirConfiguracionPrecios()
-    return () => { channel?.unsubscribe?.() }
+    cargarEspecialidadesPrecios()
+    const ch1 = suscribirConfiguracionPrecios()
+    const ch2 = suscribirEspecialidadesPrecios()
+    return () => { ch1?.unsubscribe?.(); ch2?.unsubscribe?.() }
   }, [])
   return null
 }

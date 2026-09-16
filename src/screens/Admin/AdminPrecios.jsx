@@ -58,12 +58,40 @@ function FieldCard({ icon, label, hint, value, onChange, suffix = '', accent = C
   )
 }
 
+function Toggle({ checked, onChange, disabled }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      disabled={disabled}
+      style={{
+        width: 40, height: 22, borderRadius: 20, border: 'none', flexShrink: 0,
+        background: checked ? C.green500 : C.gray300,
+        cursor: disabled ? 'default' : 'pointer', position: 'relative',
+        opacity: disabled ? 0.6 : 1, transition: 'background 0.15s',
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: 2, left: checked ? 20 : 2,
+        width: 18, height: 18, borderRadius: '50%', background: C.white,
+        transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+      }} />
+    </button>
+  )
+}
+
 export default function AdminPrecios() {
   const navigate = useNavigate()
 
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(false)
   const [updatedAt, setUpdatedAt] = useState(null)
+
+  // ── Precios por especialidad ──────────────────────────────────
+  const [especialidades, setEspecialidades] = useState([])
+  const [loadingEsp,     setLoadingEsp]     = useState(true)
+  const [editValues,     setEditValues]     = useState({})   // { [id]: precio_medico como string }
+  const [savingEspId,    setSavingEspId]    = useState(null)
 
   // Campos editables — "Precio de consulta" y "Tarifa del médico" son los
   // que el admin toca directamente; el margen se deriva de la resta entre
@@ -99,6 +127,64 @@ export default function AdminPrecios() {
   }, [])
 
   useEffect(() => { fetchConfig() }, [fetchConfig])
+
+  const fetchEspecialidades = useCallback(async () => {
+    setLoadingEsp(true)
+    const { data, error } = await supabase
+      .from('especialidades_precios')
+      .select('id, especialidad, precio_medico, precio_total, activo')
+      .order('especialidad')
+    if (error) {
+      toast.error('No se pudo cargar especialidades: ' + error.message)
+      setLoadingEsp(false)
+      return
+    }
+    setEspecialidades(data ?? [])
+    setEditValues(Object.fromEntries((data ?? []).map(r => [r.id, String(r.precio_medico)])))
+    setLoadingEsp(false)
+  }, [])
+
+  useEffect(() => { fetchEspecialidades() }, [fetchEspecialidades])
+
+  async function handleGuardarEspecialidad(row) {
+    const nuevoPrecio = Number(editValues[row.id])
+    if (!(nuevoPrecio >= 0)) {
+      toast.error('Ingresa un precio válido para ' + row.especialidad)
+      return
+    }
+    setSavingEspId(row.id)
+    const { data, error } = await supabase
+      .from('especialidades_precios')
+      .update({ precio_medico: nuevoPrecio })
+      .eq('id', row.id)
+      .select('id, especialidad, precio_medico, precio_total, activo')
+      .single()
+    setSavingEspId(null)
+    if (error) {
+      toast.error('No se pudo guardar: ' + error.message)
+      return
+    }
+    setEspecialidades(prev => prev.map(e => e.id === row.id ? data : e))
+    setEditValues(prev => ({ ...prev, [row.id]: String(data.precio_medico) }))
+    toast.success(`✅ ${row.especialidad} actualizado — total S/. ${data.precio_total}`)
+  }
+
+  async function handleToggleActivo(row) {
+    setSavingEspId(row.id)
+    const { data, error } = await supabase
+      .from('especialidades_precios')
+      .update({ activo: !row.activo })
+      .eq('id', row.id)
+      .select('id, especialidad, precio_medico, precio_total, activo')
+      .single()
+    setSavingEspId(null)
+    if (error) {
+      toast.error('No se pudo actualizar: ' + error.message)
+      return
+    }
+    setEspecialidades(prev => prev.map(e => e.id === row.id ? data : e))
+    toast.success(`${data.activo ? '✅ Activada' : '⏸ Desactivada'}: ${row.especialidad}`)
+  }
 
   const nPrecioTotal        = Number(precioTotal) || 0
   const nTarifaMedico       = Number(tarifaMedico) || 0
@@ -284,6 +370,104 @@ export default function AdminPrecios() {
             >
               {saving ? 'Guardando…' : '💾 Guardar cambios'}
             </button>
+
+            {/* ── Precios por especialidad ── */}
+            <div style={{ marginTop: 40 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, marginBottom: 6 }}>
+                Precios por especialidad
+              </h2>
+              <div style={{ fontSize: 12, color: C.gray500, marginBottom: 14, lineHeight: 1.6 }}>
+                El precio total se calcula automáticamente como tarifa del médico + S/. 15 de margen
+                fijo de la clínica. Desactiva una especialidad para ocultarla del precio configurado
+                (no elimina la fila).
+              </div>
+
+              <div style={{
+                background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`,
+                boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden',
+              }}>
+                <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                  <thead>
+                    <tr>
+                      {['Especialidad', 'Precio médico', 'Precio total', 'Activa', ''].map((label, i) => (
+                        <th key={label || i} style={{
+                          padding: '10px 14px', textAlign: i === 1 || i === 2 ? 'right' : i === 3 ? 'center' : 'left',
+                          fontSize: 11, fontWeight: 700, color: C.gray500,
+                          background: C.gray50, borderBottom: `1.5px solid ${C.gray200}`, whiteSpace: 'nowrap',
+                        }}>{label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingEsp ? (
+                      [1, 2, 3].map(i => (
+                        <tr key={i}>
+                          {[1, 2, 3, 4, 5].map(j => (
+                            <td key={j} style={{ padding: '12px 14px', borderBottom: `1px solid ${C.gray100}` }}>
+                              <div style={{ height: 12, width: '70%', background: C.gray100, borderRadius: 6 }} />
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : especialidades.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ padding: '32px 16px', textAlign: 'center', color: C.gray400, fontSize: 13 }}>
+                          Sin especialidades configuradas
+                        </td>
+                      </tr>
+                    ) : especialidades.map(row => {
+                      const dirty  = editValues[row.id] !== String(row.precio_medico)
+                      const saving = savingEspId === row.id
+                      return (
+                        <tr key={row.id} style={{ opacity: row.activo ? 1 : 0.5 }}>
+                          <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700, color: C.gray900, borderBottom: `1px solid ${C.gray100}` }}>
+                            {row.especialidad}
+                          </td>
+                          <td style={{ padding: '10px 14px', borderBottom: `1px solid ${C.gray100}`, textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ fontSize: 12, color: C.gray400 }}>S/.</span>
+                              <input
+                                type="number" min="0" step="0.5"
+                                value={editValues[row.id] ?? ''}
+                                onChange={e => setEditValues(prev => ({ ...prev, [row.id]: e.target.value }))}
+                                style={{
+                                  width: 70, padding: '6px 8px', textAlign: 'right',
+                                  border: `1.5px solid ${C.gray300}`, borderRadius: 8,
+                                  fontSize: 13, fontWeight: 700, color: C.gray900,
+                                  outline: 'none', fontFamily: 'inherit',
+                                }}
+                              />
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 14px', fontSize: 14, fontWeight: 900, color: C.green700, borderBottom: `1px solid ${C.gray100}`, textAlign: 'right' }}>
+                            {fmtSoles(row.precio_total)}
+                          </td>
+                          <td style={{ padding: '10px 14px', borderBottom: `1px solid ${C.gray100}`, textAlign: 'center' }}>
+                            <Toggle checked={row.activo} disabled={saving} onChange={() => handleToggleActivo(row)} />
+                          </td>
+                          <td style={{ padding: '10px 14px', borderBottom: `1px solid ${C.gray100}`, textAlign: 'right' }}>
+                            <button
+                              onClick={() => handleGuardarEspecialidad(row)}
+                              disabled={!dirty || saving}
+                              style={{
+                                padding: '6px 14px', borderRadius: 8, border: 'none',
+                                background: dirty && !saving ? C.green700 : C.gray200,
+                                color: dirty && !saving ? C.white : C.gray400,
+                                fontSize: 11, fontWeight: 800,
+                                cursor: dirty && !saving ? 'pointer' : 'not-allowed',
+                                fontFamily: 'inherit', whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {saving ? '…' : 'Guardar'}
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </>
         )}
       </main>

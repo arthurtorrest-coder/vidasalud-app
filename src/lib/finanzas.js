@@ -63,6 +63,47 @@ export function esGeneralista(especialidad) {
   return (especialidad ?? '').toLowerCase().includes('general')
 }
 
+// ─── Precios por especialidad (tabla especialidades_precios) ───────────────
+// Caché en memoria — se llena con cargarEspecialidadesPrecios() y se
+// mantiene al día con suscribirEspecialidadesPrecios(). Igual que la
+// configuración general, esto se llama una vez desde App.jsx.
+let especialidadesPreciosCache = {}   // { [especialidad en minúsculas]: fila }
+
+function normalizarEspecialidad(especialidad) {
+  return (especialidad ?? '').toLowerCase().trim()
+}
+
+export async function cargarEspecialidadesPrecios() {
+  const { data, error } = await supabase
+    .from('especialidades_precios')
+    .select('especialidad, precio_medico, precio_total, activo')
+  if (error) {
+    console.warn('[finanzas] No se pudo cargar especialidades_precios:', error.message)
+    return
+  }
+  especialidadesPreciosCache = Object.fromEntries(
+    (data ?? []).map(row => [normalizarEspecialidad(row.especialidad), row])
+  )
+}
+
+export function suscribirEspecialidadesPrecios() {
+  return supabase
+    .channel('especialidades-precios-global')
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'especialidades_precios' },
+      () => cargarEspecialidadesPrecios()   // cualquier cambio → recarga la tabla completa
+    )
+    .subscribe()
+}
+
+// Precio total configurado para una especialidad, o null si no está
+// registrada en especialidades_precios o está desactivada (activo=false).
+export function getPrecioEspecialidad(especialidad) {
+  const row = especialidadesPreciosCache[normalizarEspecialidad(especialidad)]
+  if (!row || row.activo === false) return null
+  return Number(row.precio_total)
+}
+
 // Pago al médico por una consulta completada.
 // Medicina General: pago fijo (TARIFA_GENERAL). Especialista: su precio neto configurado.
 export function pagoMedico({ esGeneral, precioNeto }) {

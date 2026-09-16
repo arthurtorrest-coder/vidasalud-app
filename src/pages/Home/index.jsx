@@ -759,13 +759,9 @@ export default function Home() {
     setShowAgendarModal(true)
   }
 
-  const allSpecs = useMemo(() => {
-    const quick = new Set(SPECIALTIES.map(s => s.label))
-    const extra = [...new Set(doctors.map(d => d.spec).filter(Boolean))]
-      .filter(s => !quick.has(s))
-      .sort()
-    return [...SPECIALTIES.map(s => s.label), ...extra]
-  }, [doctors])
+  // Solo las 8 especialidades oficiales — no agregar especialidades extra
+  // que pudieran venir de médicos registrados con un valor distinto.
+  const allSpecs = useMemo(() => SPECIALTIES.map(s => s.label), [])
 
   const proximosDisponibles = useMemo(
     () => (availableNowIds.size === 0 && !selectedSpec)

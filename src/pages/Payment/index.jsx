@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
 import { C } from '../../lib/tokens'
 import { precioTotalPaciente } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
+
+const CULQI_SCRIPT_URL = 'https://checkout.culqi.com/js/v4'
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 function codigoCita(id) {
@@ -75,35 +78,6 @@ function downloadICS(appointment, doctor, codigo) {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
-}
-
-function fmtCardNum(v) {
-  return v.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim()
-}
-function fmtExpiry(v) {
-  const d = v.replace(/\D/g, '').slice(0, 4)
-  return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d
-}
-
-function cardBrand(numero) {
-  const n = numero.replace(/\s/g, '')
-  if (n.startsWith('4'))            return 'VISA'
-  if (/^5[1-5]|^2[2-7]/.test(n))   return 'MASTERCARD'
-  return null
-}
-
-function validateCard(card) {
-  const errors = {}
-  if (card.numero.replace(/\s/g, '').length < 15) errors.numero  = 'Número de tarjeta inválido'
-  if (card.titular.trim().length < 3)              errors.titular = 'Ingresa el nombre del titular'
-  const [mm, aa] = (card.expiry || '').split('/')
-  const m = parseInt(mm), y = parseInt('20' + aa)
-  const now = new Date()
-  if (!mm || !aa || m < 1 || m > 12 || y < now.getFullYear() ||
-      (y === now.getFullYear() && m < now.getMonth() + 1))
-    errors.expiry = 'Fecha de vencimiento inválida'
-  if (card.cvv.length < 3) errors.cvv = 'CVV inválido'
-  return errors
 }
 
 /* ── SVG: QR demo con marcadores de posición reales ────────── */
@@ -234,104 +208,16 @@ function MetodoQR({ metodo, precio, loading, onConfirm }) {
 
 /* ── Vista tarjeta ───────────────────────────────────────────── */
 function MetodoTarjeta({ precio, loading, onConfirm }) {
-  const [card, setCard]     = useState({ numero: '', titular: '', expiry: '', cvv: '' })
-  const [errors, setErrors] = useState({})
-
-  function handleChange(field, raw) {
-    let v = raw
-    if (field === 'numero')  v = fmtCardNum(raw)
-    if (field === 'expiry')  v = fmtExpiry(raw)
-    if (field === 'cvv')     v = raw.replace(/\D/g, '').slice(0, 4)
-    setCard(p => ({ ...p, [field]: v }))
-    if (errors[field]) setErrors(p => ({ ...p, [field]: null }))
-  }
-
-  function submit() {
-    const errs = validateCard(card)
-    if (Object.keys(errs).length) { setErrors(errs); return }
-    onConfirm()
-  }
-
-  const brand = cardBrand(card.numero)
-  const inp   = (hasErr) => ({
-    width: '100%', padding: '12px 14px',
-    border: `1.5px solid ${hasErr ? C.red : C.gray300}`,
-    borderRadius: 12, fontSize: 14, color: C.gray900,
-    background: hasErr ? C.red50 : C.white, outline: 'none',
-    transition: 'border-color 0.15s',
-    onFocus: e => { e.target.style.borderColor = C.green500; e.target.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.12)' },
-    onBlur:  e => { e.target.style.borderColor = hasErr ? C.red : C.gray300; e.target.style.boxShadow = 'none' },
-  })
-
   return (
     <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-      {/* Número */}
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 700, color: C.gray700 }}>Número de tarjeta</label>
-          {brand && <span style={{ fontSize: 11, fontWeight: 800, color: C.green700 }}>{brand}</span>}
-        </div>
-        <input
-          value={card.numero}
-          onChange={e => handleChange('numero', e.target.value)}
-          placeholder="0000 0000 0000 0000"
-          inputMode="numeric"
-          style={{ ...inp(!!errors.numero), letterSpacing: 2, fontFamily: 'monospace' }}
-          onFocus={inp(!!errors.numero).onFocus}
-          onBlur={inp(!!errors.numero).onBlur}
-        />
-        {errors.numero && <span style={errStyle}>{errors.numero}</span>}
-      </div>
-
-      {/* Titular */}
-      <div>
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.gray700, marginBottom: 6 }}>
-          Nombre del titular
-        </label>
-        <input
-          value={card.titular}
-          onChange={e => handleChange('titular', e.target.value.toUpperCase())}
-          placeholder="TAL COMO APARECE EN LA TARJETA"
-          style={{ ...inp(!!errors.titular), letterSpacing: 0.5 }}
-          onFocus={inp(!!errors.titular).onFocus}
-          onBlur={inp(!!errors.titular).onBlur}
-        />
-        {errors.titular && <span style={errStyle}>{errors.titular}</span>}
-      </div>
-
-      {/* Vencimiento + CVV */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.gray700, marginBottom: 6 }}>
-            Vencimiento
-          </label>
-          <input
-            value={card.expiry}
-            onChange={e => handleChange('expiry', e.target.value)}
-            placeholder="MM/AA"
-            inputMode="numeric"
-            style={inp(!!errors.expiry)}
-            onFocus={inp(!!errors.expiry).onFocus}
-            onBlur={inp(!!errors.expiry).onBlur}
-          />
-          {errors.expiry && <span style={errStyle}>{errors.expiry}</span>}
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.gray700, marginBottom: 6 }}>
-            CVV
-          </label>
-          <input
-            value={card.cvv}
-            onChange={e => handleChange('cvv', e.target.value)}
-            placeholder="123"
-            inputMode="numeric"
-            type="password"
-            style={inp(!!errors.cvv)}
-            onFocus={inp(!!errors.cvv).onFocus}
-            onBlur={inp(!!errors.cvv).onBlur}
-          />
-          {errors.cvv && <span style={errStyle}>{errors.cvv}</span>}
+      <div style={{
+        background: C.green50, border: `1.5px solid ${C.green100}`,
+        borderRadius: 14, padding: '22px 20px', textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 32 }}>💳</div>
+        <div style={{ fontSize: 13, color: C.gray700, marginTop: 10, lineHeight: 1.6 }}>
+          Se abrirá la ventana segura de <strong>Culqi</strong> para ingresar los datos de tu
+          tarjeta. VIDASALUD nunca ve ni almacena tu número de tarjeta.
         </div>
       </div>
 
@@ -342,22 +228,17 @@ function MetodoTarjeta({ precio, loading, onConfirm }) {
         fontSize: 11, color: C.green700, fontWeight: 600,
       }}>
         <span style={{ fontSize: 16 }}>🔒</span>
-        Pago seguro · Datos cifrados con TLS 1.3 · No almacenamos tu tarjeta
+        Pago seguro procesado por Culqi · Cifrado TLS · Cumple PCI-DSS
       </div>
 
-      <button onClick={submit} disabled={loading} style={btnStyle(!loading)}>
-        {loading ? 'Procesando pago…' : `Pagar S/. ${precio}.00`}
+      <button onClick={onConfirm} disabled={loading} style={btnStyle(!loading)}>
+        {loading ? 'Abriendo pasarela de pago…' : `Pagar S/. ${precio}.00 con tarjeta`}
       </button>
     </div>
   )
 }
 
 /* ── Estilos compartidos ─────────────────────────────────────── */
-const errStyle = {
-  display: 'block', marginTop: 4,
-  fontSize: 12, color: C.red, fontWeight: 600,
-}
-
 function btnStyle(active) {
   return {
     width: '100%', padding: '15px 0', border: 'none', borderRadius: 12,
@@ -637,6 +518,7 @@ function VistaConfirmada({ appointment, doctor, onInicio, onMensaje, onCola }) {
 export default function Payment() {
   const { appointmentId } = useParams()
   const navigate           = useNavigate()
+  const { user }           = useAuthStore()
 
   const [appointment,  setAppointment]  = useState(null)
   const [doctor,       setDoctor]       = useState(null)
@@ -645,6 +527,7 @@ export default function Payment() {
   const [processing,   setProcessing]   = useState(false)
   const [confirmed,    setConfirmed]    = useState(false)
   const [esDesdeTurno, setEsDesdeTurno] = useState(false)
+  const [culqiReady,   setCulqiReady]   = useState(false)
 
   /* cargar cita, médico y verificar si viene de turno de guardia */
   useEffect(() => {
@@ -676,6 +559,126 @@ export default function Payment() {
         setLoading(false)
       })
   }, [appointmentId, navigate])
+
+  /* Cargar el script del Checkout de Culqi (una sola vez por sesión) */
+  useEffect(() => {
+    if (window.Culqi) { setCulqiReady(true); return }
+    const existing = document.querySelector(`script[src="${CULQI_SCRIPT_URL}"]`)
+    if (existing) {
+      existing.addEventListener('load', () => setCulqiReady(true))
+      return
+    }
+    const script = document.createElement('script')
+    script.src   = CULQI_SCRIPT_URL
+    script.async = true
+    script.onload  = () => setCulqiReady(true)
+    script.onerror = () => console.error('[Payment] No se pudo cargar el script de Culqi')
+    document.body.appendChild(script)
+  }, [])
+
+  /* Envía el token de Culqi a la Edge Function que hace el cargo real */
+  const procesarPagoConToken = useCallback(async (token, tokenEmail) => {
+    if (!appointment) return
+    try {
+      const { data, error } = await supabase.functions.invoke('procesar-pago-culqi', {
+        body: {
+          token,
+          appointmentId,
+          email: tokenEmail || user?.email,
+        },
+      })
+      if (error || !data?.ok) {
+        throw new Error(data?.error ?? error?.message ?? 'El pago fue rechazado')
+      }
+
+      setAppointment(prev => (prev ? { ...prev, status: 'paid' } : prev))
+      setConfirmed(true)
+
+      // WhatsApp de confirmación (fire-and-forget)
+      if (doctor) {
+        const { data: pat } = await supabase
+          .from('profiles')
+          .select('phone')
+          .eq('id', appointment.patient_id)
+          .maybeSingle()
+        const { fecha, hora } = formatScheduledAt(appointment.scheduled_at)
+        enviarWhatsapp({
+          to: pat?.phone,
+          template_name: 'confirmacion_cita',
+          parameters: [`${doctor.nombres} ${doctor.apellidos}`.trim(), `${fecha} ${hora}`],
+        })
+      }
+    } catch (err) {
+      console.error('[Payment] procesarPagoConToken error:', err)
+      toast.error(err.message || 'No se pudo procesar el pago. Inténtalo de nuevo.')
+    } finally {
+      setProcessing(false)
+    }
+  }, [appointment, appointmentId, doctor, user])
+
+  /* Culqi Checkout v4 llama a este callback global cuando el usuario
+     termina de interactuar con el widget (con token o con error). */
+  useEffect(() => {
+    window.culqi = function () {
+      const Culqi = window.Culqi
+      if (!Culqi) return
+      if (Culqi.token) {
+        const { id, email } = Culqi.token
+        Culqi.close()
+        procesarPagoConToken(id, email)
+      } else if (Culqi.error) {
+        console.error('[Payment] Culqi error:', Culqi.error)
+        toast.error(Culqi.error.user_message || Culqi.error.merchant_message || 'No se pudo procesar el pago')
+        setProcessing(false)
+      }
+    }
+    return () => { delete window.culqi }
+  }, [procesarPagoConToken])
+
+  /* Abre el Checkout de Culqi con el monto de la cita (en céntimos) */
+  function handleAbrirCulqiCheckout() {
+    const publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY
+    if (!culqiReady || !window.Culqi) {
+      toast.error('La pasarela de pagos aún está cargando. Intenta de nuevo en unos segundos.')
+      return
+    }
+    if (!publicKey) {
+      console.error('[Payment] Falta VITE_CULQI_PUBLIC_KEY en el .env')
+      toast.error('Pago con tarjeta no disponible por el momento.')
+      return
+    }
+    if (!precioPaciente || precioPaciente <= 0) {
+      toast.error('No se pudo calcular el monto de la cita')
+      return
+    }
+
+    setProcessing(true)
+    const Culqi = window.Culqi
+    Culqi.publicKey = publicKey
+    Culqi.settings({
+      title:    'VIDASALUD',
+      currency: 'PEN',
+      amount:   Math.round(precioPaciente * 100),   // Culqi espera el monto en céntimos
+    })
+    Culqi.options({
+      lang: 'auto',
+      installments: false,
+      paymentMethods: {
+        tarjeta: true, yape: false, bancaMovil: false,
+        billetera: false, agente: false, cuotealo: false,
+      },
+      style: {
+        bannerColor:      '#065F46',
+        buttonBackground: '#059669',
+        menuColor:        '#065F46',
+        linksColor:       '#059669',
+        buttonText:       'Pagar ahora',
+        buttonTextColor:  '#FFFFFF',
+        priceColor:       '#065F46',
+      },
+    })
+    Culqi.open()
+  }
 
   /* confirmar pago: actualiza appointment → 'paid' */
   async function handlePay() {
@@ -880,7 +883,7 @@ export default function Payment() {
           <MetodoTarjeta
             precio={precioPaciente}
             loading={processing}
-            onConfirm={handlePay}
+            onConfirm={handleAbrirCulqiCheckout}
           />
         )}
 

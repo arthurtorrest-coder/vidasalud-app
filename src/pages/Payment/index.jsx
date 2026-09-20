@@ -562,17 +562,34 @@ export default function Payment() {
 
   /* Cargar el script del Checkout de Culqi (una sola vez por sesión) */
   useEffect(() => {
-    if (window.Culqi) { setCulqiReady(true); return }
-    const existing = document.querySelector(`script[src="${CULQI_SCRIPT_URL}"]`)
-    if (existing) {
-      existing.addEventListener('load', () => setCulqiReady(true))
+    console.log('[Payment][Culqi] URL del script:', CULQI_SCRIPT_URL)
+    console.log('[Payment][Culqi] ¿window.Culqi ya existe al montar?', !!window.Culqi)
+
+    if (window.Culqi) {
+      console.log('[Payment][Culqi] window.Culqi ya estaba cargado, no se inyecta script de nuevo')
+      setCulqiReady(true)
       return
     }
+    const existing = document.querySelector(`script[src="${CULQI_SCRIPT_URL}"]`)
+    if (existing) {
+      console.log('[Payment][Culqi] ya existe un <script> de Culqi en el DOM, esperando su evento load')
+      existing.addEventListener('load', () => {
+        console.log('[Payment][Culqi] script existente terminó de cargar — window.Culqi:', !!window.Culqi)
+        setCulqiReady(true)
+      })
+      return
+    }
+    console.log('[Payment][Culqi] inyectando <script> de Culqi en <body>…')
     const script = document.createElement('script')
     script.src   = CULQI_SCRIPT_URL
     script.async = true
-    script.onload  = () => setCulqiReady(true)
-    script.onerror = () => console.error('[Payment] No se pudo cargar el script de Culqi')
+    script.onload = () => {
+      console.log('[Payment][Culqi] script.onload disparado — window.Culqi:', !!window.Culqi, window.Culqi)
+      setCulqiReady(true)
+    }
+    script.onerror = (e) => {
+      console.error('[Payment][Culqi] script.onerror — no se pudo cargar el script de Culqi:', e)
+    }
     document.body.appendChild(script)
   }, [])
 
@@ -638,46 +655,65 @@ export default function Payment() {
   /* Abre el Checkout de Culqi con el monto de la cita (en céntimos) */
   function handleAbrirCulqiCheckout() {
     const publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY
+
+    console.log('[Payment][Culqi] handleAbrirCulqiCheckout — diagnóstico:', {
+      culqiReady,
+      'window.Culqi existe': !!window.Culqi,
+      VITE_CULQI_PUBLIC_KEY: publicKey || '(vacío/undefined)',
+      precioPaciente,
+    })
+
     if (!culqiReady || !window.Culqi) {
+      console.error('[Payment][Culqi] Abortando: culqiReady =', culqiReady, '| window.Culqi =', window.Culqi)
       toast.error('La pasarela de pagos aún está cargando. Intenta de nuevo en unos segundos.')
       return
     }
     if (!publicKey) {
-      console.error('[Payment] Falta VITE_CULQI_PUBLIC_KEY en el .env')
+      console.error('[Payment][Culqi] Abortando: VITE_CULQI_PUBLIC_KEY no está definida. Revisa tu .env y reinicia el servidor de desarrollo (Vite solo lee .env al arrancar).')
       toast.error('Pago con tarjeta no disponible por el momento.')
       return
     }
     if (!precioPaciente || precioPaciente <= 0) {
+      console.error('[Payment][Culqi] Abortando: precioPaciente inválido:', precioPaciente)
       toast.error('No se pudo calcular el monto de la cita')
       return
     }
 
     setProcessing(true)
-    const Culqi = window.Culqi
-    Culqi.publicKey = publicKey
-    Culqi.settings({
-      title:    'VIDASALUD',
-      currency: 'PEN',
-      amount:   Math.round(precioPaciente * 100),   // Culqi espera el monto en céntimos
-    })
-    Culqi.options({
-      lang: 'auto',
-      installments: false,
-      paymentMethods: {
-        tarjeta: true, yape: false, bancaMovil: false,
-        billetera: false, agente: false, cuotealo: false,
-      },
-      style: {
-        bannerColor:      '#065F46',
-        buttonBackground: '#059669',
-        menuColor:        '#065F46',
-        linksColor:       '#059669',
-        buttonText:       'Pagar ahora',
-        buttonTextColor:  '#FFFFFF',
-        priceColor:       '#065F46',
-      },
-    })
-    Culqi.open()
+    try {
+      const Culqi = window.Culqi
+      Culqi.publicKey = publicKey
+      const amount = Math.round(precioPaciente * 100)   // Culqi espera el monto en céntimos
+      console.log('[Payment][Culqi] configurando settings — amount (céntimos):', amount, '| currency: PEN')
+      Culqi.settings({
+        title:    'VIDASALUD',
+        currency: 'PEN',
+        amount,
+      })
+      Culqi.options({
+        lang: 'auto',
+        installments: false,
+        paymentMethods: {
+          tarjeta: true, yape: false, bancaMovil: false,
+          billetera: false, agente: false, cuotealo: false,
+        },
+        style: {
+          bannerColor:      '#065F46',
+          buttonBackground: '#059669',
+          menuColor:        '#065F46',
+          linksColor:       '#059669',
+          buttonText:       'Pagar ahora',
+          buttonTextColor:  '#FFFFFF',
+          priceColor:       '#065F46',
+        },
+      })
+      console.log('[Payment][Culqi] llamando a Culqi.open()…')
+      Culqi.open()
+    } catch (err) {
+      console.error('[Payment][Culqi] Excepción al abrir el checkout:', err)
+      toast.error('No se pudo abrir la pasarela de pago: ' + (err?.message ?? String(err)))
+      setProcessing(false)
+    }
   }
 
   /* confirmar pago: actualiza appointment → 'paid' */

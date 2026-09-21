@@ -1,14 +1,25 @@
 // @ts-nocheck — archivo Deno; el TS server de VS Code no reconoce el runtime de Deno.
-// Procesa un cargo REAL con Culqi a partir del token que devuelve el
-// Checkout v4 en el frontend (src/pages/Payment/index.jsx).
+// Procesa un cargo REAL con Culqi. Dos flujos posibles:
+//   1. Tarjeta: el frontend ya generó un token con el Checkout v4 y solo
+//      pide el cargo (body: { token, appointmentId, email }).
+//   2. Yape: el frontend manda { tipo: 'yape', number_phone, otp,
+//      appointmentId, email } — esta función crea el token Yape en Culqi
+//      (server-side, porque secure.culqi.com/v2/tokens bloquea CORS desde
+//      el navegador) y luego hace el mismo cargo.
 // CULQI_SECRET_KEY nunca debe exponerse al navegador — solo vive acá.
 // Deploy: supabase functions deploy procesar-pago-culqi
-// Secreto: supabase secrets set CULQI_SECRET_KEY=sk_live_...
+// Secretos:
+//   supabase secrets set CULQI_SECRET_KEY=sk_live_...
+//   supabase secrets set CULQI_PUBLIC_KEY=pk_live_...   (la llave pública,
+//     guardada acá también porque los Edge Functions no pueden leer
+//     VITE_CULQI_PUBLIC_KEY del frontend — son procesos/entornos distintos)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const CULQI_SECRET_KEY = Deno.env.get('CULQI_SECRET_KEY') ?? ''
+const CULQI_PUBLIC_KEY = Deno.env.get('CULQI_PUBLIC_KEY') ?? ''
 const CULQI_CHARGES_URL = 'https://api.culqi.com/v2/charges'
+const CULQI_TOKENS_URL  = 'https://secure.culqi.com/v2/tokens'
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -53,15 +64,25 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: 'JSON inválido' }, 400)
   }
 
-  const { token, appointmentId, email } = body
-  if (!token || !appointmentId || !email) {
-    return json({ ok: false, error: 'Faltan campos obligatorios: token, appointmentId, email' }, 400)
+  const { tipo, token, appointmentId, email, number_phone, otp } = body
+  const esYape = tipo === 'yape'
+
+  if (!appointmentId || !email) {
+    return json({ ok: false, error: 'Faltan campos obligatorios: appointmentId, email' }, 400)
+  }
+  if (esYape) {
+    if (!number_phone || !otp) {
+      return json({ ok: false, error: 'Faltan campos obligatorios: number_phone, otp' }, 400)
+    }
+  } else if (!token) {
+    return json({ ok: false, error: 'Falta el token de pago' }, 400)
   }
 
-  console.log('[procesar-pago-culqi] solicitud —', { appointmentId, email })
+  console.log('[procesar-pago-culqi] solicitud —', { tipo: tipo ?? 'tarjeta', appointmentId, email })
 
   // 1. Cargar la cita + médico para calcular el precio de forma autoritativa
-  //    en el servidor. Nunca confiar en un monto enviado desde el cliente.
+  //    en el servidor. Nunca confiar en un monto enviado desde el cliente
+  //    (ni siquiera para el token de Yape).
   const { data: appt, error: apptErr } = await supabase
     .from('appointments')
     .select('id, status, patient_id, precio_total, doctor:doctors(especialidad, precio)')
@@ -102,8 +123,51 @@ Deno.serve(async (req) => {
 
   const amountCentimos = Math.round(montoTotal * 100)
 
-  // 2. Crear el cargo real en Culqi
-  console.log('[procesar-pago-culqi] creando cargo —', { appointmentId, amountCentimos })
+  // 2. Si es Yape, crear primero el token en Culqi (server-side: el
+  //    endpoint secure.culqi.com/v2/tokens bloquea CORS desde el navegador).
+  let sourceId = token
+  if (esYape) {
+    if (!CULQI_PUBLIC_KEY) {
+      console.error('[procesar-pago-culqi] CULQI_PUBLIC_KEY no configurado')
+      return json({ ok: false, error: 'Pago con Yape no disponible en el servidor' }, 500)
+    }
+
+    console.log('[procesar-pago-culqi] creando token Yape —', { appointmentId, amountCentimos })
+    let tokenRes, tokenData
+    try {
+      tokenRes = await fetch(CULQI_TOKENS_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${CULQI_PUBLIC_KEY}`,
+          'Content-Type':  'application/json',
+        },
+        body: JSON.stringify({
+          number_phone: number_phone,
+          otp:          otp,
+          amount:       String(amountCentimos),
+        }),
+      })
+      tokenData = await tokenRes.json()
+    } catch (err) {
+      console.error('[procesar-pago-culqi] excepción creando token Yape:', String(err))
+      return json({ ok: false, error: 'No se pudo contactar la pasarela de pagos (Yape)' }, 502)
+    }
+
+    if (!tokenRes.ok || tokenData?.object === 'error') {
+      console.error('[procesar-pago-culqi] Culqi rechazó el token Yape:', JSON.stringify(tokenData))
+      return json({
+        ok: false,
+        error: tokenData?.user_message || tokenData?.merchant_message || 'Código de aprobación inválido o vencido',
+      }, 402)
+    }
+
+    console.log('[procesar-pago-culqi] token Yape creado:', tokenData.id)
+    sourceId = tokenData.id
+  }
+
+  // 3. Crear el cargo real en Culqi (igual para tarjeta o Yape — a Culqi
+  //    solo le importa el source_id).
+  console.log('[procesar-pago-culqi] creando cargo —', { appointmentId, amountCentimos, sourceId })
   let culqiRes, data
   try {
     culqiRes = await fetch(CULQI_CHARGES_URL, {
@@ -116,7 +180,7 @@ Deno.serve(async (req) => {
         amount:        amountCentimos,
         currency_code: 'PEN',
         email,
-        source_id:     token,
+        source_id:     sourceId,
         description:   'Consulta médica VIDASALUD',
         metadata:      { appointment_id: appointmentId },
       }),
@@ -137,7 +201,7 @@ Deno.serve(async (req) => {
 
   console.log('[procesar-pago-culqi] cargo exitoso — charge id:', data.id)
 
-  // 3. Marcar la cita como pagada, guardando el monto real cobrado y el id
+  // 4. Marcar la cita como pagada, guardando el monto real cobrado y el id
   //    del cargo de Culqi para reconciliación/soporte.
   const { error: updateErr } = await supabase
     .from('appointments')

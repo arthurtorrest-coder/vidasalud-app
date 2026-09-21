@@ -8,7 +8,6 @@ import { precioTotalPaciente } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
 
 const CULQI_SCRIPT_URL = 'https://checkout.culqi.com/js/v4'
-const CULQI_TOKENS_URL = 'https://secure.culqi.com/v2/tokens'
 const YAPE_MAX_MONTO   = 2000   // Culqi solo acepta pagos Yape hasta S/. 2000
 
 const errStyle = {
@@ -693,7 +692,29 @@ export default function Payment() {
     document.body.appendChild(script)
   }, [])
 
-  /* Envía el token de Culqi a la Edge Function que hace el cargo real */
+  /* Se ejecuta después de que procesar-pago-culqi confirma un cargo exitoso
+     (tarjeta o Yape) — actualiza la UI y dispara el WhatsApp de confirmación. */
+  const finalizarPagoExitoso = useCallback(async () => {
+    setAppointment(prev => (prev ? { ...prev, status: 'paid' } : prev))
+    setConfirmed(true)
+
+    if (appointment && doctor) {
+      const { data: pat } = await supabase
+        .from('profiles')
+        .select('phone')
+        .eq('id', appointment.patient_id)
+        .maybeSingle()
+      const { fecha, hora } = formatScheduledAt(appointment.scheduled_at)
+      enviarWhatsapp({
+        to: pat?.phone,
+        template_name: 'confirmacion_cita',
+        parameters: [`${doctor.nombres} ${doctor.apellidos}`.trim(), `${fecha} ${hora}`],
+      })
+    }
+  }, [appointment, doctor])
+
+  /* Envía el token de tarjeta (ya creado por el Checkout de Culqi en el
+     navegador) a la Edge Function que hace el cargo real */
   const procesarPagoConToken = useCallback(async (token, tokenEmail) => {
     if (!appointment) return
     try {
@@ -707,31 +728,14 @@ export default function Payment() {
       if (error || !data?.ok) {
         throw new Error(data?.error ?? error?.message ?? 'El pago fue rechazado')
       }
-
-      setAppointment(prev => (prev ? { ...prev, status: 'paid' } : prev))
-      setConfirmed(true)
-
-      // WhatsApp de confirmación (fire-and-forget)
-      if (doctor) {
-        const { data: pat } = await supabase
-          .from('profiles')
-          .select('phone')
-          .eq('id', appointment.patient_id)
-          .maybeSingle()
-        const { fecha, hora } = formatScheduledAt(appointment.scheduled_at)
-        enviarWhatsapp({
-          to: pat?.phone,
-          template_name: 'confirmacion_cita',
-          parameters: [`${doctor.nombres} ${doctor.apellidos}`.trim(), `${fecha} ${hora}`],
-        })
-      }
+      await finalizarPagoExitoso()
     } catch (err) {
       console.error('[Payment] procesarPagoConToken error:', err)
       toast.error(err.message || 'No se pudo procesar el pago. Inténtalo de nuevo.')
     } finally {
       setProcessing(false)
     }
-  }, [appointment, appointmentId, doctor, user])
+  }, [appointment, appointmentId, user, finalizarPagoExitoso])
 
   /* Culqi Checkout v4 llama a este callback global cuando el usuario
      termina de interactuar con el widget (con token o con error). */
@@ -819,18 +823,12 @@ export default function Payment() {
   /* Pago con Yape vía Culqi:
      1. El paciente ya generó un "código de aprobación" (6 dígitos, vence en
         2 min) dentro de SU app Yape (menú → Código de aprobación).
-     2. Con ese código + su número, creamos un token Yape directamente
-        contra la API de Culqi usando la llave PÚBLICA (igual que la
-        tokenización de tarjetas: nunca requiere la llave secreta).
-     3. El token (ype_...) se envía a la misma Edge Function que ya cobra
-        con tarjeta — Culqi trata cualquier source_id igual al crear el cargo. */
+     2. secure.culqi.com/v2/tokens bloquea CORS desde el navegador, así que
+        no podemos crear el token Yape acá — se lo mandamos todo a
+        procesar-pago-culqi, que crea el token con la llave pública guardada
+        como secreto del servidor y hace el cargo en el mismo viaje. */
   async function handleYapePay(telefono, codigo) {
-    const publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY
-    if (!publicKey) {
-      console.error('[Payment][Yape] Falta VITE_CULQI_PUBLIC_KEY en el .env')
-      toast.error('Pago con Yape no disponible por el momento.')
-      return
-    }
+    if (!appointment) return
     if (!precioPaciente || precioPaciente <= 0) {
       toast.error('No se pudo calcular el monto de la cita')
       return
@@ -841,41 +839,34 @@ export default function Payment() {
     }
 
     setProcessing(true)
-    const amountCentimos = Math.round(precioPaciente * 100)
-    console.log('[Payment][Yape] creando token —', { telefono, amountCentimos })
+    console.log('[Payment][Yape] enviando a procesar-pago-culqi —', { appointmentId, telefono })
 
     try {
-      const res = await fetch(CULQI_TOKENS_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${publicKey}`,
-          'Content-Type':  'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('procesar-pago-culqi', {
+        body: {
+          tipo:         'yape',
           number_phone: telefono,
           otp:          codigo,
-          amount:       String(amountCentimos),
-        }),
+          appointmentId,
+          monto:        precioPaciente,   // referencial — el servidor recalcula el monto real
+          email:        user?.email,
+        },
       })
-      const data = await res.json()
-
-      if (!res.ok || data?.object === 'error') {
-        console.error('[Payment][Yape] Culqi rechazó el token:', data)
-        throw new Error(data?.user_message || data?.merchant_message || 'Código de aprobación inválido o vencido')
+      if (error || !data?.ok) {
+        throw new Error(data?.error ?? error?.message ?? 'No se pudo procesar el pago con Yape')
       }
-
-      console.log('[Payment][Yape] token creado:', data.id)
 
       // Guardar el teléfono en el perfil si no lo tenía (fire-and-forget)
       if (user?.id && telefono && telefono !== profile?.phone) {
         supabase.from('profiles').update({ phone: telefono }).eq('id', user.id)
-          .then(({ error }) => { if (error) console.warn('[Payment][Yape] no se pudo guardar el teléfono:', error.message) })
+          .then(({ error: err2 }) => { if (err2) console.warn('[Payment][Yape] no se pudo guardar el teléfono:', err2.message) })
       }
 
-      await procesarPagoConToken(data.id, user?.email)
+      await finalizarPagoExitoso()
     } catch (err) {
-      console.error('[Payment][Yape] error creando token:', err)
+      console.error('[Payment][Yape] error:', err)
       toast.error(err.message || 'No se pudo procesar el pago con Yape')
+    } finally {
       setProcessing(false)
     }
   }

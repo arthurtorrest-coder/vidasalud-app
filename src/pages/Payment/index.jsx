@@ -8,6 +8,13 @@ import { precioTotalPaciente } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
 
 const CULQI_SCRIPT_URL = 'https://checkout.culqi.com/js/v4'
+const CULQI_TOKENS_URL = 'https://secure.culqi.com/v2/tokens'
+const YAPE_MAX_MONTO   = 2000   // Culqi solo acepta pagos Yape hasta S/. 2000
+
+const errStyle = {
+  display: 'block', marginTop: 4,
+  fontSize: 12, color: C.red600, fontWeight: 600,
+}
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 function codigoCita(id) {
@@ -154,11 +161,11 @@ function TabMetodos({ selected, onChange }) {
   )
 }
 
-/* ── Vista QR (Yape / Plin) ──────────────────────────────────── */
+/* ── Vista QR (Plin — Yape ahora usa el token real de Culqi, ver MetodoYape) ── */
 function MetodoQR({ metodo, precio, loading, onConfirm }) {
   const m      = METODOS.find(x => x.id === metodo)
-  const numero = metodo === 'yape' ? '999 888 777' : '987 654 321'
-  const app    = metodo === 'yape' ? 'Yape' : 'Plin'
+  const numero = '987 654 321'
+  const app    = 'Plin'
 
   return (
     <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -201,6 +208,99 @@ function MetodoQR({ metodo, precio, loading, onConfirm }) {
         style={btnStyle(!loading)}
       >
         {loading ? 'Confirmando…' : `Ya realicé el pago · Confirmar cita`}
+      </button>
+    </div>
+  )
+}
+
+/* ── Vista Yape (token real vía Culqi) ─────────────────────────
+   El código de aprobación lo genera el propio paciente dentro de SU
+   app Yape (menú → "Código de aprobación", vigente ~2 min) y lo copia
+   acá junto a su número — no es un código que nosotros le mostremos. */
+function MetodoYape({ precio, loading, telefonoInicial, onConfirm }) {
+  const [telefono, setTelefono] = useState(telefonoInicial || '')
+  const [codigo,   setCodigo]   = useState('')
+  const [errors,   setErrors]   = useState({})
+
+  function inp(hasErr) {
+    return {
+      width: '100%', padding: '12px 14px', boxSizing: 'border-box',
+      border: `1.5px solid ${hasErr ? C.red600 : C.gray300}`,
+      borderRadius: 12, fontSize: 14, color: C.gray900,
+      background: hasErr ? C.red50 : C.white, outline: 'none',
+      transition: 'border-color 0.15s',
+    }
+  }
+
+  function submit() {
+    const errs = {}
+    if (!/^9\d{8}$/.test(telefono.trim())) {
+      errs.telefono = 'Ingresa tu celular Yape (9 dígitos, empieza con 9)'
+    }
+    if (!/^\d{6}$/.test(codigo.trim())) {
+      errs.codigo = 'El código de aprobación tiene 6 dígitos'
+    }
+    setErrors(errs)
+    if (Object.keys(errs).length > 0) return
+    onConfirm(telefono.trim(), codigo.trim())
+  }
+
+  return (
+    <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{
+        background: '#F5F3FF', border: '1.5px solid #DDD6FE',
+        borderRadius: 14, padding: '16px 18px',
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#6D28D9', marginBottom: 8 }}>
+          💜 Cómo obtener tu código de aprobación
+        </div>
+        <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.gray700, lineHeight: 1.8 }}>
+          <li>Abre tu app <strong>Yape</strong></li>
+          <li>Ve al menú y toca <strong>"Código de aprobación"</strong></li>
+          <li>Cópialo aquí — vence en 2 minutos</li>
+        </ol>
+      </div>
+
+      <div>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.gray700, marginBottom: 6 }}>
+          Tu número Yape
+        </label>
+        <input
+          value={telefono}
+          onChange={e => { setTelefono(e.target.value.replace(/\D/g, '').slice(0, 9)); setErrors(p => ({ ...p, telefono: null })) }}
+          placeholder="987654321"
+          inputMode="numeric"
+          style={inp(!!errors.telefono)}
+        />
+        {errors.telefono && <span style={errStyle}>{errors.telefono}</span>}
+      </div>
+
+      <div>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.gray700, marginBottom: 6 }}>
+          Código de aprobación
+        </label>
+        <input
+          value={codigo}
+          onChange={e => { setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6)); setErrors(p => ({ ...p, codigo: null })) }}
+          placeholder="000000"
+          inputMode="numeric"
+          style={{ ...inp(!!errors.codigo), letterSpacing: 6, fontSize: 20, fontWeight: 800, textAlign: 'center' }}
+        />
+        {errors.codigo && <span style={errStyle}>{errors.codigo}</span>}
+      </div>
+
+      <div style={{
+        display: 'flex', gap: 8, alignItems: 'center',
+        background: C.green50, border: `1px solid ${C.green100}`,
+        borderRadius: 10, padding: '10px 12px',
+        fontSize: 11, color: C.green700, fontWeight: 600,
+      }}>
+        <span style={{ fontSize: 16 }}>🔒</span>
+        Pago procesado por Culqi · Yape admite hasta S/. {YAPE_MAX_MONTO} por operación
+      </div>
+
+      <button onClick={submit} disabled={loading} style={btnStyle(!loading)}>
+        {loading ? 'Procesando pago…' : `Pagar S/. ${precio}.00 con Yape`}
       </button>
     </div>
   )
@@ -518,7 +618,7 @@ function VistaConfirmada({ appointment, doctor, onInicio, onMensaje, onCola }) {
 export default function Payment() {
   const { appointmentId } = useParams()
   const navigate           = useNavigate()
-  const { user }           = useAuthStore()
+  const { user, profile }  = useAuthStore()
 
   const [appointment,  setAppointment]  = useState(null)
   const [doctor,       setDoctor]       = useState(null)
@@ -716,6 +816,70 @@ export default function Payment() {
     }
   }
 
+  /* Pago con Yape vía Culqi:
+     1. El paciente ya generó un "código de aprobación" (6 dígitos, vence en
+        2 min) dentro de SU app Yape (menú → Código de aprobación).
+     2. Con ese código + su número, creamos un token Yape directamente
+        contra la API de Culqi usando la llave PÚBLICA (igual que la
+        tokenización de tarjetas: nunca requiere la llave secreta).
+     3. El token (ype_...) se envía a la misma Edge Function que ya cobra
+        con tarjeta — Culqi trata cualquier source_id igual al crear el cargo. */
+  async function handleYapePay(telefono, codigo) {
+    const publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY
+    if (!publicKey) {
+      console.error('[Payment][Yape] Falta VITE_CULQI_PUBLIC_KEY en el .env')
+      toast.error('Pago con Yape no disponible por el momento.')
+      return
+    }
+    if (!precioPaciente || precioPaciente <= 0) {
+      toast.error('No se pudo calcular el monto de la cita')
+      return
+    }
+    if (precioPaciente > YAPE_MAX_MONTO) {
+      toast.error(`Yape solo admite pagos de hasta S/. ${YAPE_MAX_MONTO}. Usa tarjeta para este monto.`)
+      return
+    }
+
+    setProcessing(true)
+    const amountCentimos = Math.round(precioPaciente * 100)
+    console.log('[Payment][Yape] creando token —', { telefono, amountCentimos })
+
+    try {
+      const res = await fetch(CULQI_TOKENS_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${publicKey}`,
+          'Content-Type':  'application/json',
+        },
+        body: JSON.stringify({
+          number_phone: telefono,
+          otp:          codigo,
+          amount:       String(amountCentimos),
+        }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || data?.object === 'error') {
+        console.error('[Payment][Yape] Culqi rechazó el token:', data)
+        throw new Error(data?.user_message || data?.merchant_message || 'Código de aprobación inválido o vencido')
+      }
+
+      console.log('[Payment][Yape] token creado:', data.id)
+
+      // Guardar el teléfono en el perfil si no lo tenía (fire-and-forget)
+      if (user?.id && telefono && telefono !== profile?.phone) {
+        supabase.from('profiles').update({ phone: telefono }).eq('id', user.id)
+          .then(({ error }) => { if (error) console.warn('[Payment][Yape] no se pudo guardar el teléfono:', error.message) })
+      }
+
+      await procesarPagoConToken(data.id, user?.email)
+    } catch (err) {
+      console.error('[Payment][Yape] error creando token:', err)
+      toast.error(err.message || 'No se pudo procesar el pago con Yape')
+      setProcessing(false)
+    }
+  }
+
   /* confirmar pago: actualiza appointment → 'paid' */
   async function handlePay() {
     setProcessing(true)
@@ -907,7 +1071,15 @@ export default function Payment() {
         <div style={{ height: 20 }} />
 
         {/* Formulario del método seleccionado */}
-        {(metodo === 'yape' || metodo === 'plin') && (
+        {metodo === 'yape' && (
+          <MetodoYape
+            precio={precioPaciente}
+            loading={processing}
+            telefonoInicial={profile?.phone}
+            onConfirm={handleYapePay}
+          />
+        )}
+        {metodo === 'plin' && (
           <MetodoQR
             metodo={metodo}
             precio={precioPaciente}

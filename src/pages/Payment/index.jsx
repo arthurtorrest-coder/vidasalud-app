@@ -794,13 +794,19 @@ export default function Payment() {
         currency: 'PEN',
         amount,
       })
+      // paymentMethods es un objeto de booleanos (no un array) — así lo
+      // exige Culqi.options() en el Checkout v4. Habilitamos Yape y
+      // billeteras digitales acá también, además de la pestaña Yape
+      // propia (MetodoYape) que ya existe con su flujo de teléfono+OTP;
+      // quedan ambas disponibles a propósito.
       Culqi.options({
         lang: 'auto',
         installments: false,
         paymentMethods: {
-          tarjeta: true, yape: false, bancaMovil: false,
-          billetera: false, agente: false, cuotealo: false,
+          tarjeta: true, yape: true, billetera: true,
+          bancaMovil: false, agente: false, cuotealo: false,
         },
+        paymentMethodsSort: ['tarjeta', 'yape', 'billetera'],
         style: {
           bannerColor:      '#065F46',
           buttonBackground: '#059669',

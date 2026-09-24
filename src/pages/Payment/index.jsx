@@ -81,41 +81,6 @@ function downloadICS(appointment, doctor, codigo) {
   URL.revokeObjectURL(url)
 }
 
-/* ── SVG: QR demo con marcadores de posición reales ────────── */
-function QRDemo({ accent }) {
-  const sq = (x, y, s = 8) => <rect key={`${x}${y}`} x={x} y={y} width={s} height={s} fill={accent} />
-  const finder = (ox, oy) => (
-    <g key={`f${ox}${oy}`}>
-      <rect x={ox}    y={oy}    width={34} height={34} rx={3} fill={accent} />
-      <rect x={ox+7}  y={oy+7}  width={20} height={20} rx={2} fill={C.white} />
-      <rect x={ox+11} y={oy+11} width={12} height={12} rx={1} fill={accent} />
-    </g>
-  )
-  const data = [
-    [54,8],[62,8],[70,8],[78,8],[86,8],[54,16],[70,16],[86,16],
-    [54,24],[62,24],[78,24],[54,32],[70,32],[86,32],[62,40],[78,40],
-    [8,50],[16,50],[24,50],[32,50],[54,50],[62,50],[78,50],[86,50],[94,50],[110,50],[118,50],
-    [8,58],[24,58],[32,58],[54,58],[70,58],[86,58],[102,58],[118,58],
-    [8,66],[16,66],[32,66],[54,66],[62,66],[86,66],[102,66],[110,66],
-    [8,74],[24,74],[54,74],[78,74],[94,74],[110,74],[118,74],
-    [8,82],[16,82],[24,82],[32,82],[54,82],[62,82],[86,82],[102,82],[118,82],
-    [54,90],[70,90],[86,90],[94,90],[110,90],
-    [54,98],[62,98],[86,98],[102,98],[118,98],
-    [54,106],[78,106],[94,106],[118,106],
-    [54,114],[62,114],[70,114],[86,114],[102,114],
-    [54,122],[78,122],[94,122],[110,122],[118,122],
-  ]
-  return (
-    <svg width={136} height={136} viewBox="0 0 136 136" style={{ display: 'block', margin: '0 auto' }}>
-      <rect width={136} height={136} rx={10} fill={C.white} stroke={C.gray200} strokeWidth={1.5} />
-      {finder(8, 8)}
-      {finder(94, 8)}
-      {finder(8, 94)}
-      {data.map(([x, y]) => sq(x, y))}
-    </svg>
-  )
-}
-
 /* ── Método: selector ────────────────────────────────────────── */
 const METODOS = [
   { id: 'yape',    label: 'Yape',    emoji: '💜', accent: '#7C3AED' },
@@ -155,53 +120,49 @@ function TabMetodos({ selected, onChange }) {
   )
 }
 
-/* ── Vista QR (Plin — Yape ahora usa el Checkout de Culqi, ver MetodoYape) ── */
-function MetodoQR({ metodo, precio, loading, onConfirm }) {
-  const m      = METODOS.find(x => x.id === metodo)
-  const numero = '987 654 321'
-  const app    = 'Plin'
-
+/* ── Vista Plin (Checkout de Culqi filtrado a solo billetera) ───
+   "billetera" en Culqi muestra un QR que se lee desde apps de billetera
+   móvil (Plin entre ellas) — Culqi captura todo dentro de su widget. */
+function MetodoPlin({ precio, loading, onConfirm }) {
+  const bancos = ['BBVA', 'Interbank', 'Scotiabank', 'BCP']
   return (
-    <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{
-        background: `${m.accent}08`, border: `1.5px solid ${m.accent}30`,
-        borderRadius: 16, padding: '20px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+        background: '#EFF6FF', border: '1.5px solid #BFDBFE',
+        borderRadius: 14, padding: '22px 20px', textAlign: 'center',
       }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: m.accent }}>
-          {m.emoji} Escanea el código QR con {app}
+        <div style={{ fontSize: 32 }}>💙</div>
+        <div style={{ fontSize: 13, color: C.gray700, marginTop: 10, lineHeight: 1.6 }}>
+          Se abrirá la ventana segura de <strong>Culqi</strong> con un código QR para pagar
+          con Plin desde la app de tu banco.
         </div>
-        <QRDemo accent={m.accent} />
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 12, color: C.gray500 }}>O envía directamente al número</div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: C.gray900, letterSpacing: 1, marginTop: 4 }}>
-            {numero}
-          </div>
-          <div style={{
-            marginTop: 6, display: 'inline-block',
-            background: `${m.accent}15`, color: m.accent,
-            fontSize: 15, fontWeight: 900, padding: '4px 16px', borderRadius: 20,
-          }}>
-            S/. {precio}.00
-          </div>
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 14,
+        }}>
+          {bancos.map(b => (
+            <span key={b} style={{
+              fontSize: 10, fontWeight: 700, color: '#1D4ED8',
+              background: C.white, border: '1px solid #BFDBFE',
+              padding: '4px 10px', borderRadius: 20,
+            }}>
+              {b}
+            </span>
+          ))}
         </div>
       </div>
 
       <div style={{
-        background: C.gray100, borderRadius: 12, padding: '10px 14px',
-        fontSize: 12, color: C.gray500, lineHeight: 1.5,
+        display: 'flex', gap: 8, alignItems: 'center',
+        background: C.green50, border: `1px solid ${C.green100}`,
+        borderRadius: 10, padding: '10px 12px',
+        fontSize: 11, color: C.green700, fontWeight: 600,
       }}>
-        ① Abre {app} en tu celular · ② Escanea el QR o ingresa el número ·
-        ③ Confirma el monto de <strong style={{ color: C.gray700 }}>S/. {precio}.00</strong> ·
-        ④ Pulsa el botón de abajo
+        <span style={{ fontSize: 16 }}>🔒</span>
+        Pago procesado por Culqi
       </div>
 
-      <button
-        onClick={onConfirm}
-        disabled={loading}
-        style={btnStyle(!loading)}
-      >
-        {loading ? 'Confirmando…' : `Ya realicé el pago · Confirmar cita`}
+      <button onClick={onConfirm} disabled={loading} style={btnStyle(!loading)}>
+        {loading ? 'Abriendo pasarela de pago…' : `Pagar S/. ${precio}.00 con Plin`}
       </button>
     </div>
   )
@@ -694,15 +655,15 @@ export default function Payment() {
   }, [procesarPagoConToken])
 
   /* Abre el Checkout de Culqi con el monto de la cita (en céntimos).
-     soloYape=true limita paymentMethods a solo Yape — usado por el botón
-     de la pestaña Yape, para que Culqi capture el número y el código de
-     aprobación dentro de su propio widget (sin alcance PCI DSS para
-     nosotros, ya que nunca vemos esos datos). */
-  function handleAbrirCulqiCheckout(soloYape = false) {
+     metodoPago ('tarjeta' | 'yape' | 'plin') limita paymentMethods a un
+     solo método por vez, para que Culqi capture los datos sensibles
+     dentro de su propio widget — nosotros nunca los vemos, así que no
+     necesitamos alcance PCI DSS para ninguno de los tres flujos. */
+  function handleAbrirCulqiCheckout(metodoPago = 'tarjeta') {
     const publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY
 
     console.log('[Payment][Culqi] handleAbrirCulqiCheckout — diagnóstico:', {
-      soloYape,
+      metodoPago,
       culqiReady,
       'window.Culqi existe': !!window.Culqi,
       VITE_CULQI_PUBLIC_KEY: publicKey || '(vacío/undefined)',
@@ -724,7 +685,7 @@ export default function Payment() {
       toast.error('No se pudo calcular el monto de la cita')
       return
     }
-    if (soloYape && precioPaciente > YAPE_MAX_MONTO) {
+    if (metodoPago === 'yape' && precioPaciente > YAPE_MAX_MONTO) {
       toast.error(`Yape solo admite pagos de hasta S/. ${YAPE_MAX_MONTO}. Usa tarjeta para este monto.`)
       return
     }
@@ -741,15 +702,18 @@ export default function Payment() {
         amount,
       })
       // paymentMethods es un objeto de booleanos (no un array) — así lo
-      // exige Culqi.options() en el Checkout v4. Para el botón de Yape
-      // dejamos solo ese método habilitado, para que el widget se abra
-      // directo al formulario de Yape sin mostrar tarjeta/billetera.
+      // exige Culqi.options() en el Checkout v4. Dejamos habilitado solo
+      // el método de la pestaña activa, para que el widget se abra
+      // directo a ese formulario sin mostrar los demás.
       Culqi.options({
         lang: 'auto',
         installments: false,
-        paymentMethods: soloYape
-          ? { tarjeta: false, yape: true, billetera: false, bancaMovil: false, agente: false, cuotealo: false }
-          : { tarjeta: true, yape: false, billetera: false, bancaMovil: false, agente: false, cuotealo: false },
+        paymentMethods: {
+          tarjeta:    metodoPago === 'tarjeta',
+          yape:       metodoPago === 'yape',
+          billetera:  metodoPago === 'plin',
+          bancaMovil: false, agente: false, cuotealo: false,
+        },
         style: {
           bannerColor:      '#065F46',
           buttonBackground: '#059669',
@@ -766,50 +730,6 @@ export default function Payment() {
       console.error('[Payment][Culqi] Excepción al abrir el checkout:', err)
       toast.error('No se pudo abrir la pasarela de pago: ' + (err?.message ?? String(err)))
       setProcessing(false)
-    }
-  }
-
-  /* confirmar pago: actualiza appointment → 'paid' */
-  async function handlePay() {
-    setProcessing(true)
-
-    // En producción: llamar a una Edge Function de Supabase que procese
-    // el cargo con Culqi y devuelva confirmación antes de este UPDATE.
-    // .select('id') es necesario para detectar si RLS bloqueó silenciosamente
-    // el UPDATE (0 filas actualizadas sin error HTTP).
-    const { data: updated, error } = await supabase
-      .from('appointments')
-      .update({ status: 'paid' })
-      .eq('id', appointmentId)
-      .select('id')
-
-    setProcessing(false)
-
-    if (error) {
-      console.error('[Payment] handlePay error:', error)
-      toast.error('Error al confirmar el pago. Inténtalo de nuevo.')
-      return
-    }
-    if (!updated?.length) {
-      console.error('[Payment] handlePay: 0 filas actualizadas — posible bloqueo RLS', { appointmentId })
-      toast.error('No se pudo confirmar el pago. Verifica permisos o contacta soporte.')
-      return
-    }
-    setConfirmed(true)
-
-    // WhatsApp de confirmación (fire-and-forget)
-    if (appointment && doctor) {
-      const { data: pat } = await supabase
-        .from('profiles')
-        .select('phone')
-        .eq('id', appointment.patient_id)
-        .maybeSingle()
-      const { fecha, hora } = formatScheduledAt(appointment.scheduled_at)
-      enviarWhatsapp({
-        to: pat?.phone,
-        template_name: 'confirmacion_cita',
-        parameters: [`${doctor.nombres} ${doctor.apellidos}`.trim(), `${fecha} ${hora}`],
-      })
     }
   }
 
@@ -964,22 +884,21 @@ export default function Payment() {
           <MetodoYape
             precio={precioPaciente}
             loading={processing}
-            onConfirm={() => handleAbrirCulqiCheckout(true)}
+            onConfirm={() => handleAbrirCulqiCheckout('yape')}
           />
         )}
         {metodo === 'plin' && (
-          <MetodoQR
-            metodo={metodo}
+          <MetodoPlin
             precio={precioPaciente}
             loading={processing}
-            onConfirm={handlePay}
+            onConfirm={() => handleAbrirCulqiCheckout('plin')}
           />
         )}
         {metodo === 'tarjeta' && (
           <MetodoTarjeta
             precio={precioPaciente}
             loading={processing}
-            onConfirm={() => handleAbrirCulqiCheckout(false)}
+            onConfirm={() => handleAbrirCulqiCheckout('tarjeta')}
           />
         )}
 

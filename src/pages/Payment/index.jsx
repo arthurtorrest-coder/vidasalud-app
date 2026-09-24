@@ -705,7 +705,7 @@ export default function Payment() {
       // exige Culqi.options() en el Checkout v4. Dejamos habilitado solo
       // el método de la pestaña activa, para que el widget se abra
       // directo a ese formulario sin mostrar los demás.
-      Culqi.options({
+      const culqiOptions = {
         lang: 'auto',
         installments: false,
         paymentMethods: {
@@ -723,8 +723,14 @@ export default function Payment() {
           buttonTextColor:  '#FFFFFF',
           priceColor:       '#065F46',
         },
+      }
+      Culqi.options(culqiOptions)
+      console.log('[Payment][Culqi] configuración completa antes de Culqi.open() —', {
+        metodoPago,
+        options: culqiOptions,
+        paymentMethods: culqiOptions.paymentMethods,
+        'billetera (Plin) habilitada': culqiOptions.paymentMethods.billetera,
       })
-      console.log('[Payment][Culqi] llamando a Culqi.open()…')
       Culqi.open()
     } catch (err) {
       console.error('[Payment][Culqi] Excepción al abrir el checkout:', err)

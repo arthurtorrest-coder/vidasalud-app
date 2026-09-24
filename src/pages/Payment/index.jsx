@@ -106,7 +106,13 @@ function TabMetodos({ selected, onChange }) {
               transition: 'all 0.15s',
             }}
           >
-            <span style={{ fontSize: 20 }}>{m.emoji}</span>
+            {m.id === 'yape' ? (
+              <LogoYape width={60} />
+            ) : m.id === 'plin' ? (
+              <LogoPlin compact />
+            ) : (
+              <span style={{ fontSize: 20 }}>{m.emoji}</span>
+            )}
             <span style={{
               fontSize: 11, fontWeight: 800,
               color: active ? m.accent : C.gray500,
@@ -120,40 +126,54 @@ function TabMetodos({ selected, onChange }) {
   )
 }
 
-/* ── Logos de marca (CSS, sin imágenes externas) ────────────────
-   No enlazamos a URLs externas de yape.com.pe/plin — un hotlink así
-   rompería el Content-Security-Policy de vercel.json (img-src no incluye
-   esos dominios) y depende de una URL que no podemos verificar que siga
-   viva. Reproducimos el logo con los colores oficiales de cada marca. */
-function LogoYape() {
+/* ── Logos de marca ───────────────────────────────────────────
+   Yape: imagen real de Wikimedia Commons (File:Yape peru logotype.svg,
+   subida por la comunidad bajo CC-BY-SA 4.0 — no es el asset oficial de
+   la marca, pero es una imagen real y verificable, a diferencia de las
+   URLs de yape.com.pe que probamos antes y no existen).
+   Plin: no existe ningún logo de Plin en Wikimedia Commons ni una URL
+   oficial pública verificable, así que se mantiene como badge CSS con
+   los colores de marca en vez de enlazar una imagen que podría no
+   existir o romperse. */
+const YAPE_LOGO_URL = 'https://upload.wikimedia.org/wikipedia/commons/7/76/Yape_peru_logotype.svg'
+
+function LogoYape({ width = 120 }) {
   return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: 8,
-      background: '#6C1FBF', borderRadius: 14, padding: '10px 22px',
-      boxShadow: '0 4px 14px rgba(108,31,191,0.35)',
-    }}>
-      <div style={{
-        width: 24, height: 24, borderRadius: '50%', background: C.white,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 14, fontWeight: 900, color: '#6C1FBF',
-      }}>
-        Y
-      </div>
-      <span style={{ fontSize: 20, fontWeight: 900, color: C.white, letterSpacing: -0.3, fontStyle: 'italic' }}>
-        yape
-      </span>
-    </div>
+    <img
+      src={YAPE_LOGO_URL}
+      alt="Yape"
+      width={width}
+      style={{ width, height: 'auto', display: 'block', margin: '0 auto' }}
+    />
   )
 }
 
-function LogoPlin() {
+function LogoPlin({ width = 160, compact = false }) {
+  // "compact" es para la pestaña de selección (equivalente visual al
+  // ancho de 60px del logo de Yape) — con texto, escalar por width lineal
+  // lo haría ilegible, así que usa un tamaño fijo pensado para ese espacio.
+  if (compact) {
+    return (
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(135deg, #00B4D8, #0077B6)',
+        borderRadius: 8, padding: '4px 10px', minWidth: 60, boxSizing: 'border-box',
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 900, color: C.white, letterSpacing: -0.2 }}>
+          Plin
+        </span>
+      </div>
+    )
+  }
+  const scale = width / 160
   return (
     <div style={{
       display: 'inline-flex', alignItems: 'center',
-      background: 'linear-gradient(135deg, #00B4D8, #0077B6)', borderRadius: 14, padding: '10px 22px',
+      background: 'linear-gradient(135deg, #00B4D8, #0077B6)',
+      borderRadius: 14 * scale, padding: `${10 * scale}px ${22 * scale}px`,
       boxShadow: '0 4px 14px rgba(0,119,182,0.35)',
     }}>
-      <span style={{ fontSize: 20, fontWeight: 900, color: C.white, letterSpacing: -0.3 }}>
+      <span style={{ fontSize: 20 * scale, fontWeight: 900, color: C.white, letterSpacing: -0.3 }}>
         Plin
       </span>
     </div>
@@ -171,7 +191,7 @@ function MetodoPlin({ precio, loading, onConfirm }) {
         background: '#EFF6FF', border: '1.5px solid #BFDBFE',
         borderRadius: 14, padding: '22px 20px', textAlign: 'center',
       }}>
-        <LogoPlin />
+        <LogoPlin width={120} />
         <div style={{ fontSize: 13, color: C.gray700, marginTop: 12, lineHeight: 1.6 }}>
           Se abrirá la ventana segura de <strong>Culqi</strong> con un código QR para pagar
           con Plin desde la app de tu banco.
@@ -219,7 +239,7 @@ function MetodoYape({ precio, loading, onConfirm }) {
         background: '#F5F3FF', border: '1.5px solid #DDD6FE',
         borderRadius: 14, padding: '22px 20px', textAlign: 'center',
       }}>
-        <LogoYape />
+        <LogoYape width={120} />
         <div style={{ fontSize: 13, color: C.gray700, marginTop: 12, lineHeight: 1.6 }}>
           Se abrirá la ventana segura de <strong>Culqi</strong> para pagar con Yape. Ahí
           ingresas tu número y el código de aprobación de tu app Yape.

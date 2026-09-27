@@ -324,113 +324,6 @@ function PagoPendienteBanner({ status, esDeGuardia, onIr }) {
   )
 }
 
-// ─── Modal: sin médico disponible ────────────────────────────
-
-function AgendarModal({ onAviso, onEspecialidades, onClose, loading }) {
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
-      background: 'rgba(0,0,0,0.45)',
-      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-    }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div style={{
-        width: '100%', maxWidth: 430,
-        background: C.white, borderRadius: '20px 20px 0 0',
-        padding: '24px 22px 36px',
-        animation: 'slideUp 0.25s ease both',
-      }}>
-        {/* Pill de arrastre */}
-        <div style={{
-          width: 36, height: 4, borderRadius: 2,
-          background: C.gray300, margin: '0 auto 18px',
-        }} />
-
-        <div style={{ textAlign: 'center', marginBottom: 22 }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: 16,
-            background: C.green50, border: `1.5px solid ${C.green200}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 28, margin: '0 auto 12px',
-          }}>🩺</div>
-          <div style={{ fontSize: 17, fontWeight: 800, color: C.gray900 }}>
-            No hay médicos disponibles ahora
-          </div>
-          <div style={{ fontSize: 13, color: C.gray500, marginTop: 6, lineHeight: 1.55 }}>
-            No hay médicos de Medicina General disponibles en este momento.
-            ¿Qué prefieres hacer?
-          </div>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12,
-            background: C.green50, border: `1px solid ${C.green200}`,
-            borderRadius: 20, padding: '5px 14px',
-          }}>
-            <span style={{ fontSize: 13 }}>💳</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: C.green800 }}>
-              Atención inmediata: S/. {PRECIO_ATENCION_INMEDIATA} la consulta
-            </span>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Opción 1: verde oscuro (principal) */}
-          <button
-            onClick={onAviso}
-            disabled={loading}
-            style={{
-              width: '100%', padding: '15px 16px',
-              background: loading
-                ? C.green100
-                : `linear-gradient(135deg, #065F46, ${C.green600})`,
-              color: loading ? C.green700 : C.white,
-              border: 'none', borderRadius: 14,
-              fontSize: 14, fontWeight: 800,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              display: 'flex', alignItems: 'center', gap: 12,
-              fontFamily: 'inherit',
-              boxShadow: loading ? 'none' : '0 6px 20px rgba(6,95,70,0.35)',
-              transition: 'all 0.15s',
-            }}
-          >
-            <span style={{ fontSize: 22, flexShrink: 0 }}>🔔</span>
-            <div style={{ textAlign: 'left', flex: 1 }}>
-              <div>{loading ? 'Registrando solicitud…' : 'Avisar cuando haya médico'}</div>
-              <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.82, marginTop: 2 }}>
-                Te notificamos en cuanto uno esté disponible (máx. 30 min)
-              </div>
-            </div>
-          </button>
-
-          {/* Opción 2: verde claro */}
-          <button
-            onClick={onEspecialidades}
-            style={{
-              width: '100%', padding: '14px 16px',
-              background: C.green50,
-              border: `1.5px solid ${C.green200}`,
-              borderRadius: 14,
-              fontSize: 14, fontWeight: 700, color: C.green800,
-              cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 12,
-              fontFamily: 'inherit',
-              transition: 'all 0.15s',
-            }}
-          >
-            <span style={{ fontSize: 22, flexShrink: 0 }}>🩺</span>
-            <div style={{ textAlign: 'left', flex: 1 }}>
-              <div>Ver otras especialidades</div>
-              <div style={{ fontSize: 11, fontWeight: 400, color: C.green700, marginTop: 2 }}>
-                Pediatría, Psicología, Nutrición y más
-              </div>
-            </div>
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Banner de espera de turno ────────────────────────────────
 
 function TurnoEsperaBanner({ solicitud, onCancel }) {
@@ -485,7 +378,8 @@ function TurnoEsperaBanner({ solicitud, onCancel }) {
       }}>
         <span style={{ fontSize: 14 }}>⏳</span>
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
-          En cuanto un médico tome tu turno, te dirigiremos al pago automáticamente.
+          En cuanto un médico tome tu turno, te dirigiremos al pago automáticamente
+          {' '}· S/. {PRECIO_ATENCION_INMEDIATA} la consulta.
         </span>
       </div>
     </div>
@@ -510,7 +404,6 @@ export default function Home() {
   const [hasHistory,      setHasHistory]      = useState(false)
   const [videoUrl,        setVideoUrl]        = useState(null)
   const [showAllSpecs,    setShowAllSpecs]    = useState(false)
-  const [showAgendarModal, setShowAgendarModal] = useState(false)
   const [solicitudActiva,  setSolicitudActiva]  = useState(null)
   const [solicitudLoading, setSolicitudLoading] = useState(false)
 
@@ -658,7 +551,6 @@ export default function Home() {
     if (existente) {
       setSolicitudActiva(existente)
       setSolicitudLoading(false)
-      setShowAgendarModal(false)
       return
     }
 
@@ -676,7 +568,6 @@ export default function Home() {
     }
 
     setSolicitudActiva(data)
-    setShowAgendarModal(false)
     toast.success('¡Listo! Te avisamos cuando haya un médico disponible.')
 
     // Notificar a médicos de Medicina General vía Web Push (fire-and-forget)
@@ -768,13 +659,13 @@ export default function Home() {
     navigate('/especialidades')
   }
 
-  // "Atención inmediata" — flujo de turno de guardia: solicitar que un
-  // médico disponible tome la consulta ahora. Solo se muestra cuando
-  // hayMedicoDisponible es false.
+  // "Atención inmediata" — flujo de turno de guardia: el clic YA es la
+  // decisión del paciente, así que registra la solicitud directo, sin
+  // preguntar nada más. Solo se muestra cuando hayMedicoDisponible es false.
   function handleAtencionInmediata() {
     // Hay solicitud activa → el banner de espera ya está visible arriba
-    if (solicitudActiva) return
-    setShowAgendarModal(true)
+    if (solicitudActiva || solicitudLoading) return
+    crearSolicitud()
   }
 
   // Solo las 8 especialidades oficiales — no agregar especialidades extra
@@ -896,7 +787,14 @@ export default function Home() {
         {[
           { icon: '📹', label: 'Agendar cita',  bg: '#1D4ED8', border: '#3B82F6', color: '#FFFFFF', h: 48, shadow: '0 6px 20px rgba(6,95,70,0.45)',  shadowPress: '0 2px 6px rgba(6,95,70,0.25)',  action: handleAgendarCita },
           ...(!hayMedicoDisponible ? [
-            { icon: '🚨', label: 'Atención inmediata', sub: 'Busca un médico ahora', bg: '#065F46', border: '#34D399', color: '#FFFFFF', h: 56, shadow: '0 6px 20px rgba(6,95,70,0.45)', shadowPress: '0 2px 6px rgba(6,95,70,0.25)', action: handleAtencionInmediata },
+            {
+              icon: '🚨', label: 'Atención inmediata',
+              sub: solicitudLoading ? 'Registrando solicitud…' : 'Busca un médico ahora',
+              bg: '#065F46', border: '#34D399', color: '#FFFFFF', h: 56,
+              shadow: '0 6px 20px rgba(6,95,70,0.45)', shadowPress: '0 2px 6px rgba(6,95,70,0.25)',
+              disabled: solicitudLoading,
+              action: handleAtencionInmediata,
+            },
           ] : []),
           { icon: '📅', label: 'Mis citas',      bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/citas') },
           ...(hasHistory ? [
@@ -907,10 +805,12 @@ export default function Home() {
           <button
             key={i}
             onClick={a.action}
+            disabled={a.disabled}
             style={{
               width: '100%', height: a.h,
               background: a.bg, border: `1.5px solid ${a.border}`,
-              borderRadius: 12, cursor: 'pointer',
+              borderRadius: 12, cursor: a.disabled ? 'default' : 'pointer',
+              opacity: a.disabled ? 0.75 : 1,
               display: 'flex', alignItems: 'center',
               padding: '0 14px', gap: 10,
               fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
@@ -1116,15 +1016,6 @@ export default function Home() {
       </div>
 
       <div style={{ height: 12 }} />
-
-      {showAgendarModal && (
-        <AgendarModal
-          loading={solicitudLoading}
-          onAviso={crearSolicitud}
-          onEspecialidades={() => { setShowAgendarModal(false); navigate('/especialidades') }}
-          onClose={() => setShowAgendarModal(false)}
-        />
-      )}
     </>
   )
 }

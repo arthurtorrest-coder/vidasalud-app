@@ -395,7 +395,6 @@ export default function Home() {
 
   const [selectedSpec,    setSelectedSpec]    = useState(null)
   const [doctors,         setDoctors]         = useState([])
-  const [availableNowIds, setAvailableNowIds] = useState(new Set())
   const [schedules,       setSchedules]       = useState([])
   const [loadingDocs,     setLoadingDocs]     = useState(true)
   const [errorDocs,       setErrorDocs]       = useState(null)
@@ -629,7 +628,6 @@ export default function Home() {
     const schedulesData = scheds ?? []
     setDoctors(activos.map(formatDoc))
     setSchedules(schedulesData)
-    setAvailableNowIds(computeAvailableNowIds(schedulesData))
     setLoadingDocs(false)
   }
 
@@ -642,6 +640,21 @@ export default function Home() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Disponible ahora" depende de la hora actual, no solo de los datos
+  // cargados — sin este tick, un médico seguiría apareciendo en línea
+  // después de que termine su horario hasta el próximo refetch (que solo
+  // ocurre si la tabla doctors cambia, no por el simple paso del tiempo).
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick(x => x + 1), 60_000)
+    return () => clearInterval(t)
+  }, [])
+
+  const availableNowIds = useMemo(
+    () => computeAvailableNowIds(schedules),
+    [schedules, tick]
+  )
 
   const handleBook = (doc) => { navigate(`/medico/${doc.id}`) }
 

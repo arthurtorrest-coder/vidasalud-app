@@ -443,6 +443,17 @@ export default function PanelFarmacia() {
     loadDispDoctors()
   }, [])
 
+  // "Disponibilidad de médicos hoy" (más abajo) recalcula quién está en
+  // línea leyendo la hora actual en cada render — pero sin este tick nada
+  // fuerza un re-render cuando el horario de un médico simplemente termina,
+  // así que seguiría apareciendo "en línea" hasta el próximo cambio de
+  // estado no relacionado (o un refresh manual de la página).
+  const [, setDispTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setDispTick(x => x + 1), 60_000)
+    return () => clearInterval(t)
+  }, [])
+
   function setField(k, v) {
     setForm(f => ({ ...f, [k]: v }))
   }

@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore'
 import VideoRoom from '../../components/VideoRoom'
 import RecetaForm from '../../components/RecetaForm'
 import { C } from '../../lib/tokens'
+import { PRECIO_ATENCION_INMEDIATA } from '../../lib/finanzas'
 import { enviarAyudaVideollamadaWhatsapp } from '../../lib/whatsapp'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -1607,7 +1608,7 @@ export default function PanelMedico() {
         status:           'pending',
         scheduled_at:     new Date().toISOString(),
         duration_minutes: 20,
-        precio_total:     doctorInfo.precio ?? 30,
+        precio_total:     PRECIO_ATENCION_INMEDIATA,
       })
       .select('id')
       .single()

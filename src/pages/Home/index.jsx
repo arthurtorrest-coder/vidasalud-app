@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import VideoRoom from '../../components/VideoRoom'
 import { C } from '../../lib/tokens'
-import { precioTotalPaciente } from '../../lib/finanzas'
+import { precioTotalPaciente, PRECIO_ATENCION_INMEDIATA } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
 
 // Las 8 especialidades oficiales de VIDASALUD — mismos nombres y precios
@@ -360,6 +360,16 @@ function AgendarModal({ onAviso, onEspecialidades, onClose, loading }) {
           <div style={{ fontSize: 13, color: C.gray500, marginTop: 6, lineHeight: 1.55 }}>
             No hay médicos de Medicina General disponibles en este momento.
             ¿Qué prefieres hacer?
+          </div>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12,
+            background: C.green50, border: `1px solid ${C.green200}`,
+            borderRadius: 20, padding: '5px 14px',
+          }}>
+            <span style={{ fontSize: 13 }}>💳</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.green800 }}>
+              Atención inmediata: S/. {PRECIO_ATENCION_INMEDIATA} la consulta
+            </span>
           </div>
         </div>
 
@@ -744,17 +754,25 @@ export default function Home() {
 
   const handleBook = (doc) => { navigate(`/medico/${doc.id}`) }
 
-  // Sin médicos de Medicina General disponibles en este momento
-  const generalAvailableNow = !loadingDocs && doctors.some(
+  // ¿Hay al menos un médico de Medicina General disponible ahora mismo?
+  // (basado en doctor_schedules — no existe una columna is_online en doctors,
+  // así que esta es la señal real de "disponible ahora" ya usada en el resto
+  // del Home). Controla si se muestra el botón de Atención inmediata.
+  const hayMedicoDisponible = !loadingDocs && doctors.some(
     d => availableNowIds.has(d.id) && d.spec.toLowerCase().includes('general')
   )
 
+  // "Agendar cita" siempre lleva a elegir especialidad/médico y reservar
+  // para más adelante — ya no depende de si hay alguien disponible ahora.
   function handleAgendarCita() {
-    if (loadingDocs || generalAvailableNow) {
-      navigate('/especialidades')
-      return
-    }
-    // Hay solicitud activa → mostrar el banner de espera directamente
+    navigate('/especialidades')
+  }
+
+  // "Atención inmediata" — flujo de turno de guardia: solicitar que un
+  // médico disponible tome la consulta ahora. Solo se muestra cuando
+  // hayMedicoDisponible es false.
+  function handleAtencionInmediata() {
+    // Hay solicitud activa → el banner de espera ya está visible arriba
     if (solicitudActiva) return
     setShowAgendarModal(true)
   }
@@ -877,6 +895,9 @@ export default function Home() {
       <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {[
           { icon: '📹', label: 'Agendar cita',  bg: '#1D4ED8', border: '#3B82F6', color: '#FFFFFF', h: 48, shadow: '0 6px 20px rgba(6,95,70,0.45)',  shadowPress: '0 2px 6px rgba(6,95,70,0.25)',  action: handleAgendarCita },
+          ...(!hayMedicoDisponible ? [
+            { icon: '🚨', label: 'Atención inmediata', sub: 'Busca un médico ahora', bg: '#065F46', border: '#34D399', color: '#FFFFFF', h: 56, shadow: '0 6px 20px rgba(6,95,70,0.45)', shadowPress: '0 2px 6px rgba(6,95,70,0.25)', action: handleAtencionInmediata },
+          ] : []),
           { icon: '📅', label: 'Mis citas',      bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/citas') },
           ...(hasHistory ? [
             { icon: '💊', label: 'Receta digital', bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', h: 40, shadow: '0 4px 14px rgba(6,95,70,0.10)', shadowPress: '0 1px 4px rgba(6,95,70,0.06)', action: () => navigate('/historial', { state: { filtro: 'recetas' } }) },
@@ -909,10 +930,21 @@ export default function Home() {
               e.currentTarget.style.boxShadow = a.shadow
             }}
           >
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{a.icon}</span>
-            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: a.color, textAlign: 'left' }}>
-              {a.label}
-            </span>
+            <span style={{ fontSize: a.sub ? 22 : 18, flexShrink: 0 }}>{a.icon}</span>
+            {a.sub ? (
+              <span style={{ flex: 1, textAlign: 'left' }}>
+                <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: a.color }}>
+                  {a.label}
+                </span>
+                <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: a.color, opacity: 0.8, marginTop: 1 }}>
+                  {a.sub}
+                </span>
+              </span>
+            ) : (
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: a.color, textAlign: 'left' }}>
+                {a.label}
+              </span>
+            )}
             <span style={{ fontSize: 16, color: a.color, opacity: 0.6, flexShrink: 0 }}>›</span>
           </button>
         ))}

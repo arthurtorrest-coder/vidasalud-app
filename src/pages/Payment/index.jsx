@@ -316,9 +316,14 @@ function VistaConfirmada({ appointment, doctor, onInicio, onMensaje, onCola }) {
   const { fecha, hora } = formatScheduledAt(appointment.scheduled_at)
   const codigo    = codigoCita(appointment.id)
   const docName   = doctor ? `${doctor.nombres} ${doctor.apellidos}` : 'tu médico'
-  const precioPaciente = doctor
-    ? precioTotalPaciente({ especialidad: doctor.especialidad, precioMedico: doctor.precio })
-    : 0
+  // Si la cita ya trae un precio_total fijado (ej. atención inmediata a
+  // S/. 35), respetarlo — es el monto real que procesar-pago-culqi cobró.
+  // Si no, calcularlo igual que una consulta agendada normal.
+  const precioPaciente = appointment.precio_total
+    ? Number(appointment.precio_total)
+    : doctor
+      ? precioTotalPaciente({ especialidad: doctor.especialidad, precioMedico: doctor.precio })
+      : 0
 
   return (
     <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -833,9 +838,13 @@ export default function Payment() {
   /* ── Pantalla de pago ── */
   const { fecha, hora } = appointment ? formatScheduledAt(appointment.scheduled_at) : {}
   const titulo          = doctor ? doctorTitle(doctor.cmp, doctor.nombres) : ''
-  const precioPaciente  = doctor
-    ? precioTotalPaciente({ especialidad: doctor.especialidad, precioMedico: doctor.precio })
-    : 0
+  // Igual que en VistaConfirmada: respetar precio_total si ya viene fijado
+  // en la cita (ej. atención inmediata a S/. 35) en vez de recalcularlo.
+  const precioPaciente  = appointment?.precio_total
+    ? Number(appointment.precio_total)
+    : doctor
+      ? precioTotalPaciente({ especialidad: doctor.especialidad, precioMedico: doctor.precio })
+      : 0
 
   return (
     <>

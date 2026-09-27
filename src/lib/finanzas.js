@@ -22,6 +22,12 @@ export let MARGEN_TOTAL         = 15   // margen total sobre el pago al médico
 export let COMISION_BOTICA      = 4    // botica, cuando refiere al paciente
 export let COMISION_COORDINADOR = 2    // coordinador, cuando su botica refiere
 
+// Precio fijo de "Atención inmediata" (turno de guardia) — distinto del
+// precio de una consulta de Medicina General agendada (TARIFA_GENERAL +
+// MARGEN_TOTAL = S/. 30). Se usa al crear la cita cuando un médico toma
+// un turno de guardia (ver PanelMedico.jsx → handleTomarTurno).
+export const PRECIO_ATENCION_INMEDIATA = 35
+
 function aplicarConfig(row) {
   if (!row) return
   if (row.tarifa_general       != null) TARIFA_GENERAL       = Number(row.tarifa_general)

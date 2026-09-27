@@ -46,6 +46,23 @@ function getLimaToday() {
   ].join('-')
 }
 
+// ¿Hay algún bloque de doctor_schedules (activo) que cubra el día/hora
+// actual en Lima? Mismo criterio que computeAvailableNowIds() en
+// Home.jsx/PanelFarmacia.jsx, para que "en línea" signifique lo mismo
+// en todas partes.
+function estaDentroDeHorarioAhora(schedules) {
+  const now  = new Date()
+  const lima = new Date(now.getTime() + (now.getTimezoneOffset() - 300) * 60000)
+  const diaSemana  = lima.getDay()
+  const horaActual = `${String(lima.getHours()).padStart(2, '0')}:${String(lima.getMinutes()).padStart(2, '0')}`
+  return schedules.some(s =>
+    s.activo !== false &&
+    s.dia_semana === diaSemana &&
+    (s.hora_inicio ?? '') <= horaActual &&
+    (s.hora_fin    ?? '') >  horaActual
+  )
+}
+
 function dateStrShift(dateStr, days) {
   const [y, m, d] = dateStr.split('-').map(Number)
   const dt = new Date(Date.UTC(y, m - 1, d + days, 12))
@@ -755,6 +772,37 @@ export default function PanelMedico() {
         setLoadingScheds(false)
       })
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-desactivar disponibilidad cuando el horario de atención ya
+  // terminó. Se revisa al cargar los horarios y luego cada 5 minutos: si
+  // el switch sigue en "disponible" pero ningún bloque de doctor_schedules
+  // cubre ya la hora actual, se apaga solo (UPDATE doctors SET activo=false).
+  useEffect(() => {
+    if (!doctorInfo?.id || loadingScheds) return
+
+    async function verificarHorario() {
+      if (!disponible) return                    // ya está desactivado, nada que hacer
+      if (schedules.length === 0) return          // sin horario configurado — no aplica la regla
+      if (estaDentroDeHorarioAhora(schedules)) return   // sigue dentro de su horario
+
+      console.log('[verificarHorario] horario terminado — desactivando disponibilidad automáticamente, doctorId:', doctorInfo.id)
+      const { error } = await supabase
+        .from('doctors')
+        .update({ activo: false })
+        .eq('id', doctorInfo.id)
+
+      if (error) {
+        console.error('[verificarHorario] no se pudo desactivar automáticamente:', error.message)
+        return
+      }
+      setDisponible(false)
+      toast('Tu horario de atención terminó. Te marcamos como no disponible.', { icon: '🕐', duration: 6000 })
+    }
+
+    verificarHorario()
+    const interval = setInterval(verificarHorario, 5 * 60_000)
+    return () => clearInterval(interval)
+  }, [doctorInfo?.id, loadingScheds, disponible, schedules])
 
   // Cargar estadísticas del mes cuando tengamos el doctors.id real
   useEffect(() => {

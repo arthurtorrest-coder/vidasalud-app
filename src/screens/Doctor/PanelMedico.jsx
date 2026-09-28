@@ -1622,6 +1622,19 @@ export default function PanelMedico() {
 
   async function suscribirPush() {
     console.log('[suscribirPush] ── inicio ──')
+    console.log('[suscribirPush] 0) doctorInfo cargado?', !!doctorInfo, '| doctorInfo?.id:', doctorInfo?.id)
+
+    // En móvil, fetchData() puede terminar (loading=false) sin haber
+    // encontrado una fila en doctors (ej. red lenta, error puntual de RLS)
+    // — el botón queda visible pero doctorInfo sigue null. Sin este guard,
+    // el acceso a doctorInfo.id más abajo revienta con
+    // "Cannot read properties of null (reading 'id')".
+    if (!doctorInfo?.id) {
+      console.error('[suscribirPush] 0) doctorInfo es null — abortando antes de tocar el Service Worker')
+      toast.error('Error: no se pudo obtener tu información de médico. Recarga la página.')
+      return
+    }
+
     console.log('[suscribirPush] 1) ¿Service Worker soportado?', 'serviceWorker' in navigator, '| ¿PushManager soportado?', 'PushManager' in window)
 
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -2072,14 +2085,15 @@ export default function PanelMedico() {
             {!pushActivo ? (
               <button
                 onClick={suscribirPush}
-                disabled={activandoPush}
+                disabled={activandoPush || !doctorInfo?.id}
                 style={{
                   width: '100%', padding: '12px 14px',
-                  background: activandoPush
+                  background: (activandoPush || !doctorInfo?.id)
                     ? C.green50
                     : `linear-gradient(135deg, ${C.green50}, #ECFDF5)`,
                   border: `1.5px solid ${C.green200}`,
-                  borderRadius: 14, cursor: activandoPush ? 'not-allowed' : 'pointer',
+                  borderRadius: 14, cursor: (activandoPush || !doctorInfo?.id) ? 'not-allowed' : 'pointer',
+                  opacity: !doctorInfo?.id ? 0.6 : 1,
                   display: 'flex', alignItems: 'center', gap: 10,
                   fontFamily: 'inherit', textAlign: 'left',
                   transition: 'all 0.15s',
@@ -2090,7 +2104,9 @@ export default function PanelMedico() {
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.green800 }}>
-                    {activandoPush ? 'Activando notificaciones…' : 'Activar notificaciones push'}
+                    {!doctorInfo?.id
+                      ? 'Cargando tu información…'
+                      : activandoPush ? 'Activando notificaciones…' : 'Activar notificaciones push'}
                   </div>
                   <div style={{ fontSize: 11, color: C.green700, marginTop: 2 }}>
                     Recibe alertas de nuevos turnos aunque no tengas la app abierta

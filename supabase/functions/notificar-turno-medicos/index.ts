@@ -47,10 +47,14 @@ Deno.serve(async (req) => {
     // ── Buscar médicos de Medicina General con push_token ──────
     const supabase = createClient(supabaseUrl, serviceKey)
 
+    // Nota: a propósito NO se filtra por activo=true — la atención inmediata
+    // debe notificar a TODOS los médicos aprobados con push_token, estén o
+    // no marcados como "disponibles" en su panel. El médico decide si toma
+    // el turno o lo ignora; no queremos ocultarle el aviso solo porque
+    // olvidó prender el switch (o se apagó solo al terminar su horario).
     const { data: doctors, error: dbError } = await supabase
       .from('doctors')
       .select('id, nombres, push_token')
-      .eq('activo', true)
       .eq('aprobado', true)
       .ilike('especialidad', '%general%')
       .not('push_token', 'is', null)

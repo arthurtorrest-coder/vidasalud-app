@@ -1035,13 +1035,43 @@ export default function PanelMedico() {
     return () => { cancelled = true; clearInterval(interval) }
   }, [activeAppt?.id, activeAppt?.video_url])
 
-  // Verificar estado de suscripción push al cargar
+  // Verificar estado de suscripción push al cargar (al abrir el panel)
   useEffect(() => {
     if (!doctorInfo?.id) return
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
-    navigator.serviceWorker.ready.then(reg =>
-      reg.pushManager.getSubscription().then(sub => setPushActivo(!!sub))
-    ).catch(() => {})
+
+    console.log('[push][al abrir panel] 1) ¿Service Worker soportado?', 'serviceWorker' in navigator)
+    console.log('[push][al abrir panel] 1) ¿PushManager soportado?', 'PushManager' in window)
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn('[push][al abrir panel] navegador sin soporte — no se puede verificar/activar push acá')
+      return
+    }
+
+    // navigator.serviceWorker.getRegistrations() no espera nada (no cuelga)
+    // — a diferencia de .ready, que NUNCA resuelve si no hay ningún SW
+    // registrado (ej. `vite dev` sin devOptions.enabled en vite-plugin-pwa).
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      console.log('[push][al abrir panel] 1) registros de Service Worker existentes:', regs.length, regs)
+    })
+
+    let cancelado = false
+    Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT: navigator.serviceWorker.ready no resolvió en 5s — probablemente no hay un SW activo (¿estás en `vite dev` sin devOptions.enabled?)')), 5000)),
+    ])
+      .then(reg => {
+        if (cancelado) return
+        console.log('[push][al abrir panel] 1) Service Worker registrado y listo:', reg)
+        return reg.pushManager.getSubscription().then(sub => {
+          console.log('[push][al abrir panel] 2) ¿ya existe una suscripción push en este dispositivo?', !!sub, sub)
+          setPushActivo(!!sub)
+        })
+      })
+      .catch(err => {
+        console.error('[push][al abrir panel] error verificando el Service Worker / la suscripción:', err)
+      })
+
+    return () => { cancelado = true }
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchData() {
@@ -1591,55 +1621,97 @@ export default function PanelMedico() {
   }
 
   async function suscribirPush() {
+    console.log('[suscribirPush] ── inicio ──')
+    console.log('[suscribirPush] 1) ¿Service Worker soportado?', 'serviceWorker' in navigator, '| ¿PushManager soportado?', 'PushManager' in window)
+
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.error('[suscribirPush] 1) navegador sin soporte — abortando')
       toast.error('Tu navegador no soporta notificaciones push')
       return
     }
     setActivandoPush(true)
     try {
       const perm = await Notification.requestPermission()
+      console.log('[suscribirPush] permiso de notificaciones:', perm)
       if (perm !== 'granted') {
+        console.warn('[suscribirPush] permiso denegado/ignorado — abortando')
         toast.error('Permiso de notificaciones denegado')
         setActivandoPush(false)
         return
       }
-      const reg     = await navigator.serviceWorker.ready
+
+      const regsPrevias = await navigator.serviceWorker.getRegistrations()
+      console.log('[suscribirPush] 1) registros de Service Worker existentes antes de .ready:', regsPrevias.length, regsPrevias)
+
+      let reg
+      try {
+        reg = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT: navigator.serviceWorker.ready no resolvió en 8s — no hay un SW activo. Si estás en `vite dev`, vite-plugin-pwa no registra el SW salvo que actives devOptions.enabled en vite.config.js.')), 8000)),
+        ])
+      } catch (timeoutErr) {
+        console.error('[suscribirPush] 1) el Service Worker nunca quedó listo:', timeoutErr)
+        toast.error('No se pudo activar: el Service Worker no está registrado')
+        setActivandoPush(false)
+        return
+      }
+      console.log('[suscribirPush] 1) Service Worker listo:', reg)
+
       const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
+      console.log('[suscribirPush] VITE_VAPID_PUBLIC_KEY presente:', !!vapidKey)
       if (!vapidKey) {
+        console.error('[suscribirPush] falta VITE_VAPID_PUBLIC_KEY en el .env — abortando')
         toast.error('VITE_VAPID_PUBLIC_KEY no configurado en .env')
         setActivandoPush(false)
         return
       }
+
       const existente = await reg.pushManager.getSubscription()
+      console.log('[suscribirPush] 2) ¿ya existía una suscripción en este dispositivo?', !!existente, existente?.toJSON())
       if (existente) {
-        console.log('[suscribirPush] ya existía una suscripción en este dispositivo, eliminándola:', existente.toJSON())
         await existente.unsubscribe()
+        console.log('[suscribirPush] 2) suscripción previa eliminada, creando una nueva')
       }
-      const subscription = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      })
+
+      let subscription
+      try {
+        subscription = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        })
+        console.log('[suscribirPush] 2) suscripción push obtenida:', subscription.toJSON())
+      } catch (subErr) {
+        console.error('[suscribirPush] 2) pushManager.subscribe() falló:', subErr)
+        toast.error('No se pudo crear la suscripción push: ' + subErr.message)
+        setActivandoPush(false)
+        return
+      }
+
       const nuevoToken = subscription.toJSON()
-      console.log('[suscribirPush] doctorInfo.id:', doctorInfo.id, '(tipo:', typeof doctorInfo.id, ')')
-      console.log('[suscribirPush] token nuevo a guardar:', nuevoToken)
+      console.log('[suscribirPush] 3) doctorInfo.id:', doctorInfo.id, '(tipo:', typeof doctorInfo.id, ')')
+      console.log('[suscribirPush] 3) guardando en doctors.push_token — token:', nuevoToken)
       const { data, error } = await supabase
         .from('doctors')
         .update({ push_token: nuevoToken })
         .eq('id', doctorInfo.id)
         .select('id, push_token')
-      console.log('[suscribirPush] resultado UPDATE → data:', data, 'error:', error)
+      console.log('[suscribirPush] 3) resultado UPDATE doctors.push_token → data:', data, '| error:', error)
       if (error) {
+        console.error('[suscribirPush] 4) error de Supabase al guardar push_token:', error)
         toast.error('No se pudo guardar la suscripción: ' + error.message)
       } else if (!data || data.length === 0) {
-        console.warn('[suscribirPush] el UPDATE no afectó ninguna fila — revisar doctorInfo.id')
+        console.error('[suscribirPush] 4) el UPDATE no afectó ninguna fila — revisar doctorInfo.id o RLS de la tabla doctors')
         toast.error('No se pudo guardar la suscripción: no se encontró el médico')
       } else {
+        console.log('[suscribirPush] 3) push_token guardado correctamente ✅')
         setPushActivo(true)
         toast.success('✅ Notificaciones push activadas')
       }
     } catch (err) {
+      console.error('[suscribirPush] 4) error inesperado en el proceso:', err)
       toast.error('Error al activar notificaciones: ' + err.message)
     }
+    console.log('[suscribirPush] ── fin ──')
     setActivandoPush(false)
   }
 

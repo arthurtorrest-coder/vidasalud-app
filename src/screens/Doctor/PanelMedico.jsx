@@ -1701,19 +1701,27 @@ export default function PanelMedico() {
       }
 
       const nuevoToken = subscription.toJSON()
+      const deviceInfo = `${navigator.userAgentData?.platform ?? navigator.platform ?? 'desconocido'} · ${
+        /Chrome/.test(navigator.userAgent) ? 'Chrome'
+        : /Firefox/.test(navigator.userAgent) ? 'Firefox'
+        : /Safari/.test(navigator.userAgent) ? 'Safari'
+        : 'Navegador'
+      }`
       console.log('[suscribirPush] 3) doctorInfo.id:', doctorInfo.id, '(tipo:', typeof doctorInfo.id, ')')
-      console.log('[suscribirPush] 3) guardando en doctors.push_token — token:', nuevoToken)
+      console.log('[suscribirPush] 3) guardando en doctor_push_tokens — token:', nuevoToken, '| device_info:', deviceInfo)
       const { data, error } = await supabase
-        .from('doctors')
-        .update({ push_token: nuevoToken })
-        .eq('id', doctorInfo.id)
+        .from('doctor_push_tokens')
+        .upsert(
+          { doctor_id: doctorInfo.id, push_token: nuevoToken, device_info: deviceInfo },
+          { onConflict: 'doctor_id,endpoint' }
+        )
         .select('id, push_token')
-      console.log('[suscribirPush] 3) resultado UPDATE doctors.push_token → data:', data, '| error:', error)
+      console.log('[suscribirPush] 3) resultado UPSERT doctor_push_tokens → data:', data, '| error:', error)
       if (error) {
         console.error('[suscribirPush] 4) error de Supabase al guardar push_token:', error)
         toast.error('No se pudo guardar la suscripción: ' + error.message)
       } else if (!data || data.length === 0) {
-        console.error('[suscribirPush] 4) el UPDATE no afectó ninguna fila — revisar doctorInfo.id o RLS de la tabla doctors')
+        console.error('[suscribirPush] 4) el UPSERT no devolvió ninguna fila — revisar RLS de doctor_push_tokens')
         toast.error('No se pudo guardar la suscripción: no se encontró el médico')
       } else {
         console.log('[suscribirPush] 3) push_token guardado correctamente ✅')

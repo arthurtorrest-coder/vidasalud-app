@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     // ── Configurar VAPID ───────────────────────────────────────
     webpush.setVapidDetails(vapidEmail, vapidPublic, vapidPrivate)
 
-    // ── Buscar médicos de Medicina General con push_token ──────
+    // ── Buscar médicos de Medicina General ──────────────────────
     const supabase = createClient(supabaseUrl, serviceKey)
 
     // Nota: a propósito NO se filtra por activo=true — la atención inmediata
@@ -54,22 +54,38 @@ Deno.serve(async (req) => {
     // olvidó prender el switch (o se apagó solo al terminar su horario).
     const { data: doctors, error: dbError } = await supabase
       .from('doctors')
-      .select('id, nombres, push_token')
+      .select('id, nombres')
       .eq('aprobado', true)
       .ilike('especialidad', '%general%')
-      .not('push_token', 'is', null)
 
     if (dbError) {
-      console.error('[notificar-turno-medicos] DB error:', dbError.message)
+      console.error('[notificar-turno-medicos] DB error (doctors):', dbError.message)
       return json({ error: dbError.message }, 500)
     }
 
     if (!doctors?.length) {
-      console.log('[notificar-turno-medicos] Sin médicos con push_token activos')
+      console.log('[notificar-turno-medicos] Sin médicos de Medicina General aprobados')
+      return json({ sent: 0, failed: 0, reason: 'No hay médicos aprobados de Medicina General' })
+    }
+
+    // ── Buscar TODOS los tokens push de esos médicos (multi-dispositivo) ──
+    const doctorIds = doctors.map((d: { id: string }) => d.id)
+    const { data: tokens, error: tokensError } = await supabase
+      .from('doctor_push_tokens')
+      .select('id, doctor_id, push_token, device_info')
+      .in('doctor_id', doctorIds)
+
+    if (tokensError) {
+      console.error('[notificar-turno-medicos] DB error (doctor_push_tokens):', tokensError.message)
+      return json({ error: tokensError.message }, 500)
+    }
+
+    if (!tokens?.length) {
+      console.log('[notificar-turno-medicos] Sin dispositivos con push_token registrados')
       return json({ sent: 0, failed: 0, reason: 'No hay médicos con suscripción push activa' })
     }
 
-    console.log(`[notificar-turno-medicos] Enviando a ${doctors.length} médicos`)
+    console.log(`[notificar-turno-medicos] Enviando a ${tokens.length} dispositivos de ${doctors.length} médicos`)
 
     // ── Payload de la notificación ─────────────────────────────
     const payload = JSON.stringify({
@@ -79,21 +95,33 @@ Deno.serve(async (req) => {
       tag:   'turno-guardia',
     })
 
-    // ── Enviar a cada médico ───────────────────────────────────
+    // ── Enviar a TODOS los dispositivos de cada médico ──────────
     const results = await Promise.allSettled(
-      doctors.map(async (doc) => {
+      tokens.map(async (tok: { id: string; doctor_id: string; push_token: unknown; device_info: string | null }) => {
         let subscription
         try {
-          subscription = typeof doc.push_token === 'string'
-            ? JSON.parse(doc.push_token)
-            : doc.push_token
+          subscription = typeof tok.push_token === 'string'
+            ? JSON.parse(tok.push_token)
+            : tok.push_token
         } catch (e) {
-          throw new Error(`push_token malformado — doctor ${doc.id}: ${e.message}`)
+          const msg = e instanceof Error ? e.message : String(e)
+          throw new Error(`push_token malformado — token ${tok.id} (doctor ${tok.doctor_id}): ${msg}`)
         }
 
-        const res = await webpush.sendNotification(subscription, payload)
-        console.log(`[notificar-turno-medicos] OK doctor ${doc.id} → status ${res.statusCode}`)
-        return res
+        try {
+          const res = await webpush.sendNotification(subscription, payload)
+          console.log(`[notificar-turno-medicos] OK doctor ${tok.doctor_id} (${tok.device_info ?? 'dispositivo'}) → status ${res.statusCode}`)
+          return res
+        } catch (sendErr: any) {
+          // 404/410 = la suscripción ya no existe en el navegador (desinstalada,
+          // permiso revocado, etc.) — se elimina para no reintentar en vano.
+          const statusCode = sendErr?.statusCode
+          if (statusCode === 404 || statusCode === 410) {
+            console.warn(`[notificar-turno-medicos] token ${tok.id} inválido (status ${statusCode}) — eliminando`)
+            await supabase.from('doctor_push_tokens').delete().eq('id', tok.id)
+          }
+          throw sendErr
+        }
       })
     )
 

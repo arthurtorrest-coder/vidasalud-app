@@ -88,11 +88,20 @@ Deno.serve(async (req) => {
     console.log(`[notificar-turno-medicos] Enviando a ${tokens.length} dispositivos de ${doctors.length} médicos`)
 
     // ── Payload de la notificación ─────────────────────────────
+    // icon/badge apuntan a los assets de la PWA — deben ser PNG reales
+    // en esas rutas (públicas, servidas por Vercel) para que el navegador
+    // los muestre; si el archivo no existe o no es un PNG válido, la
+    // notificación igual se muestra pero sin ícono.
     const payload = JSON.stringify({
-      title: '🔔 Paciente esperando',
-      body:  `${patient_name} necesita atención en Medicina General. Ingresa a VIDASALUD para tomar el turno.`,
-      url:   '/medico/panel',
-      tag:   'turno-guardia',
+      title:               '🚨 VIDASALUD - Atención Inmediata',
+      body:                'Un paciente necesita atención médica ahora. Toca para ver los detalles.',
+      icon:                '/icons/icon-192x192.png',
+      badge:               '/icons/icon-72x72.png',
+      vibrate:             [200, 100, 200, 100, 200],
+      requireInteraction:  true,
+      renotify:            true,
+      tag:                 'atencion-inmediata',
+      url:                 '/medico/panel',
     })
 
     // ── Enviar a TODOS los dispositivos de cada médico ──────────

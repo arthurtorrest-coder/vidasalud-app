@@ -11,16 +11,22 @@ self.addEventListener('push', (event) => {
   let data = {}
   try { data = event.data?.json() ?? {} } catch { data = {} }
 
+  // Cada función que envía push (notificar-turno-medicos, futuras, etc.)
+  // manda su propio title/icon/badge/tag/etc. en el payload — este handler
+  // solo aplica defaults si algún campo viene vacío, nunca los pisa.
+  const title = data.title ?? TITLE
+  const url   = data.url   ?? TARGET
+
   event.waitUntil(
-    self.registration.showNotification(TITLE, {
-      body:               data.body ?? 'Un paciente está esperando en Medicina General.',
-      icon:               ICON,
-      badge:              BADGE,
-      tag:                'turno-guardia',
-      renotify:           true,
-      requireInteraction: true,
-      vibrate:            [200, 100, 200, 100, 200],
-      data:               { url: TARGET },
+    self.registration.showNotification(title, {
+      body:               data.body   ?? 'Un paciente está esperando en Medicina General.',
+      icon:               data.icon   ?? ICON,
+      badge:              data.badge  ?? BADGE,
+      tag:                data.tag    ?? 'turno-guardia',
+      renotify:           data.renotify ?? true,
+      requireInteraction: data.requireInteraction ?? true,
+      vibrate:            data.vibrate ?? [200, 100, 200, 100, 200],
+      data:               { url },
       actions: [
         { action: 'tomar',  title: '✅ Tomar turno' },
         { action: 'cerrar', title: 'Cerrar'          },

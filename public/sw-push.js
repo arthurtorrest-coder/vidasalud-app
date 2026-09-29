@@ -18,25 +18,42 @@ self.addEventListener('push', (event) => {
   const url   = data.url   ?? TARGET
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body:               data.body   ?? 'Un paciente está esperando en Medicina General.',
-      icon:               data.icon   ?? ICON,
-      badge:              data.badge  ?? BADGE,
-      tag:                data.tag    ?? 'turno-guardia',
-      renotify:           data.renotify ?? true,
-      requireInteraction: data.requireInteraction ?? true,
-      vibrate:            data.vibrate ?? [200, 100, 200, 100, 200],
-      data:               { url },
-      actions: [
-        { action: 'tomar',  title: '✅ Tomar turno' },
-        { action: 'cerrar', title: 'Cerrar'          },
-      ],
-    })
+    (async () => {
+      await self.registration.showNotification(title, {
+        body:               data.body   ?? 'Un paciente está esperando en Medicina General.',
+        icon:               data.icon   ?? ICON,
+        badge:              data.badge  ?? BADGE,
+        tag:                data.tag    ?? 'turno-guardia',
+        renotify:           data.renotify ?? true,
+        requireInteraction: data.requireInteraction ?? true,
+        vibrate:            data.vibrate ?? [200, 100, 200, 100, 200],
+        data:               { url },
+        actions: [
+          { action: 'tomar',  title: '✅ Tomar turno' },
+          { action: 'cerrar', title: 'Cerrar'          },
+        ],
+      })
+
+      // Badge del ícono de la PWA instalada (solo Chromium/Android/desktop —
+      // Firefox y Safari no implementan esta API, por eso el guard).
+      if ('setAppBadge' in self.navigator) {
+        try {
+          await self.navigator.setAppBadge(1)
+        } catch (e) {
+          console.warn('[sw-push] setAppBadge falló:', e)
+        }
+      }
+    })()
   )
 })
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+
+  if ('clearAppBadge' in self.navigator) {
+    self.navigator.clearAppBadge().catch((e) => console.warn('[sw-push] clearAppBadge falló:', e))
+  }
+
   if (event.action === 'cerrar') return
 
   const url = event.notification.data?.url ?? TARGET

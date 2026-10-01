@@ -63,6 +63,37 @@ function estaDentroDeHorarioAhora(schedules) {
   )
 }
 
+// Día de la semana (0=Dom…6=Sáb) de un "YYYY-MM-DD", sin depender de la
+// zona horaria del navegador (ancla a mediodía UTC, mismo truco que
+// dateSelectorLabel más abajo).
+function diaSemanaDeFecha(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()
+}
+
+// Hora Lima "HH:MM" a partir de un timestamp ISO (igual criterio que
+// getLimaToday: Lima es UTC-5 todo el año, sin DST).
+function limaHHMM(iso) {
+  const d = new Date(new Date(iso).getTime() - 5 * 3600 * 1000)
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+}
+
+function toMinutos(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+
+// Slots de 15 min estrictamente dentro de un bloque hora_inicio→hora_fin
+function generarSlots15min(horaInicio, horaFin) {
+  const inicio = toMinutos(horaInicio.slice(0, 5))
+  const fin    = toMinutos(horaFin.slice(0, 5))
+  const slots  = []
+  for (let cur = inicio; cur + 15 <= fin; cur += 15) {
+    slots.push(`${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`)
+  }
+  return slots
+}
+
 function dateStrShift(dateStr, days) {
   const [y, m, d] = dateStr.split('-').map(Number)
   const dt = new Date(Date.UTC(y, m - 1, d + days, 12))
@@ -663,6 +694,9 @@ export default function PanelMedico() {
   const [tomandoTurno, setTomandoTurno] = useState(null)
   const [pushActivo,   setPushActivo]   = useState(false)
   const [activandoPush, setActivandoPush] = useState(false)
+  const [slotsReservados,  setSlotsReservados]  = useState([])
+  const [loadingSlotsRes,  setLoadingSlotsRes]  = useState(false)
+  const [guardandoSlot,    setGuardandoSlot]    = useState(null) // hora_inicio en proceso
   const fetchTurnosGenRef = useRef(0)   // evita race conditions entre llamadas concurrentes
 
   // Presencia del paciente en la videollamada activa (Daily.co presence API)
@@ -772,6 +806,88 @@ export default function PanelMedico() {
         setLoadingScheds(false)
       })
   }, [doctorInfo?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cargar slots bloqueados manualmente (slots_reservados) para el día
+  // seleccionado — independiente de doctor_schedules (recurrente) y de
+  // appointments (citas reales de pacientes).
+  useEffect(() => {
+    if (!doctorInfo?.id) return
+    let cancelled = false
+    setLoadingSlotsRes(true)
+    supabase
+      .from('slots_reservados')
+      .select('id, hora_inicio, motivo')
+      .eq('doctor_id', doctorInfo.id)
+      .eq('fecha', selectedDate)
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) console.error('[slots_reservados] error al cargar:', error.message)
+        setSlotsReservados(data ?? [])
+        setLoadingSlotsRes(false)
+      })
+    return () => { cancelled = true }
+  }, [doctorInfo?.id, selectedDate])
+
+  async function handleReservarSlot(horaInicio) {
+    if (!doctorInfo?.id || guardandoSlot) return
+    setGuardandoSlot(horaInicio)
+    const { data, error } = await supabase
+      .from('slots_reservados')
+      .insert({ doctor_id: doctorInfo.id, fecha: selectedDate, hora_inicio: horaInicio })
+      .select('id, hora_inicio, motivo')
+      .single()
+    setGuardandoSlot(null)
+    if (error) {
+      toast.error('No se pudo reservar el slot: ' + error.message)
+    } else {
+      setSlotsReservados(prev => [...prev, data])
+    }
+  }
+
+  async function handleLiberarSlot(slot) {
+    if (guardandoSlot) return
+    setGuardandoSlot(slot.hora_inicio.slice(0, 5))
+    const { error } = await supabase
+      .from('slots_reservados')
+      .delete()
+      .eq('id', slot.id)
+    setGuardandoSlot(null)
+    if (error) {
+      toast.error('No se pudo liberar el slot: ' + error.message)
+    } else {
+      setSlotsReservados(prev => prev.filter(s => s.id !== slot.id))
+    }
+  }
+
+  // Grilla de slots de 15 min del día seleccionado, SOLO dentro de los
+  // bloques activos de doctor_schedules para ese día de la semana.
+  // Las citas (appointments) se ofrecen en Booking.jsx en slots de 20 min,
+  // así que un appointment puede solapar hasta 2 slots de 15 min — se
+  // marcan como "agendado" todos los que caen dentro de esa ventana.
+  const slotsDelDia = useMemo(() => {
+    const dow     = diaSemanaDeFecha(selectedDate)
+    const bloques = schedules.filter(s => s.dia_semana === dow && s.activo !== false)
+    const horas   = [...new Set(bloques.flatMap(b => generarSlots15min(b.hora_inicio, b.hora_fin)))].sort()
+
+    const ventanasAgendadas = appointments
+      .filter(a => a.status !== 'cancelled')
+      .map(a => {
+        const inicio = toMinutos(limaHHMM(a.scheduled_at))
+        return { inicio, fin: inicio + 20 } // 20 min: granularidad de Booking.jsx
+      })
+
+    const reservadosPorHora = new Map(slotsReservados.map(s => [s.hora_inicio.slice(0, 5), s]))
+
+    return horas.map(hora => {
+      const inicio = toMinutos(hora)
+      const fin    = inicio + 15
+      const agendado = ventanasAgendadas.some(v => inicio < v.fin && fin > v.inicio)
+      if (agendado) return { hora, estado: 'agendado' }
+      const reservado = reservadosPorHora.get(hora)
+      if (reservado) return { hora, estado: 'reservado', slot: reservado }
+      return { hora, estado: 'libre' }
+    })
+  }, [schedules, selectedDate, appointments, slotsReservados])
 
   // Auto-desactivar disponibilidad cuando el horario de atención ya
   // terminó. Se revisa al cargar los horarios y luego cada 5 minutos: si
@@ -2956,6 +3072,71 @@ export default function PanelMedico() {
                 </div>
               )
             })()}
+
+            {/* ── Slots de 15 minutos del día seleccionado ──────── */}
+            <div style={{
+              background: C.white, border: `1.5px solid ${C.gray200}`,
+              borderRadius: 16, padding: '12px 14px',
+              display: 'flex', flexDirection: 'column', gap: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: C.gray700 }}>
+                  🕐 Slots de 15 min
+                </span>
+                <div style={{ display: 'flex', gap: 8, fontSize: 9, color: C.gray500, fontWeight: 600 }}>
+                  <span>🟢 Libre</span>
+                  <span>🔵 Agendado</span>
+                  <span>🔴 Reservado</span>
+                </div>
+              </div>
+
+              {(loadingScheds || loadingSlotsRes) ? (
+                <div style={{ fontSize: 12, color: C.gray400, textAlign: 'center', padding: '8px 0' }}>
+                  Cargando slots…
+                </div>
+              ) : slotsDelDia.length === 0 ? (
+                <div style={{ fontSize: 12, color: C.gray400, textAlign: 'center', padding: '8px 0' }}>
+                  Sin horario configurado para este día
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {slotsDelDia.map(({ hora, estado, slot }) => {
+                    const estilos = {
+                      libre:     { bg: C.green50, border: C.green200, color: C.green800 },
+                      agendado:  { bg: '#DBEAFE', border: '#93C5FD', color: '#1E40AF' },
+                      reservado: { bg: '#FEE2E2', border: '#FCA5A5', color: '#991B1B' },
+                    }[estado]
+                    const clickable = estado !== 'agendado'
+                    const saving    = guardandoSlot === hora
+                    return (
+                      <button
+                        key={hora}
+                        disabled={!clickable || saving}
+                        onClick={() => {
+                          if (estado === 'libre') handleReservarSlot(hora)
+                          else if (estado === 'reservado') handleLiberarSlot(slot)
+                        }}
+                        title={
+                          estado === 'agendado'  ? 'Ya tiene una cita agendada'
+                          : estado === 'reservado' ? 'Clic para liberar este slot'
+                          : 'Clic para reservar este slot'
+                        }
+                        style={{
+                          minWidth: 56, padding: '6px 4px', borderRadius: 8,
+                          background: estilos.bg, border: `1.5px solid ${estilos.border}`,
+                          color: estilos.color, fontSize: 11, fontWeight: 700,
+                          fontFamily: 'inherit',
+                          cursor: clickable && !saving ? 'pointer' : 'default',
+                          opacity: saving ? 0.5 : 1,
+                        }}
+                      >
+                        {saving ? '…' : hora}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Estado: cargando */}
             {loading && [1, 2, 3].map(i => <SkeletonCard key={i} />)}

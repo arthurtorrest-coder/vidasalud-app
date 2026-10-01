@@ -11,6 +11,11 @@ import { precioTotalPaciente } from '../../lib/finanzas'
 /* Nombres cortos por getDay() — 0=Dom … 6=Sáb */
 const DIAS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
+function toMin(hhmm) {
+  const [h, m] = hhmm.slice(0, 5).split(':').map(Number)
+  return h * 60 + m
+}
+
 /* Genera slots de durMin minutos dentro de un bloque hora_inicio→hora_fin */
 function generateSlots(horaInicio, horaFin, durMin = 20) {
   const [sh, sm] = horaInicio.split(':').map(Number)
@@ -541,7 +546,7 @@ export default function Booking() {
       const dayStart   = new Date(Date.UTC(y, mo - 1, d,     5, 0,  0)).toISOString()
       const dayEnd     = new Date(Date.UTC(y, mo - 1, d + 1, 4, 59, 59)).toISOString()
 
-      const [{ data: bloques }, { data: apptData }] = await Promise.all([
+      const [{ data: bloques }, { data: apptData }, { data: reservedData }] = await Promise.all([
         supabase
           .from('doctor_schedules')
           .select('hora_inicio, hora_fin')
@@ -555,6 +560,11 @@ export default function Booking() {
           .gte('scheduled_at', dayStart)
           .lte('scheduled_at', dayEnd)
           .in('status', ['pending', 'paid', 'active']),
+        supabase
+          .from('slots_reservados')
+          .select('hora_inicio')
+          .eq('doctor_id', doctorId)
+          .eq('fecha', dateStr),
       ])
 
       if (cancelled) return
@@ -585,8 +595,21 @@ export default function Booking() {
         return `${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}`
       }).filter(slot => slotsSet.has(slot))
 
+      // Slots que el médico bloqueó manualmente (slots_reservados, grilla de
+      // 15 min en PanelMedico) — un slot de 20 min de Booking se marca como
+      // ocupado si se solapa con cualquier bloqueo de 15 min.
+      const reservedTimes = (reservedData ?? []).map(r => r.hora_inicio)
+      const reservedBookedTimes = slotsEnHorario.filter(slot => {
+        const slotStart = toMin(slot)
+        const slotEnd   = slotStart + 20
+        return reservedTimes.some(r => {
+          const rStart = toMin(r)
+          return slotStart < rStart + 15 && slotEnd > rStart
+        })
+      })
+
       setAvailableSlots(slotsEnHorario)
-      setBooked(new Set(bookedTimes))
+      setBooked(new Set([...bookedTimes, ...reservedBookedTimes]))
       setLoadingSlots(false)
     }
 

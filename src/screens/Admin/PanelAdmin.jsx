@@ -414,7 +414,7 @@ export default function PanelAdmin() {
         {/* ── Menú de navegación ── */}
         <div style={{ marginBottom: 28 }}>
           <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, marginBottom: 14 }}>Gestión</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 16 }}>
             <NavCard icon="🩺" label="Médicos"       sub="Lista, filtros y tarifas"  onClick={() => navigate('/admin/medicos')}       accent={C.green700}  bg={C.green50} />
             <NavCard icon="🏪" label="Boticas"       sub="Lista y detalles"          onClick={() => navigate('/admin/boticas')}       accent='#6D28D9'     bg='#F5F3FF'  />
             <NavCard icon="🧭" label="Coordinadores" sub="Zonas y comisiones"        onClick={() => navigate('/admin/coordinadores')} accent='#6D28D9'     bg='#F5F3FF'  />
@@ -423,6 +423,7 @@ export default function PanelAdmin() {
             <NavCard icon="📅" label="Consultas"     sub="Historial de citas"        onClick={() => navigate('/admin/consultas')}     accent={C.amberText} bg={C.amberBg} />
             <NavCard icon="💰" label="Finanzas"      sub="Ingresos y comisiones"     onClick={() => navigate('/admin/finanzas')}      accent={C.green700}  bg={C.green50} />
             <NavCard icon="💰" label="Precios"       sub="Tarifas y comisiones"      onClick={() => navigate('/admin/precios')}       accent={C.green700}  bg={C.green50} />
+            <NavCard icon="📊" label="Reportes"      sub="Resumen mensual histórico" onClick={() => navigate('/admin/reportes')}      accent={C.green700}  bg={C.green50} />
           </div>
         </div>
 

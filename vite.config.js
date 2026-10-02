@@ -77,6 +77,11 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
         cleanupOutdatedCaches: true,
         importScripts: ['/sw-push.js'],
+        // Default es 2 MiB — el bundle principal ya lo supera (2.13 MB al
+        // agregar AdminReportes.jsx). Se sube el límite en vez de excluirlo
+        // del precache, para que la PWA siga funcionando offline con la
+        // última versión del bundle.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
 
         runtimeCaching: [
           // Google Fonts — cache largo, casi nunca cambian

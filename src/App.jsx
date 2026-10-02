@@ -32,6 +32,7 @@ import AdminCobertura      from './screens/Admin/AdminCobertura'
 import AdminConsultas      from './screens/Admin/AdminConsultas'
 import AdminFinanzas       from './screens/Admin/AdminFinanzas'
 import AdminPrecios        from './screens/Admin/AdminPrecios'
+import AdminReportes       from './screens/Admin/AdminReportes'
 import HistoriaClinica  from './screens/HistoriaClinica'
 import Landing         from './screens/Landing'
 import Home            from './pages/Home'
@@ -165,6 +166,7 @@ export default function App() {
             <Route path="/admin/consultas"                 element={<AdminConsultas />}      />
             <Route path="/admin/finanzas"                  element={<AdminFinanzas />}       />
             <Route path="/admin/precios"                   element={<AdminPrecios />}        />
+            <Route path="/admin/reportes"                  element={<AdminReportes />}       />
           </Route>
 
           {/* Solo farmacias aprobadas */}

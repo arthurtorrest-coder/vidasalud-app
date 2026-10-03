@@ -104,8 +104,7 @@ function formatDoc(row) {
     reviews:  row.total_reviews ?? row.review_count ?? 0,
     price:    precio,
     fotoUrl:  row.foto_url ?? null,
-    status:      'now',
-    statusLabel: 'Disponible ahora',
+    activo:   row.activo !== false,
   }
 }
 
@@ -157,7 +156,7 @@ function StatusBadge({ status, label }) {
   )
 }
 
-function DoctorCard({ doc, onBook }) {
+function DoctorCard({ doc, onBook, isAvailableNow }) {
   const [hovered, setHovered] = useState(false)
   return (
     <div
@@ -183,7 +182,7 @@ function DoctorCard({ doc, onBook }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
           <StarRating rating={doc.rating} />
           <span style={{ fontSize: 11, color: C.gray500 }}>({doc.reviews} reseñas)</span>
-          <StatusBadge status={doc.status} label={doc.statusLabel} />
+          {isAvailableNow && <StatusBadge status="now" label="Disponible ahora" />}
         </div>
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -192,7 +191,7 @@ function DoctorCard({ doc, onBook }) {
           marginTop: 6, background: C.green700, color: C.white,
           fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 8,
           opacity: hovered ? 1 : 0.85, transition: 'opacity 0.15s',
-        }}>Reservar</div>
+        }}>{isAvailableNow ? 'Atender ahora' : 'Reservar'}</div>
       </div>
     </div>
   )
@@ -624,9 +623,13 @@ export default function Home() {
       setLoadingDocs(false)
       return
     }
-    const activos      = (docs ?? []).filter(d => d.activo !== false && d.aprobado !== false)
+    // Para agendar cita se muestran TODOS los médicos aprobados, estén o no
+    // "activos" ahora mismo — el paciente puede querer reservar un horario
+    // futuro. doctors.activo solo determina el badge "Disponible ahora" y la
+    // elegibilidad para atención inmediata (ver availableNowIds más abajo).
+    const aprobados      = (docs ?? []).filter(d => d.aprobado !== false)
     const schedulesData = scheds ?? []
-    setDoctors(activos.map(formatDoc))
+    setDoctors(aprobados.map(formatDoc))
     setSchedules(schedulesData)
     setLoadingDocs(false)
   }
@@ -651,10 +654,15 @@ export default function Home() {
     return () => clearInterval(t)
   }, [])
 
-  const availableNowIds = useMemo(
-    () => computeAvailableNowIds(schedules),
-    [schedules, tick]
-  )
+  // Disponible ahora = dentro de un bloque de doctor_schedules para la hora
+  // actual Y con el switch doctors.activo encendido. Un médico inactivo
+  // puede seguir apareciendo en la búsqueda (para agendar a futuro) sin
+  // contar como "disponible ahora" ni activar atención inmediata.
+  const availableNowIds = useMemo(() => {
+    const porHorario      = computeAvailableNowIds(schedules)
+    const activeDoctorIds = new Set(doctors.filter(d => d.activo).map(d => d.id))
+    return new Set([...porHorario].filter(id => activeDoctorIds.has(id)))
+  }, [schedules, doctors, tick])
 
   const handleBook = (doc) => { navigate(`/medico/${doc.id}`) }
 
@@ -1009,7 +1017,7 @@ export default function Home() {
             data-tour={i === 0 ? 'doctor-card' : undefined}
             style={{ animation: 'cardIn 0.32s ease both', animationDelay: `${Math.min(i, 6) * 55}ms` }}
           >
-            <DoctorCard doc={d} onBook={handleBook} />
+            <DoctorCard doc={d} onBook={handleBook} isAvailableNow={availableNowIds.has(d.id)} />
           </div>
         ))}
       </div>

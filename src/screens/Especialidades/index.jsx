@@ -104,6 +104,7 @@ function formatDoc(row) {
     reviews: row.total_reviews ?? row.review_count ?? 0,
     price:   precio,
     fotoUrl: row.foto_url ?? null,
+    activo:  row.activo !== false,
   }
 }
 
@@ -256,7 +257,7 @@ function DoctorCardWithSlots({ doc, slots, isAvailableNow, nextAvailability, onB
               WebkitTapHighlightColor: 'transparent',
             }}
           >
-            {isAvailableNow ? 'Reservar ahora' : '📅 Agendar cita'}
+            {isAvailableNow ? 'Atender ahora' : 'Reservar'}
           </button>
         </div>
       </div>
@@ -586,8 +587,12 @@ export default function Especialidades() {
         supabase.from('doctor_schedules')
           .select('doctor_id, dia_semana, hora_inicio, hora_fin, activo'),
       ])
-      const activos = (docs ?? []).filter(d => d.activo !== false && d.aprobado !== false)
-      setDoctors(activos.map(formatDoc))
+      // Para agendar cita se muestran TODOS los médicos aprobados, estén o no
+      // "activos" ahora mismo — el paciente puede querer reservar un horario
+      // futuro. El switch doctors.activo solo determina el badge "Disponible
+      // ahora" (ver availableNowIds), no si el médico aparece en la búsqueda.
+      const aprobados = (docs ?? []).filter(d => d.aprobado !== false)
+      setDoctors(aprobados.map(formatDoc))
       setSchedules(scheds ?? [])
       setLoading(false)
     }
@@ -621,8 +626,16 @@ export default function Especialidades() {
     )
   }, [schedules])
 
-  // IDs de médicos disponibles ahora mismo (hora actual en Lima)
-  const availableNowIds = useMemo(() => computeAvailableNowIds(schedules), [schedules])
+  // IDs de médicos disponibles ahora mismo: dentro de un bloque de
+  // doctor_schedules para la hora actual en Lima Y con el switch de
+  // disponibilidad (doctors.activo) encendido. Un médico inactivo puede
+  // seguir apareciendo en la búsqueda (para agendar a futuro) sin marcarse
+  // como "Disponible ahora".
+  const availableNowIds = useMemo(() => {
+    const porHorario      = computeAvailableNowIds(schedules)
+    const activeDoctorIds = new Set(doctors.filter(d => d.activo).map(d => d.id))
+    return new Set([...porHorario].filter(id => activeDoctorIds.has(id)))
+  }, [schedules, doctors])
 
   // Lista final con filtros + ordenamiento aplicados
   const filteredDoctors = useMemo(() => {
@@ -732,7 +745,7 @@ export default function Especialidades() {
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
             {[
               { n: String(ESPECIALIDADES.length), label: 'Especialidades' },
-              { n: loading ? '…' : String(doctors.length), label: 'Médicos activos' },
+              { n: loading ? '…' : String(doctors.length), label: 'Médicos disponibles' },
               { n: 'S/. 35+', label: 'Desde' },
             ].map((s, i) => (
               <div key={i} style={{

@@ -7,9 +7,6 @@ import { C } from '../../lib/tokens'
 import { precioTotalPaciente } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
 
-const CULQI_SCRIPT_URL = 'https://checkout.culqi.com/js/v4'
-const YAPE_MAX_MONTO   = 2000   // Culqi solo acepta pagos Yape hasta S/. 2000
-
 const IZIPAY_SCRIPT_URL = 'https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js'
 const IZIPAY_CSS_URL    = 'https://static.micuentaweb.pe/static/js/krypton-client/V4.0/ext/classic-reset.css'
 
@@ -84,12 +81,16 @@ function downloadICS(appointment, doctor, codigo) {
   URL.revokeObjectURL(url)
 }
 
-/* ── Método: selector ────────────────────────────────────────── */
+/* ── Método: selector ────────────────────────────────────────────
+   Los 3 son puramente visuales — las tres pestañas abren el mismo
+   formulario embebido de Izipay (Krypton). Dentro de ese formulario,
+   Izipay muestra su propio selector de tarjeta/Yape/Plin según lo que
+   tengas habilitado en tu cuenta; no existe (verificado) un parámetro
+   de la API de Krypton para forzar una sola pestaña desde acá. */
 const METODOS = [
-  { id: 'yape',    label: 'Yape',    emoji: '💜', accent: '#7C3AED' },
-  { id: 'plin',    label: 'Plin',    emoji: '💙', accent: '#2563EB' },
   { id: 'tarjeta', label: 'Tarjeta', emoji: '💳', accent: C.green700 },
-  { id: 'izipay',  label: 'Izipay',  emoji: '🏦', accent: '#0B4F9C' },
+  { id: 'yape',    label: 'Yape',    emoji: '📱', accent: '#7C3AED' },
+  { id: 'plin',    label: 'Plin',    emoji: '🏦', accent: '#2563EB' },
 ]
 
 function TabMetodos({ selected, onChange }) {
@@ -114,8 +115,6 @@ function TabMetodos({ selected, onChange }) {
               <LogoYape width={60} />
             ) : m.id === 'plin' ? (
               <LogoPlin compact />
-            ) : m.id === 'izipay' ? (
-              <LogoIzipay compact />
             ) : (
               <span style={{ fontSize: 20 }}>{m.emoji}</span>
             )}
@@ -219,12 +218,11 @@ function LogoIzipay({ width = 150, compact = false }) {
 }
 
 /* ── Vista Izipay (formulario embebido Krypton V4) ───────────────
-   A diferencia de Culqi (ventana modal que se abre con un clic), Krypton
-   se monta como un formulario embebido directo en la página una vez que
-   tenemos el formToken — por eso acá no hay un botón "Pagar", el propio
-   widget de Izipay tiene su botón de pago con tarjeta/Yape/Plin nativos
-   de Izipay (el método exacto a mostrar lo decide el panel de Izipay, no
-   nuestro código). */
+   Krypton se monta como un formulario embebido directo en la página una
+   vez que tenemos el formToken — por eso acá no hay un botón "Pagar", el
+   propio widget de Izipay tiene su botón de pago con tarjeta/Yape/Plin
+   nativos de Izipay (el método exacto a mostrar lo decide el panel de
+   Izipay, no nuestro código — ver METODOS más arriba). */
 function MetodoIzipay({ scriptReady, loadingForm, error, precio }) {
   return (
     <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -276,136 +274,6 @@ function MetodoIzipay({ scriptReady, loadingForm, error, precio }) {
       </div>
     </div>
   )
-}
-
-/* ── Vista Plin (Checkout de Culqi filtrado a solo billetera) ───
-   "billetera" en Culqi muestra un QR que se lee desde apps de billetera
-   móvil (Plin entre ellas) — Culqi captura todo dentro de su widget. */
-function MetodoPlin({ precio, loading, onConfirm }) {
-  const bancos = ['BBVA', 'Interbank', 'Scotiabank', 'BCP']
-  return (
-    <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{
-        background: '#EFF6FF', border: '1.5px solid #BFDBFE',
-        borderRadius: 14, padding: '22px 20px', textAlign: 'center',
-      }}>
-        <LogoPlin width={120} />
-        <div style={{ fontSize: 13, color: C.gray700, marginTop: 12, lineHeight: 1.6 }}>
-          Se abrirá la ventana segura de <strong>Culqi</strong> con un código QR para pagar
-          con Plin desde la app de tu banco.
-        </div>
-        <div style={{
-          display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 14,
-        }}>
-          {bancos.map(b => (
-            <span key={b} style={{
-              fontSize: 10, fontWeight: 700, color: '#1D4ED8',
-              background: C.white, border: '1px solid #BFDBFE',
-              padding: '4px 10px', borderRadius: 20,
-            }}>
-              {b}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div style={{
-        display: 'flex', gap: 8, alignItems: 'center',
-        background: C.green50, border: `1px solid ${C.green100}`,
-        borderRadius: 10, padding: '10px 12px',
-        fontSize: 11, color: C.green700, fontWeight: 600,
-      }}>
-        <span style={{ fontSize: 16 }}>🔒</span>
-        Pago procesado por Culqi
-      </div>
-
-      <button onClick={onConfirm} disabled={loading} style={btnStyle(!loading)}>
-        {loading ? 'Abriendo pasarela de pago…' : `Pagar S/. ${precio}.00 con Plin`}
-      </button>
-    </div>
-  )
-}
-
-/* ── Vista Yape (Checkout de Culqi filtrado a solo Yape) ────────
-   Culqi maneja la captura del número y el código de aprobación dentro
-   de su propio widget — nosotros nunca vemos esos datos, así que no
-   necesitamos alcance PCI DSS para este flujo. */
-function MetodoYape({ precio, loading, onConfirm }) {
-  return (
-    <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{
-        background: '#F5F3FF', border: '1.5px solid #DDD6FE',
-        borderRadius: 14, padding: '22px 20px', textAlign: 'center',
-      }}>
-        <LogoYape width={120} />
-        <div style={{ fontSize: 13, color: C.gray700, marginTop: 12, lineHeight: 1.6 }}>
-          Se abrirá la ventana segura de <strong>Culqi</strong> para pagar con Yape. Ahí
-          ingresas tu número y el código de aprobación de tu app Yape.
-        </div>
-      </div>
-
-      <div style={{
-        display: 'flex', gap: 8, alignItems: 'center',
-        background: C.green50, border: `1px solid ${C.green100}`,
-        borderRadius: 10, padding: '10px 12px',
-        fontSize: 11, color: C.green700, fontWeight: 600,
-      }}>
-        <span style={{ fontSize: 16 }}>🔒</span>
-        Pago procesado por Culqi · Yape admite hasta S/. {YAPE_MAX_MONTO} por operación
-      </div>
-
-      <button onClick={onConfirm} disabled={loading} style={btnStyle(!loading)}>
-        {loading ? 'Abriendo pasarela de pago…' : `Pagar S/. ${precio}.00 con Yape`}
-      </button>
-    </div>
-  )
-}
-
-/* ── Vista tarjeta ───────────────────────────────────────────── */
-function MetodoTarjeta({ precio, loading, onConfirm }) {
-  return (
-    <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{
-        background: C.green50, border: `1.5px solid ${C.green100}`,
-        borderRadius: 14, padding: '22px 20px', textAlign: 'center',
-      }}>
-        <div style={{ fontSize: 32 }}>💳</div>
-        <div style={{ fontSize: 13, color: C.gray700, marginTop: 10, lineHeight: 1.6 }}>
-          Se abrirá la ventana segura de <strong>Culqi</strong> para ingresar los datos de tu
-          tarjeta. VIDASALUD nunca ve ni almacena tu número de tarjeta.
-        </div>
-      </div>
-
-      <div style={{
-        display: 'flex', gap: 8, alignItems: 'center',
-        background: C.green50, border: `1px solid ${C.green100}`,
-        borderRadius: 10, padding: '10px 12px',
-        fontSize: 11, color: C.green700, fontWeight: 600,
-      }}>
-        <span style={{ fontSize: 16 }}>🔒</span>
-        Pago seguro procesado por Culqi · Cifrado TLS · Cumple PCI-DSS
-      </div>
-
-      <button onClick={onConfirm} disabled={loading} style={btnStyle(!loading)}>
-        {loading ? 'Abriendo pasarela de pago…' : `Pagar S/. ${precio}.00 con tarjeta`}
-      </button>
-    </div>
-  )
-}
-
-/* ── Estilos compartidos ─────────────────────────────────────── */
-function btnStyle(active) {
-  return {
-    width: '100%', padding: '15px 0', border: 'none', borderRadius: 12,
-    background: active
-      ? `linear-gradient(135deg, ${C.green800}, ${C.green600})`
-      : C.gray200,
-    color: active ? C.white : C.gray400,
-    fontSize: 15, fontWeight: 800,
-    cursor: active ? 'pointer' : 'not-allowed',
-    boxShadow: active ? '0 4px 14px rgba(5,150,105,0.35)' : 'none',
-    transition: 'all 0.2s',
-  }
 }
 
 /* ── Vista: cita confirmada ──────────────────────────────────── */
@@ -684,10 +552,8 @@ export default function Payment() {
   const [doctor,       setDoctor]       = useState(null)
   const [loading,      setLoading]      = useState(true)
   const [metodo,       setMetodo]       = useState('yape')
-  const [processing,   setProcessing]   = useState(false)
   const [confirmed,    setConfirmed]    = useState(false)
   const [esDesdeTurno, setEsDesdeTurno] = useState(false)
-  const [culqiReady,   setCulqiReady]   = useState(false)
 
   const [izipayScriptReady, setIzipayScriptReady] = useState(false)
   const [izipayFormToken,   setIzipayFormToken]   = useState(null)
@@ -727,44 +593,9 @@ export default function Payment() {
       })
   }, [appointmentId, navigate])
 
-  /* Cargar el script del Checkout de Culqi (una sola vez por sesión) */
+  /* Cargar el script de Krypton (Izipay) — único procesador de pagos de
+     esta pantalla, se carga siempre al entrar. */
   useEffect(() => {
-    console.log('[Payment][Culqi] URL del script:', CULQI_SCRIPT_URL)
-    console.log('[Payment][Culqi] ¿window.Culqi ya existe al montar?', !!window.Culqi)
-
-    if (window.Culqi) {
-      console.log('[Payment][Culqi] window.Culqi ya estaba cargado, no se inyecta script de nuevo')
-      setCulqiReady(true)
-      return
-    }
-    const existing = document.querySelector(`script[src="${CULQI_SCRIPT_URL}"]`)
-    if (existing) {
-      console.log('[Payment][Culqi] ya existe un <script> de Culqi en el DOM, esperando su evento load')
-      existing.addEventListener('load', () => {
-        console.log('[Payment][Culqi] script existente terminó de cargar — window.Culqi:', !!window.Culqi)
-        setCulqiReady(true)
-      })
-      return
-    }
-    console.log('[Payment][Culqi] inyectando <script> de Culqi en <body>…')
-    const script = document.createElement('script')
-    script.src   = CULQI_SCRIPT_URL
-    script.async = true
-    script.onload = () => {
-      console.log('[Payment][Culqi] script.onload disparado — window.Culqi:', !!window.Culqi, window.Culqi)
-      setCulqiReady(true)
-    }
-    script.onerror = (e) => {
-      console.error('[Payment][Culqi] script.onerror — no se pudo cargar el script de Culqi:', e)
-    }
-    document.body.appendChild(script)
-  }, [])
-
-  /* Cargar el script de Krypton (Izipay) solo cuando el paciente abre esa
-     pestaña — a diferencia de Culqi, no lo cargamos de entrada para no
-     traer un segundo SDK de pagos a pacientes que nunca lo usan. */
-  useEffect(() => {
-    if (metodo !== 'izipay') return
     const publicKey = import.meta.env.VITE_IZIPAY_PUBLIC_KEY
 
     if (!publicKey) {
@@ -801,12 +632,12 @@ export default function Payment() {
       setIzipayError('No se pudo cargar el formulario de pago de Izipay.')
     }
     document.body.appendChild(script)
-  }, [metodo])
+  }, [])
 
   /* Pedir el formToken a crear-formulario-izipay y montar el formulario
      embebido de Krypton — una sola vez por cita mientras no esté pagada. */
   useEffect(() => {
-    if (metodo !== 'izipay' || !izipayScriptReady || !appointment || confirmed) return
+    if (!izipayScriptReady || !appointment || confirmed) return
     if (izipayFormToken) return   // ya se pidió el token para esta cita
 
     let cancelled = false
@@ -828,7 +659,7 @@ export default function Payment() {
     }
     crearFormulario()
     return () => { cancelled = true }
-  }, [metodo, izipayScriptReady, appointment, confirmed, izipayFormToken, appointmentId, user])
+  }, [izipayScriptReady, appointment, confirmed, izipayFormToken, appointmentId, user])
 
   /* Montar/actualizar el formulario de Krypton en el DOM una vez que
      tenemos script + formToken. KR.onSubmit se registra una sola vez;
@@ -860,14 +691,12 @@ export default function Payment() {
     return () => { cancelled = true }
   }, [izipayScriptReady, izipayFormToken])
 
-  /* Se ejecuta después de que procesar-pago-culqi confirma un cargo exitoso
-     (tarjeta o Yape) — actualiza la UI y dispara el WhatsApp de confirmación. */
+  /* Se ejecuta cuando la cita queda marcada como pagada — actualiza la UI
+     y dispara el WhatsApp de confirmación. Único disparador hoy: la
+     suscripción realtime de más abajo, cuando webhook-izipay marca
+     status='paid'. El guard evita confirmar (y mandar el WhatsApp) dos
+     veces si llegara a dispararse más de una vez para el mismo pago. */
   const finalizarPagoExitoso = useCallback(async () => {
-    // Culqi llega acá directo desde procesarPagoConToken(); Izipay llega vía
-    // la suscripción realtime a appointments (el webhook del servidor es
-    // quien marca status='paid'). Ambos caminos pueden dispararse para el
-    // mismo pago — este guard evita confirmar dos veces y mandar el
-    // WhatsApp de confirmación por duplicado.
     if (pagoConfirmadoRef.current) return
     pagoConfirmadoRef.current = true
 
@@ -910,134 +739,6 @@ export default function Payment() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [appointmentId, confirmed, finalizarPagoExitoso])
-
-  /* Envía el token de tarjeta (ya creado por el Checkout de Culqi en el
-     navegador) a la Edge Function que hace el cargo real */
-  const procesarPagoConToken = useCallback(async (token, tokenEmail) => {
-    if (!appointment) return
-    try {
-      const { data, error } = await supabase.functions.invoke('procesar-pago-culqi', {
-        body: {
-          token,
-          appointmentId,
-          email: tokenEmail || user?.email,
-        },
-      })
-      if (error || !data?.ok) {
-        throw new Error(data?.error ?? error?.message ?? 'El pago fue rechazado')
-      }
-      await finalizarPagoExitoso()
-    } catch (err) {
-      console.error('[Payment] procesarPagoConToken error:', err)
-      toast.error(err.message || 'No se pudo procesar el pago. Inténtalo de nuevo.')
-    } finally {
-      setProcessing(false)
-    }
-  }, [appointment, appointmentId, user, finalizarPagoExitoso])
-
-  /* Culqi Checkout v4 llama a este callback global cuando el usuario
-     termina de interactuar con el widget (con token o con error). */
-  useEffect(() => {
-    window.culqi = function () {
-      const Culqi = window.Culqi
-      if (!Culqi) return
-      if (Culqi.token) {
-        const { id, email } = Culqi.token
-        Culqi.close()
-        procesarPagoConToken(id, email)
-      } else if (Culqi.error) {
-        console.error('[Payment] Culqi error:', Culqi.error)
-        toast.error(Culqi.error.user_message || Culqi.error.merchant_message || 'No se pudo procesar el pago')
-        setProcessing(false)
-      }
-    }
-    return () => { delete window.culqi }
-  }, [procesarPagoConToken])
-
-  /* Abre el Checkout de Culqi con el monto de la cita (en céntimos).
-     metodoPago ('tarjeta' | 'yape' | 'plin') limita paymentMethods a un
-     solo método por vez, para que Culqi capture los datos sensibles
-     dentro de su propio widget — nosotros nunca los vemos, así que no
-     necesitamos alcance PCI DSS para ninguno de los tres flujos. */
-  function handleAbrirCulqiCheckout(metodoPago = 'tarjeta') {
-    const publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY
-
-    console.log('[Payment][Culqi] handleAbrirCulqiCheckout — diagnóstico:', {
-      metodoPago,
-      culqiReady,
-      'window.Culqi existe': !!window.Culqi,
-      VITE_CULQI_PUBLIC_KEY: publicKey || '(vacío/undefined)',
-      precioPaciente,
-    })
-
-    if (!culqiReady || !window.Culqi) {
-      console.error('[Payment][Culqi] Abortando: culqiReady =', culqiReady, '| window.Culqi =', window.Culqi)
-      toast.error('La pasarela de pagos aún está cargando. Intenta de nuevo en unos segundos.')
-      return
-    }
-    if (!publicKey) {
-      console.error('[Payment][Culqi] Abortando: VITE_CULQI_PUBLIC_KEY no está definida. Revisa tu .env y reinicia el servidor de desarrollo (Vite solo lee .env al arrancar).')
-      toast.error('Pago no disponible por el momento.')
-      return
-    }
-    if (!precioPaciente || precioPaciente <= 0) {
-      console.error('[Payment][Culqi] Abortando: precioPaciente inválido:', precioPaciente)
-      toast.error('No se pudo calcular el monto de la cita')
-      return
-    }
-    if (metodoPago === 'yape' && precioPaciente > YAPE_MAX_MONTO) {
-      toast.error(`Yape solo admite pagos de hasta S/. ${YAPE_MAX_MONTO}. Usa tarjeta para este monto.`)
-      return
-    }
-
-    setProcessing(true)
-    try {
-      const Culqi = window.Culqi
-      Culqi.publicKey = publicKey
-      const amount = Math.round(precioPaciente * 100)   // Culqi espera el monto en céntimos
-      console.log('[Payment][Culqi] configurando settings — amount (céntimos):', amount, '| currency: PEN')
-      Culqi.settings({
-        title:    'VIDASALUD',
-        currency: 'PEN',
-        amount,
-      })
-      // paymentMethods es un objeto de booleanos (no un array) — así lo
-      // exige Culqi.options() en el Checkout v4. Dejamos habilitado solo
-      // el método de la pestaña activa, para que el widget se abra
-      // directo a ese formulario sin mostrar los demás.
-      const culqiOptions = {
-        lang: 'auto',
-        installments: false,
-        paymentMethods: {
-          tarjeta:    metodoPago === 'tarjeta',
-          yape:       metodoPago === 'yape',
-          billetera:  metodoPago === 'plin',
-          bancaMovil: false, agente: false, cuotealo: false,
-        },
-        style: {
-          bannerColor:      '#065F46',
-          buttonBackground: '#059669',
-          menuColor:        '#065F46',
-          linksColor:       '#059669',
-          buttonText:       'Pagar ahora',
-          buttonTextColor:  '#FFFFFF',
-          priceColor:       '#065F46',
-        },
-      }
-      Culqi.options(culqiOptions)
-      console.log('[Payment][Culqi] configuración completa antes de Culqi.open() —', {
-        metodoPago,
-        options: culqiOptions,
-        paymentMethods: culqiOptions.paymentMethods,
-        'billetera (Plin) habilitada': culqiOptions.paymentMethods.billetera,
-      })
-      Culqi.open()
-    } catch (err) {
-      console.error('[Payment][Culqi] Excepción al abrir el checkout:', err)
-      toast.error('No se pudo abrir la pasarela de pago: ' + (err?.message ?? String(err)))
-      setProcessing(false)
-    }
-  }
 
   /* ── Pantalla de carga ── */
   if (loading) {
@@ -1189,36 +890,15 @@ export default function Payment() {
         {/* Separador */}
         <div style={{ height: 20 }} />
 
-        {/* Formulario del método seleccionado */}
-        {metodo === 'yape' && (
-          <MetodoYape
-            precio={precioPaciente}
-            loading={processing}
-            onConfirm={() => handleAbrirCulqiCheckout('yape')}
-          />
-        )}
-        {metodo === 'plin' && (
-          <MetodoPlin
-            precio={precioPaciente}
-            loading={processing}
-            onConfirm={() => handleAbrirCulqiCheckout('plin')}
-          />
-        )}
-        {metodo === 'tarjeta' && (
-          <MetodoTarjeta
-            precio={precioPaciente}
-            loading={processing}
-            onConfirm={() => handleAbrirCulqiCheckout('tarjeta')}
-          />
-        )}
-        {metodo === 'izipay' && (
-          <MetodoIzipay
-            scriptReady={izipayScriptReady}
-            loadingForm={izipayLoadingForm}
-            error={izipayError}
-            precio={precioPaciente}
-          />
-        )}
+        {/* Las 3 pestañas de arriba son solo visuales — todas abren el mismo
+            formulario embebido de Izipay; dentro de él, Izipay ya muestra
+            su propio selector de tarjeta/Yape/Plin. */}
+        <MetodoIzipay
+          scriptReady={izipayScriptReady}
+          loadingForm={izipayLoadingForm}
+          error={izipayError}
+          precio={precioPaciente}
+        />
 
         <div style={{ height: 28 }} />
       </div>

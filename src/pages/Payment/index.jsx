@@ -185,38 +185,6 @@ function LogoPlin({ width = 160, compact = false }) {
   )
 }
 
-/* No existe una URL de logo oficial de Izipay verificada (mismo criterio
-   que con Plin) — badge CSS con el azul de marca en vez de una imagen que
-   podría no existir o romperse. */
-function LogoIzipay({ width = 150, compact = false }) {
-  if (compact) {
-    return (
-      <div style={{
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0B4F9C, #083B77)',
-        borderRadius: 8, padding: '4px 8px', minWidth: 60, boxSizing: 'border-box',
-      }}>
-        <span style={{ fontSize: 11, fontWeight: 900, color: C.white, letterSpacing: -0.2 }}>
-          Izipay
-        </span>
-      </div>
-    )
-  }
-  const scale = width / 150
-  return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center',
-      background: 'linear-gradient(135deg, #0B4F9C, #083B77)',
-      borderRadius: 14 * scale, padding: `${10 * scale}px ${22 * scale}px`,
-      boxShadow: '0 4px 14px rgba(11,79,156,0.35)',
-    }}>
-      <span style={{ fontSize: 18 * scale, fontWeight: 900, color: C.white, letterSpacing: -0.3 }}>
-        Izipay
-      </span>
-    </div>
-  )
-}
-
 /* ── Vista Izipay (formulario embebido Krypton V4) ───────────────
    Krypton se monta como un formulario embebido directo en la página una
    vez que tenemos el formToken — por eso acá no hay un botón "Pagar", el
@@ -226,17 +194,6 @@ function LogoIzipay({ width = 150, compact = false }) {
 function MetodoIzipay({ scriptReady, loadingForm, error, precio }) {
   return (
     <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{
-        background: '#EFF6FF', border: '1.5px solid #BFDBFE',
-        borderRadius: 14, padding: '18px 18px 14px', textAlign: 'center',
-      }}>
-        <LogoIzipay width={130} />
-        <div style={{ fontSize: 13, color: C.gray700, marginTop: 12, lineHeight: 1.6 }}>
-          Formulario seguro de <strong>Izipay</strong> — tarjeta, Yape o Plin,
-          según lo que tengas habilitado.
-        </div>
-      </div>
-
       {error ? (
         <div style={{
           background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 12,
@@ -887,12 +844,20 @@ export default function Payment() {
         </h2>
         <TabMetodos selected={metodo} onChange={m => { setMetodo(m) }} />
 
-        {/* Separador */}
-        <div style={{ height: 20 }} />
-
         {/* Las 3 pestañas de arriba son solo visuales — todas abren el mismo
-            formulario embebido de Izipay; dentro de él, Izipay ya muestra
-            su propio selector de tarjeta/Yape/Plin. */}
+            formulario embebido de Izipay. Verificado: Krypton no ofrece un
+            parámetro para preseleccionar tarjeta/Yape/Plin desde acá, así
+            que el paciente elige dentro del propio formulario. */}
+        <div style={{
+          padding: '10px 20px 0', textAlign: 'center',
+          fontSize: 12, color: C.gray500, fontWeight: 600,
+        }}>
+          Selecciona tu método preferido en el formulario de abajo
+        </div>
+
+        {/* Separador */}
+        <div style={{ height: 16 }} />
+
         <MetodoIzipay
           scriptReady={izipayScriptReady}
           loadingForm={izipayLoadingForm}

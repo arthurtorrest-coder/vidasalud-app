@@ -1057,42 +1057,8 @@ export default function Payment() {
           />
         )}
 
-        <div style={{ height: 100 }} />
+        <div style={{ height: 28 }} />
       </div>
-
-      {/* Botón flotante — dispara el mismo Checkout de Culqi que el botón
-          de la tarjeta del método seleccionado. */}
-      {(() => {
-        return (
-          <button
-            onClick={() => handleAbrirCulqiCheckout(metodo)}
-            disabled={processing}
-            style={{
-              position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
-              width: 'auto', background: processing ? '#374151' : '#065F46', border: 'none',
-              color: C.white, padding: '12px 32px', borderRadius: 25,
-              fontSize: 16, fontWeight: 900, textAlign: 'center', whiteSpace: 'nowrap',
-              display: 'inline-flex', alignItems: 'center', gap: 10,
-              cursor: processing ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit', zIndex: 500,
-              boxShadow: processing ? '0 6px 20px rgba(55,65,81,0.45)' : '0 6px 20px rgba(6,95,70,0.45)',
-              transition: 'background 0.2s',
-            }}
-          >
-            {processing && (
-              <>
-                <style>{`@keyframes pagobtn-spin { to { transform: rotate(360deg) } }`}</style>
-                <span style={{
-                  width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
-                  border: '2.5px solid rgba(255,255,255,0.35)', borderTopColor: C.white,
-                  animation: 'pagobtn-spin 0.7s linear infinite',
-                }} />
-              </>
-            )}
-            {processing ? '⏳ Procesando...' : `💳 PAGAR S/. ${precioPaciente}.00`}
-          </button>
-        )
-      })()}
 
       {mostrarModalExito && (
         <ModalPagoExitoso

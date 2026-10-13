@@ -17,9 +17,13 @@
 //           es el mismo secreto que usa crear-formulario-izipay)
 //
 // Izipay firma la notificación con una de dos claves, según cómo esté
-// configurada la cuenta, e indica cuál usó en el campo kr-hash-key:
+// configurada la cuenta, e indica cuál usó en el campo kr-hash-key —
+// AMBOS modos son HMAC-SHA-256(kr-answer, clave), solo cambia la clave:
 //   - "sha256_hmac": HMAC-SHA-256(kr-answer, IZIPAY_HMAC_KEY)
-//   - "password":    SHA-256(IZIPAY_PASSWORD + kr-answer)  (modo legacy)
+//   - "password":    HMAC-SHA-256(kr-answer, IZIPAY_PASSWORD)  (modo legacy)
+// (La primera versión de este archivo usaba SHA-256(password + kr-answer)
+// para el modo "password" — eso devolvía 401 en producción; la documentación
+// oficial de Izipay/Lyra confirma que también es HMAC, no concatenación.)
 // En la práctica esta cuenta de Izipay está enviando "password" — se
 // soportan ambos modos para no depender de que no cambie en el futuro.
 
@@ -44,12 +48,6 @@ async function hmacSha256Hex(message, key) {
   )
   const sig = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(message))
   return toHex(sig)
-}
-
-async function sha256Hex(message) {
-  const enc = new TextEncoder()
-  const digest = await crypto.subtle.digest('SHA-256', enc.encode(message))
-  return toHex(digest)
 }
 
 // Izipay reintenta la notificación si no recibe 200 — por eso, salvo que
@@ -93,11 +91,18 @@ Deno.serve(async (req) => {
       console.error('[webhook-izipay] kr-hash-key=password pero IZIPAY_PASSWORD no está configurado')
       return new Response('Server misconfigured', { status: 500 })
     }
-    calculatedHash = await sha256Hex(IZIPAY_PASSWORD + String(krAnswer))
+    calculatedHash = await hmacSha256Hex(String(krAnswer), IZIPAY_PASSWORD)
   } else {
     console.error('[webhook-izipay] kr-hash-key inesperado:', krHashKey, '— se esperaba sha256_hmac o password')
     return new Response('Unauthorized', { status: 401 })
   }
+
+  // Diagnóstico — queda liviano por si hay que depurar otra discrepancia de
+  // firma más adelante (no loguea IZIPAY_PASSWORD ni IZIPAY_HMAC_KEY).
+  console.log('[webhook-izipay][diag] kr-hash-key:', krHashKey)
+  console.log('[webhook-izipay][diag] kr-hash recibido:   ', krHash)
+  console.log('[webhook-izipay][diag] hash calculado:     ', calculatedHash)
+  console.log('[webhook-izipay][diag] ¿coinciden?:', calculatedHash === krHash)
 
   if (calculatedHash !== krHash) {
     console.error('[webhook-izipay] firma inválida — posible notificación falsificada', { krHashKey })

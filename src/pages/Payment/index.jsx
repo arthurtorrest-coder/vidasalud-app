@@ -7,8 +7,8 @@ import { C } from '../../lib/tokens'
 import { precioTotalPaciente } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
 
-const IZIPAY_SCRIPT_URL = 'https://static.micuentaweb.pe/static/js/krypton-client/V4.0/stable/kr-payment-form.min.js'
-const IZIPAY_CSS_URL    = 'https://static.micuentaweb.pe/static/js/krypton-client/V4.0/ext/classic-reset.css'
+const CULQI_SCRIPT_URL = 'https://checkout.culqi.com/js/v4'
+const YAPE_MAX_MONTO   = 2000   // Culqi solo acepta pagos Yape hasta S/. 2000
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 function codigoCita(id) {
@@ -81,16 +81,11 @@ function downloadICS(appointment, doctor, codigo) {
   URL.revokeObjectURL(url)
 }
 
-/* ── Método: selector ────────────────────────────────────────────
-   Los 3 son puramente visuales — las tres pestañas abren el mismo
-   formulario embebido de Izipay (Krypton). Dentro de ese formulario,
-   Izipay muestra su propio selector de tarjeta/Yape/Plin según lo que
-   tengas habilitado en tu cuenta; no existe (verificado) un parámetro
-   de la API de Krypton para forzar una sola pestaña desde acá. */
+/* ── Método: selector ────────────────────────────────────────── */
 const METODOS = [
+  { id: 'yape',    label: 'Yape',    emoji: '💜', accent: '#7C3AED' },
+  { id: 'plin',    label: 'Plin',    emoji: '💙', accent: '#2563EB' },
   { id: 'tarjeta', label: 'Tarjeta', emoji: '💳', accent: C.green700 },
-  { id: 'yape',    label: 'Yape',    emoji: '📱', accent: '#7C3AED' },
-  { id: 'plin',    label: 'Plin',    emoji: '🏦', accent: '#2563EB' },
 ]
 
 function TabMetodos({ selected, onChange }) {
@@ -185,68 +180,36 @@ function LogoPlin({ width = 160, compact = false }) {
   )
 }
 
-/* ── Vista Izipay (formulario embebido Krypton V4) ───────────────
-   Krypton se monta como un formulario embebido directo en la página una
-   vez que tenemos el formToken — por eso acá no hay un botón "Pagar", el
-   propio widget de Izipay tiene su botón de pago con tarjeta/Yape/Plin
-   nativos de Izipay (el método exacto a mostrar lo decide el panel de
-   Izipay, no nuestro código — ver METODOS más arriba). */
-/* Mensaje de estado del pago en curso — se actualiza vía KR.onSubmit
-   ("procesando"), KR.onError ("error") y la suscripción realtime a
-   appointments ("exito", cuando webhook-izipay confirma status='paid'). */
-function EstadoPagoIzipay({ estado }) {
-  const cfg = {
-    procesando: { bg: '#FEF3C7', border: '#FDE68A', color: '#92400E', text: '⏳ Procesando tu pago, por favor espera...' },
-    exito:      { bg: '#D1FAE5', border: '#A7F3D0', color: '#065F46', text: '✅ ¡Pago realizado con éxito! Redirigiendo...' },
-    error:      { bg: '#FEE2E2', border: '#FECACA', color: '#991B1B', text: '❌ Pago rechazado. Intenta nuevamente.' },
-  }[estado]
-  if (!cfg) return null
-  return (
-    <div style={{
-      background: cfg.bg, border: `1.5px solid ${cfg.border}`, borderRadius: 12,
-      padding: '12px 16px', fontSize: 13, fontWeight: 700, color: cfg.color, textAlign: 'center',
-    }}>
-      {cfg.text}
-    </div>
-  )
-}
-
-function MetodoIzipay({ scriptReady, loadingForm, error, estadoPago, precio }) {
+/* ── Vista Plin (Checkout de Culqi filtrado a solo billetera) ───
+   "billetera" en Culqi muestra un QR que se lee desde apps de billetera
+   móvil (Plin entre ellas) — Culqi captura todo dentro de su widget. */
+function MetodoPlin({ precio, loading, onConfirm }) {
+  const bancos = ['BBVA', 'Interbank', 'Scotiabank', 'BCP']
   return (
     <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* El botón "Pagar" nativo de Krypton queda oculto — el botón flotante
-          de abajo dispara el mismo submit vía KR.submit(). */}
-      <style>{`
-        @keyframes izp-spin { to { transform:rotate(360deg) } }
-        .kr-payment-button { display: none !important; }
-      `}</style>
-      {error ? (
-        <div style={{
-          background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 12,
-          padding: '14px 16px', fontSize: 13, color: '#991B1B', fontWeight: 600, textAlign: 'center',
-        }}>
-          {error}
+      <div style={{
+        background: '#EFF6FF', border: '1.5px solid #BFDBFE',
+        borderRadius: 14, padding: '22px 20px', textAlign: 'center',
+      }}>
+        <LogoPlin width={120} />
+        <div style={{ fontSize: 13, color: C.gray700, marginTop: 12, lineHeight: 1.6 }}>
+          Se abrirá la ventana segura de <strong>Culqi</strong> con un código QR para pagar
+          con Plin desde la app de tu banco.
         </div>
-      ) : (!scriptReady || loadingForm) ? (
         <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-          padding: '28px 0', color: C.gray500, fontSize: 13, fontWeight: 600,
+          display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 14,
         }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: '50%',
-            border: `3px solid ${C.gray200}`, borderTopColor: '#0B4F9C',
-            animation: 'izp-spin 0.75s linear infinite',
-          }} />
-          Cargando formulario de pago…
+          {bancos.map(b => (
+            <span key={b} style={{
+              fontSize: 10, fontWeight: 700, color: '#1D4ED8',
+              background: C.white, border: '1px solid #BFDBFE',
+              padding: '4px 10px', borderRadius: 20,
+            }}>
+              {b}
+            </span>
+          ))}
         </div>
-      ) : (
-        <>
-          <EstadoPagoIzipay estado={estadoPago} />
-          <div id="izipay-form-container">
-            <div className="kr-embedded" />
-          </div>
-        </>
-      )}
+      </div>
 
       <div style={{
         display: 'flex', gap: 8, alignItems: 'center',
@@ -255,15 +218,101 @@ function MetodoIzipay({ scriptReady, loadingForm, error, estadoPago, precio }) {
         fontSize: 11, color: C.green700, fontWeight: 600,
       }}>
         <span style={{ fontSize: 16 }}>🔒</span>
-        Pago seguro procesado por Izipay · S/. {precio}.00
+        Pago procesado por Culqi
       </div>
+
+      <button onClick={onConfirm} disabled={loading} style={btnStyle(!loading)}>
+        {loading ? 'Abriendo pasarela de pago…' : `Pagar S/. ${precio}.00 con Plin`}
+      </button>
     </div>
   )
 }
 
+/* ── Vista Yape (Checkout de Culqi filtrado a solo Yape) ────────
+   Culqi maneja la captura del número y el código de aprobación dentro
+   de su propio widget — nosotros nunca vemos esos datos, así que no
+   necesitamos alcance PCI DSS para este flujo. */
+function MetodoYape({ precio, loading, onConfirm }) {
+  return (
+    <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{
+        background: '#F5F3FF', border: '1.5px solid #DDD6FE',
+        borderRadius: 14, padding: '22px 20px', textAlign: 'center',
+      }}>
+        <LogoYape width={120} />
+        <div style={{ fontSize: 13, color: C.gray700, marginTop: 12, lineHeight: 1.6 }}>
+          Se abrirá la ventana segura de <strong>Culqi</strong> para pagar con Yape. Ahí
+          ingresas tu número y el código de aprobación de tu app Yape.
+        </div>
+      </div>
+
+      <div style={{
+        display: 'flex', gap: 8, alignItems: 'center',
+        background: C.green50, border: `1px solid ${C.green100}`,
+        borderRadius: 10, padding: '10px 12px',
+        fontSize: 11, color: C.green700, fontWeight: 600,
+      }}>
+        <span style={{ fontSize: 16 }}>🔒</span>
+        Pago procesado por Culqi · Yape admite hasta S/. {YAPE_MAX_MONTO} por operación
+      </div>
+
+      <button onClick={onConfirm} disabled={loading} style={btnStyle(!loading)}>
+        {loading ? 'Abriendo pasarela de pago…' : `Pagar S/. ${precio}.00 con Yape`}
+      </button>
+    </div>
+  )
+}
+
+/* ── Vista tarjeta ───────────────────────────────────────────── */
+function MetodoTarjeta({ precio, loading, onConfirm }) {
+  return (
+    <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{
+        background: C.green50, border: `1.5px solid ${C.green100}`,
+        borderRadius: 14, padding: '22px 20px', textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 32 }}>💳</div>
+        <div style={{ fontSize: 13, color: C.gray700, marginTop: 10, lineHeight: 1.6 }}>
+          Se abrirá la ventana segura de <strong>Culqi</strong> para ingresar los datos de tu
+          tarjeta. VIDASALUD nunca ve ni almacena tu número de tarjeta.
+        </div>
+      </div>
+
+      <div style={{
+        display: 'flex', gap: 8, alignItems: 'center',
+        background: C.green50, border: `1px solid ${C.green100}`,
+        borderRadius: 10, padding: '10px 12px',
+        fontSize: 11, color: C.green700, fontWeight: 600,
+      }}>
+        <span style={{ fontSize: 16 }}>🔒</span>
+        Pago seguro procesado por Culqi · Cifrado TLS · Cumple PCI-DSS
+      </div>
+
+      <button onClick={onConfirm} disabled={loading} style={btnStyle(!loading)}>
+        {loading ? 'Abriendo pasarela de pago…' : `Pagar S/. ${precio}.00 con tarjeta`}
+      </button>
+    </div>
+  )
+}
+
+/* ── Estilos compartidos ─────────────────────────────────────── */
+function btnStyle(active) {
+  return {
+    width: '100%', padding: '15px 0', border: 'none', borderRadius: 12,
+    background: active
+      ? `linear-gradient(135deg, ${C.green800}, ${C.green600})`
+      : C.gray200,
+    color: active ? C.white : C.gray400,
+    fontSize: 15, fontWeight: 800,
+    cursor: active ? 'pointer' : 'not-allowed',
+    boxShadow: active ? '0 4px 14px rgba(5,150,105,0.35)' : 'none',
+    transition: 'all 0.2s',
+  }
+}
+
 /* ── Modal: pago confirmado ───────────────────────────────────
    Se muestra en cuanto la suscripción realtime detecta
-   appointments.status='paid' (confirmado por webhook-izipay). */
+   appointments.status='paid'. */
 function ModalPagoExitoso({ onIrSalaEspera }) {
   return (
     <div style={{
@@ -576,17 +625,12 @@ export default function Payment() {
   const [doctor,       setDoctor]       = useState(null)
   const [loading,      setLoading]      = useState(true)
   const [metodo,       setMetodo]       = useState('yape')
+  const [processing,   setProcessing]   = useState(false)
   const [confirmed,    setConfirmed]    = useState(false)
   const [esDesdeTurno, setEsDesdeTurno] = useState(false)
-
-  const [izipayScriptReady, setIzipayScriptReady] = useState(false)
-  const [izipayFormToken,   setIzipayFormToken]   = useState(null)
-  const [izipayLoadingForm, setIzipayLoadingForm] = useState(false)
-  const [izipayError,       setIzipayError]       = useState(null)
-  const [izipayEstado,      setIzipayEstado]      = useState('idle')   // idle | procesando | exito | error
+  const [culqiReady,   setCulqiReady]   = useState(false)
   const [mostrarModalExito, setMostrarModalExito] = useState(false)
-  const izipayMountedTokenRef = useRef(null)   // evita re-montar el mismo formToken dos veces
-  const pagoConfirmadoRef     = useRef(false)  // evita duplicar el WhatsApp si dos caminos confirman el mismo pago
+  const pagoConfirmadoRef = useRef(false)  // evita duplicar el WhatsApp si dos caminos confirman el mismo pago
 
   /* cargar cita, médico y verificar si viene de turno de guardia */
   useEffect(() => {
@@ -619,115 +663,45 @@ export default function Payment() {
       })
   }, [appointmentId, navigate])
 
-  /* Cargar el script de Krypton (Izipay) — único procesador de pagos de
-     esta pantalla, se carga siempre al entrar. */
+  /* Cargar el script del Checkout de Culqi (una sola vez por sesión) */
   useEffect(() => {
-    const publicKey = import.meta.env.VITE_IZIPAY_PUBLIC_KEY
+    console.log('[Payment][Culqi] URL del script:', CULQI_SCRIPT_URL)
+    console.log('[Payment][Culqi] ¿window.Culqi ya existe al montar?', !!window.Culqi)
 
-    if (!publicKey) {
-      console.error('[Payment][Izipay] VITE_IZIPAY_PUBLIC_KEY no está definida')
-      setIzipayError('Izipay no está disponible por el momento.')
+    if (window.Culqi) {
+      console.log('[Payment][Culqi] window.Culqi ya estaba cargado, no se inyecta script de nuevo')
+      setCulqiReady(true)
       return
     }
-    if (window.KR) {
-      setIzipayScriptReady(true)
-      return
-    }
-    if (!document.querySelector(`link[href="${IZIPAY_CSS_URL}"]`)) {
-      const link = document.createElement('link')
-      link.rel  = 'stylesheet'
-      link.href = IZIPAY_CSS_URL
-      document.head.appendChild(link)
-    }
-    const existing = document.querySelector(`script[src="${IZIPAY_SCRIPT_URL}"]`)
+    const existing = document.querySelector(`script[src="${CULQI_SCRIPT_URL}"]`)
     if (existing) {
-      existing.addEventListener('load', () => setIzipayScriptReady(true))
+      console.log('[Payment][Culqi] ya existe un <script> de Culqi en el DOM, esperando su evento load')
+      existing.addEventListener('load', () => {
+        console.log('[Payment][Culqi] script existente terminó de cargar — window.Culqi:', !!window.Culqi)
+        setCulqiReady(true)
+      })
       return
     }
-    console.log('[Payment][Izipay] inyectando <script> de Krypton…')
+    console.log('[Payment][Culqi] inyectando <script> de Culqi en <body>…')
     const script = document.createElement('script')
-    script.src   = IZIPAY_SCRIPT_URL
+    script.src   = CULQI_SCRIPT_URL
     script.async = true
-    script.setAttribute('kr-public-key', publicKey)
     script.onload = () => {
-      console.log('[Payment][Izipay] script de Krypton cargado — window.KR:', !!window.KR)
-      setIzipayScriptReady(true)
+      console.log('[Payment][Culqi] script.onload disparado — window.Culqi:', !!window.Culqi, window.Culqi)
+      setCulqiReady(true)
     }
     script.onerror = (e) => {
-      console.error('[Payment][Izipay] no se pudo cargar el script de Krypton:', e)
-      setIzipayError('No se pudo cargar el formulario de pago de Izipay.')
+      console.error('[Payment][Culqi] script.onerror — no se pudo cargar el script de Culqi:', e)
     }
     document.body.appendChild(script)
   }, [])
 
-  /* Pedir el formToken a crear-formulario-izipay y montar el formulario
-     embebido de Krypton — una sola vez por cita mientras no esté pagada. */
-  useEffect(() => {
-    if (!izipayScriptReady || !appointment || confirmed) return
-    if (izipayFormToken) return   // ya se pidió el token para esta cita
-
-    let cancelled = false
-    async function crearFormulario() {
-      setIzipayLoadingForm(true)
-      setIzipayError(null)
-      const { data, error } = await supabase.functions.invoke('crear-formulario-izipay', {
-        body: { appointmentId, email: user?.email },
-      })
-      if (cancelled) return
-      if (error || !data?.ok) {
-        console.error('[Payment][Izipay] crear-formulario-izipay falló:', error, data)
-        setIzipayError(data?.error ?? error?.message ?? 'No se pudo iniciar el pago con Izipay')
-        setIzipayLoadingForm(false)
-        return
-      }
-      setIzipayFormToken(data.formToken)
-      setIzipayLoadingForm(false)
-    }
-    crearFormulario()
-    return () => { cancelled = true }
-  }, [izipayScriptReady, appointment, confirmed, izipayFormToken, appointmentId, user])
-
-  /* Montar/actualizar el formulario de Krypton en el DOM una vez que
-     tenemos script + formToken. KR.onSubmit se registra una sola vez;
-     devuelve false para que Krypton no intente redirigir por su cuenta —
-     la confirmación real llega por el webhook (ver suscripción realtime
-     más abajo), no desde este callback del navegador. */
-  useEffect(() => {
-    if (!izipayScriptReady || !izipayFormToken || !window.KR) return
-    if (izipayMountedTokenRef.current === izipayFormToken) return
-
-    let cancelled = false
-    window.KR.onSubmit((paymentData) => {
-      console.log('[Payment][Izipay] KR.onSubmit —', paymentData?.clientAnswer?.orderStatus)
-      setIzipayEstado('procesando')
-      return false
-    })
-
-    window.KR.onError((event) => {
-      console.error('[Payment][Izipay] KR.onError —', event?.errorCode, event?.errorMessage)
-      setIzipayEstado('error')
-    })
-
-    window.KR.setFormConfig({ formToken: izipayFormToken, 'kr-language': 'es-ES' })
-    window.KR.attachForm('#izipay-form-container')
-      .then(({ KR, result }) => {
-        if (cancelled) return
-        izipayMountedTokenRef.current = izipayFormToken
-        return KR.showForm(result.formId)
-      })
-      .catch((err) => {
-        console.error('[Payment][Izipay] error montando el formulario:', err)
-        if (!cancelled) setIzipayError('No se pudo mostrar el formulario de pago de Izipay.')
-      })
-
-    return () => { cancelled = true }
-  }, [izipayScriptReady, izipayFormToken])
-
   /* Se ejecuta cuando la cita queda marcada como pagada — actualiza la UI
-     y dispara el WhatsApp de confirmación. Único disparador hoy: la
-     suscripción realtime de más abajo, cuando webhook-izipay marca
-     status='paid'. El guard evita confirmar (y mandar el WhatsApp) dos
-     veces si llegara a dispararse más de una vez para el mismo pago. */
+     y dispara el WhatsApp de confirmación. Puede dispararse desde dos
+     caminos: la respuesta directa de procesar-pago-culqi (procesarPagoConToken)
+     o la suscripción realtime de más abajo — el guard evita confirmar (y
+     mandar el WhatsApp) dos veces si ambos llegaran a dispararse para el
+     mismo pago. */
   const finalizarPagoExitoso = useCallback(async () => {
     if (pagoConfirmadoRef.current) return
     pagoConfirmadoRef.current = true
@@ -750,10 +724,9 @@ export default function Payment() {
     }
   }, [appointment, doctor])
 
-  /* Suscripción realtime: webhook-izipay confirma el pago server-to-server
-     y actualiza appointments.status — acá es donde el frontend se entera,
-     ya que Krypton no nos devuelve una confirmación final propia en el
-     navegador (ver KR.onSubmit más arriba). */
+  /* Suscripción realtime: respaldo de confirmación independiente de la
+     respuesta directa del Checkout — si procesar-pago-culqi marca la cita
+     como pagada, este canal también se entera y muestra el modal de éxito. */
   useEffect(() => {
     if (!appointmentId || confirmed) return
     const channel = supabase
@@ -763,8 +736,7 @@ export default function Payment() {
         { event: 'UPDATE', schema: 'public', table: 'appointments', filter: `id=eq.${appointmentId}` },
         (payload) => {
           if (payload.new?.status === 'paid') {
-            console.log('[Payment] appointments.status pasó a paid vía realtime (webhook)')
-            setIzipayEstado('exito')
+            console.log('[Payment] appointments.status pasó a paid vía realtime')
             setMostrarModalExito(true)
             finalizarPagoExitoso()
           }
@@ -773,6 +745,134 @@ export default function Payment() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [appointmentId, confirmed, finalizarPagoExitoso])
+
+  /* Envía el token de tarjeta (ya creado por el Checkout de Culqi en el
+     navegador) a la Edge Function que hace el cargo real */
+  const procesarPagoConToken = useCallback(async (token, tokenEmail) => {
+    if (!appointment) return
+    try {
+      const { data, error } = await supabase.functions.invoke('procesar-pago-culqi', {
+        body: {
+          token,
+          appointmentId,
+          email: tokenEmail || user?.email,
+        },
+      })
+      if (error || !data?.ok) {
+        throw new Error(data?.error ?? error?.message ?? 'El pago fue rechazado')
+      }
+      await finalizarPagoExitoso()
+    } catch (err) {
+      console.error('[Payment] procesarPagoConToken error:', err)
+      toast.error(err.message || 'No se pudo procesar el pago. Inténtalo de nuevo.')
+    } finally {
+      setProcessing(false)
+    }
+  }, [appointment, appointmentId, user, finalizarPagoExitoso])
+
+  /* Culqi Checkout v4 llama a este callback global cuando el usuario
+     termina de interactuar con el widget (con token o con error). */
+  useEffect(() => {
+    window.culqi = function () {
+      const Culqi = window.Culqi
+      if (!Culqi) return
+      if (Culqi.token) {
+        const { id, email } = Culqi.token
+        Culqi.close()
+        procesarPagoConToken(id, email)
+      } else if (Culqi.error) {
+        console.error('[Payment] Culqi error:', Culqi.error)
+        toast.error(Culqi.error.user_message || Culqi.error.merchant_message || 'No se pudo procesar el pago')
+        setProcessing(false)
+      }
+    }
+    return () => { delete window.culqi }
+  }, [procesarPagoConToken])
+
+  /* Abre el Checkout de Culqi con el monto de la cita (en céntimos).
+     metodoPago ('tarjeta' | 'yape' | 'plin') limita paymentMethods a un
+     solo método por vez, para que Culqi capture los datos sensibles
+     dentro de su propio widget — nosotros nunca los vemos, así que no
+     necesitamos alcance PCI DSS para ninguno de los tres flujos. */
+  function handleAbrirCulqiCheckout(metodoPago = 'tarjeta') {
+    const publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY
+
+    console.log('[Payment][Culqi] handleAbrirCulqiCheckout — diagnóstico:', {
+      metodoPago,
+      culqiReady,
+      'window.Culqi existe': !!window.Culqi,
+      VITE_CULQI_PUBLIC_KEY: publicKey || '(vacío/undefined)',
+      precioPaciente,
+    })
+
+    if (!culqiReady || !window.Culqi) {
+      console.error('[Payment][Culqi] Abortando: culqiReady =', culqiReady, '| window.Culqi =', window.Culqi)
+      toast.error('La pasarela de pagos aún está cargando. Intenta de nuevo en unos segundos.')
+      return
+    }
+    if (!publicKey) {
+      console.error('[Payment][Culqi] Abortando: VITE_CULQI_PUBLIC_KEY no está definida. Revisa tu .env y reinicia el servidor de desarrollo (Vite solo lee .env al arrancar).')
+      toast.error('Pago no disponible por el momento.')
+      return
+    }
+    if (!precioPaciente || precioPaciente <= 0) {
+      console.error('[Payment][Culqi] Abortando: precioPaciente inválido:', precioPaciente)
+      toast.error('No se pudo calcular el monto de la cita')
+      return
+    }
+    if (metodoPago === 'yape' && precioPaciente > YAPE_MAX_MONTO) {
+      toast.error(`Yape solo admite pagos de hasta S/. ${YAPE_MAX_MONTO}. Usa tarjeta para este monto.`)
+      return
+    }
+
+    setProcessing(true)
+    try {
+      const Culqi = window.Culqi
+      Culqi.publicKey = publicKey
+      const amount = Math.round(precioPaciente * 100)   // Culqi espera el monto en céntimos
+      console.log('[Payment][Culqi] configurando settings — amount (céntimos):', amount, '| currency: PEN')
+      Culqi.settings({
+        title:    'VIDASALUD',
+        currency: 'PEN',
+        amount,
+      })
+      // paymentMethods es un objeto de booleanos (no un array) — así lo
+      // exige Culqi.options() en el Checkout v4. Dejamos habilitado solo
+      // el método de la pestaña activa, para que el widget se abra
+      // directo a ese formulario sin mostrar los demás.
+      const culqiOptions = {
+        lang: 'auto',
+        installments: false,
+        paymentMethods: {
+          tarjeta:    metodoPago === 'tarjeta',
+          yape:       metodoPago === 'yape',
+          billetera:  metodoPago === 'plin',
+          bancaMovil: false, agente: false, cuotealo: false,
+        },
+        style: {
+          bannerColor:      '#065F46',
+          buttonBackground: '#059669',
+          menuColor:        '#065F46',
+          linksColor:       '#059669',
+          buttonText:       'Pagar ahora',
+          buttonTextColor:  '#FFFFFF',
+          priceColor:       '#065F46',
+        },
+      }
+      Culqi.options(culqiOptions)
+      console.log('[Payment][Culqi] configuración completa antes de Culqi.open() —', {
+        metodoPago,
+        options: culqiOptions,
+        paymentMethods: culqiOptions.paymentMethods,
+        'billetera (Plin) habilitada': culqiOptions.paymentMethods.billetera,
+      })
+      Culqi.open()
+    } catch (err) {
+      console.error('[Payment][Culqi] Excepción al abrir el checkout:', err)
+      toast.error('No se pudo abrir la pasarela de pago: ' + (err?.message ?? String(err)))
+      setProcessing(false)
+    }
+  }
 
   /* ── Pantalla de carga ── */
   if (loading) {
@@ -825,24 +925,6 @@ export default function Payment() {
     : doctor
       ? precioTotalPaciente({ especialidad: doctor.especialidad, precioMedico: doctor.precio })
       : 0
-
-  // El formulario de Krypton está listo para recibir KR.submit() recién
-  // cuando ya cargamos el formToken y no hay error — antes de eso el botón
-  // queda deshabilitado en vez de oculto, para que el paciente siempre vea
-  // el precio aunque el formulario todavía esté cargando.
-  const formIzipayListo = izipayScriptReady && !izipayLoadingForm && !izipayError && !!izipayFormToken
-
-  function handlePagarIzipayClick() {
-    if (!window.KR?.submit) {
-      console.error('[Payment][Izipay] KR.submit no disponible — formulario no está listo')
-      toast.error('El formulario de pago aún está cargando. Intenta de nuevo en unos segundos.')
-      return
-    }
-    console.log('[Payment][Izipay] KR.submit() disparado desde el botón flotante')
-    window.KR.submit().catch((err) => {
-      console.error('[Payment][Izipay] KR.submit() falló:', err)
-    })
-  }
 
   return (
     <>
@@ -949,49 +1031,68 @@ export default function Payment() {
         </h2>
         <TabMetodos selected={metodo} onChange={m => { setMetodo(m) }} />
 
-        {/* Las 3 pestañas de arriba son solo visuales — todas abren el mismo
-            formulario embebido de Izipay. Verificado: Krypton no ofrece un
-            parámetro para preseleccionar tarjeta/Yape/Plin desde acá, así
-            que el paciente elige dentro del propio formulario. */}
-        <div style={{
-          padding: '10px 20px 0', textAlign: 'center',
-          fontSize: 12, color: C.gray500, fontWeight: 600,
-        }}>
-          Selecciona tu método preferido en el formulario de abajo
-        </div>
-
         {/* Separador */}
-        <div style={{ height: 16 }} />
+        <div style={{ height: 20 }} />
 
-        <MetodoIzipay
-          scriptReady={izipayScriptReady}
-          loadingForm={izipayLoadingForm}
-          error={izipayError}
-          estadoPago={izipayEstado}
-          precio={precioPaciente}
-        />
+        {/* Formulario del método seleccionado */}
+        {metodo === 'yape' && (
+          <MetodoYape
+            precio={precioPaciente}
+            loading={processing}
+            onConfirm={() => handleAbrirCulqiCheckout('yape')}
+          />
+        )}
+        {metodo === 'plin' && (
+          <MetodoPlin
+            precio={precioPaciente}
+            loading={processing}
+            onConfirm={() => handleAbrirCulqiCheckout('plin')}
+          />
+        )}
+        {metodo === 'tarjeta' && (
+          <MetodoTarjeta
+            precio={precioPaciente}
+            loading={processing}
+            onConfirm={() => handleAbrirCulqiCheckout('tarjeta')}
+          />
+        )}
 
         <div style={{ height: 100 }} />
       </div>
 
-      {/* Botón flotante — más visible que el botón "Pagar" nativo del
-          formulario de Krypton; dispara el mismo submit programáticamente. */}
-      <button
-        onClick={handlePagarIzipayClick}
-        disabled={!formIzipayListo}
-        style={{
-          position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
-          width: 'auto', background: '#065F46', border: 'none',
-          color: C.white, padding: '12px 32px', borderRadius: 25,
-          fontSize: 16, fontWeight: 900, textAlign: 'center', whiteSpace: 'nowrap',
-          cursor: formIzipayListo ? 'pointer' : 'not-allowed',
-          opacity: formIzipayListo ? 1 : 0.6,
-          fontFamily: 'inherit', zIndex: 500,
-          boxShadow: '0 6px 20px rgba(6,95,70,0.45)',
-        }}
-      >
-        💳 PAGAR S/. {precioPaciente}.00
-      </button>
+      {/* Botón flotante — dispara el mismo Checkout de Culqi que el botón
+          de la tarjeta del método seleccionado. */}
+      {(() => {
+        return (
+          <button
+            onClick={() => handleAbrirCulqiCheckout(metodo)}
+            disabled={processing}
+            style={{
+              position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+              width: 'auto', background: processing ? '#374151' : '#065F46', border: 'none',
+              color: C.white, padding: '12px 32px', borderRadius: 25,
+              fontSize: 16, fontWeight: 900, textAlign: 'center', whiteSpace: 'nowrap',
+              display: 'inline-flex', alignItems: 'center', gap: 10,
+              cursor: processing ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit', zIndex: 500,
+              boxShadow: processing ? '0 6px 20px rgba(55,65,81,0.45)' : '0 6px 20px rgba(6,95,70,0.45)',
+              transition: 'background 0.2s',
+            }}
+          >
+            {processing && (
+              <>
+                <style>{`@keyframes pagobtn-spin { to { transform: rotate(360deg) } }`}</style>
+                <span style={{
+                  width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                  border: '2.5px solid rgba(255,255,255,0.35)', borderTopColor: C.white,
+                  animation: 'pagobtn-spin 0.7s linear infinite',
+                }} />
+              </>
+            )}
+            {processing ? '⏳ Procesando...' : `💳 PAGAR S/. ${precioPaciente}.00`}
+          </button>
+        )
+      })()}
 
       {mostrarModalExito && (
         <ModalPagoExitoso

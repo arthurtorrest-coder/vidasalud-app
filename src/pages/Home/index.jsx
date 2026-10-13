@@ -278,7 +278,7 @@ function ActiveCallBanner({ appt, onEnter }) {
 
 // ─── Banner: consulta pagada, esperando que el médico inicie ──
 
-function PagoPendienteBanner({ status, esDeGuardia, onIr }) {
+function PagoPendienteBanner({ status, esDeGuardia, onIr, onCancelar }) {
   const faltaPagar = status === 'pending'
 
   let titulo    = 'Tienes una consulta pendiente'
@@ -297,27 +297,40 @@ function PagoPendienteBanner({ status, esDeGuardia, onIr }) {
     <div style={{
       background: 'linear-gradient(135deg, #065F46, #059669)',
       padding: '14px 20px', flexShrink: 0,
-      display: 'flex', alignItems: 'center', gap: 12,
+      display: 'flex', flexDirection: 'column', gap: 10,
     }}>
-      <span style={{ fontSize: 22, animation: 'dot-blink 2s step-end infinite' }}>🪑</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
-          {titulo}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 22, animation: 'dot-blink 2s step-end infinite' }}>🪑</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
+            {titulo}
+          </div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
+            {subtitulo}
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>
-          {subtitulo}
-        </div>
+        <button
+          onClick={onIr}
+          style={{
+            background: 'rgba(255,255,255,0.15)', border: 'none',
+            color: '#FFFFFF', borderRadius: 20, padding: '8px 16px',
+            fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+            flexShrink: 0, whiteSpace: 'nowrap',
+          }}
+        >
+          {boton}
+        </button>
       </div>
       <button
-        onClick={onIr}
+        onClick={onCancelar}
         style={{
-          background: 'rgba(255,255,255,0.15)', border: 'none',
-          color: '#FFFFFF', borderRadius: 20, padding: '8px 16px',
-          fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-          flexShrink: 0, whiteSpace: 'nowrap',
+          alignSelf: 'flex-end',
+          background: 'none', border: 'none',
+          color: 'rgba(255,255,255,0.7)', padding: '2px 4px',
+          fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
         }}
       >
-        {boton}
+        ✕ Cancelar cita
       </button>
     </div>
   )
@@ -612,6 +625,39 @@ export default function Home() {
     toast('Solicitud cancelada.', { icon: 'ℹ️' })
   }
 
+  async function cancelarPagoPendiente() {
+    if (!pagoPendienteAppt?.id) return
+    if (!window.confirm('¿Seguro que quieres cancelar esta consulta? No se realizará ningún cobro.')) {
+      return
+    }
+
+    console.log('[cancelarPagoPendiente] actualizando status → cancelled, id:', pagoPendienteAppt.id)
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .update({ status: 'cancelled' })
+      .eq('id', pagoPendienteAppt.id)
+      .eq('patient_id', user.id)   // doble filtro por seguridad
+      .select('id, status')
+
+    console.log('[cancelarPagoPendiente] resultado:', { data, error: error?.message ?? null })
+
+    if (error) {
+      toast.error('No se pudo cancelar: ' + error.message)
+      return
+    }
+
+    if (!data?.length) {
+      // UPDATE no afectó ninguna fila — lo más probable es RLS bloqueando
+      console.error('[cancelarPagoPendiente] 0 filas afectadas — verificar política RLS de appointments')
+      toast.error('No se pudo cancelar. Revisa la consola para más detalles.')
+      return
+    }
+
+    setPagoPendienteAppt(null)
+    toast('Consulta cancelada.', { icon: 'ℹ️' })
+  }
+
   async function fetchDoctors() {
     const [{ data: docs, error }, { data: scheds }] = await Promise.all([
       supabase.from('doctors').select('*').order('rating', { ascending: false }),
@@ -735,6 +781,7 @@ export default function Home() {
           status={pagoPendienteAppt.status}
           esDeGuardia={pagoPendienteAppt.esDeGuardia}
           onIr={() => navigate(`/pago/${pagoPendienteAppt.id}`)}
+          onCancelar={cancelarPagoPendiente}
         />
       )}
 

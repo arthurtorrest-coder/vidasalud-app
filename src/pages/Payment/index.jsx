@@ -191,7 +191,27 @@ function LogoPlin({ width = 160, compact = false }) {
    propio widget de Izipay tiene su botón de pago con tarjeta/Yape/Plin
    nativos de Izipay (el método exacto a mostrar lo decide el panel de
    Izipay, no nuestro código — ver METODOS más arriba). */
-function MetodoIzipay({ scriptReady, loadingForm, error, precio }) {
+/* Mensaje de estado del pago en curso — se actualiza vía KR.onSubmit
+   ("procesando"), KR.onError ("error") y la suscripción realtime a
+   appointments ("exito", cuando webhook-izipay confirma status='paid'). */
+function EstadoPagoIzipay({ estado }) {
+  const cfg = {
+    procesando: { bg: '#FEF3C7', border: '#FDE68A', color: '#92400E', text: '⏳ Procesando tu pago, por favor espera...' },
+    exito:      { bg: '#D1FAE5', border: '#A7F3D0', color: '#065F46', text: '✅ ¡Pago realizado con éxito! Redirigiendo...' },
+    error:      { bg: '#FEE2E2', border: '#FECACA', color: '#991B1B', text: '❌ Pago rechazado. Intenta nuevamente.' },
+  }[estado]
+  if (!cfg) return null
+  return (
+    <div style={{
+      background: cfg.bg, border: `1.5px solid ${cfg.border}`, borderRadius: 12,
+      padding: '12px 16px', fontSize: 13, fontWeight: 700, color: cfg.color, textAlign: 'center',
+    }}>
+      {cfg.text}
+    </div>
+  )
+}
+
+function MetodoIzipay({ scriptReady, loadingForm, error, estadoPago, precio }) {
   return (
     <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
       {error ? (
@@ -215,9 +235,12 @@ function MetodoIzipay({ scriptReady, loadingForm, error, precio }) {
           Cargando formulario de pago…
         </div>
       ) : (
-        <div id="izipay-form-container">
-          <div className="kr-embedded" />
-        </div>
+        <>
+          <EstadoPagoIzipay estado={estadoPago} />
+          <div id="izipay-form-container">
+            <div className="kr-embedded" />
+          </div>
+        </>
       )}
 
       <div style={{
@@ -228,6 +251,45 @@ function MetodoIzipay({ scriptReady, loadingForm, error, precio }) {
       }}>
         <span style={{ fontSize: 16 }}>🔒</span>
         Pago seguro procesado por Izipay · S/. {precio}.00
+      </div>
+    </div>
+  )
+}
+
+/* ── Modal: pago confirmado ───────────────────────────────────
+   Se muestra en cuanto la suscripción realtime detecta
+   appointments.status='paid' (confirmado por webhook-izipay). */
+function ModalPagoExitoso({ onIrSalaEspera }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(6,95,70,0.55)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20, zIndex: 1000,
+    }}>
+      <div style={{
+        background: C.white, borderRadius: 20, padding: '36px 28px 28px',
+        maxWidth: 360, width: '100%', textAlign: 'center',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
+      }}>
+        <div style={{ fontSize: 64, lineHeight: 1 }}>✅</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: C.green800, marginTop: 14 }}>
+          ¡Pago confirmado!
+        </div>
+        <div style={{ fontSize: 14, color: C.gray600, marginTop: 10, lineHeight: 1.6 }}>
+          Tu consulta está reservada. El médico te atenderá en breve.
+        </div>
+        <button
+          onClick={onIrSalaEspera}
+          style={{
+            width: '100%', marginTop: 24, padding: '14px 0',
+            background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
+            color: C.white, border: 'none', borderRadius: 12,
+            fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+            boxShadow: '0 4px 14px rgba(5,150,105,0.35)',
+          }}
+        >
+          Ir a sala de espera
+        </button>
       </div>
     </div>
   )
@@ -516,6 +578,8 @@ export default function Payment() {
   const [izipayFormToken,   setIzipayFormToken]   = useState(null)
   const [izipayLoadingForm, setIzipayLoadingForm] = useState(false)
   const [izipayError,       setIzipayError]       = useState(null)
+  const [izipayEstado,      setIzipayEstado]      = useState('idle')   // idle | procesando | exito | error
+  const [mostrarModalExito, setMostrarModalExito] = useState(false)
   const izipayMountedTokenRef = useRef(null)   // evita re-montar el mismo formToken dos veces
   const pagoConfirmadoRef     = useRef(false)  // evita duplicar el WhatsApp si dos caminos confirman el mismo pago
 
@@ -630,7 +694,13 @@ export default function Payment() {
     let cancelled = false
     window.KR.onSubmit((paymentData) => {
       console.log('[Payment][Izipay] KR.onSubmit —', paymentData?.clientAnswer?.orderStatus)
+      setIzipayEstado('procesando')
       return false
+    })
+
+    window.KR.onError((event) => {
+      console.error('[Payment][Izipay] KR.onError —', event?.errorCode, event?.errorMessage)
+      setIzipayEstado('error')
     })
 
     window.KR.setFormConfig({ formToken: izipayFormToken, 'kr-language': 'es-ES' })
@@ -689,6 +759,8 @@ export default function Payment() {
         (payload) => {
           if (payload.new?.status === 'paid') {
             console.log('[Payment] appointments.status pasó a paid vía realtime (webhook)')
+            setIzipayEstado('exito')
+            setMostrarModalExito(true)
             finalizarPagoExitoso()
           }
         },
@@ -718,13 +790,23 @@ export default function Payment() {
   /* ── Pantalla de confirmación ── */
   if (confirmed && appointment && doctor) {
     return (
-      <VistaConfirmada
-        appointment={appointment}
-        doctor={doctor}
-        onInicio={() => navigate('/inicio')}
-        onMensaje={() => navigate(`/chat/${appointmentId}`)}
-        onCola={() => navigate(`/sala-espera/${appointmentId}`)}
-      />
+      <>
+        <VistaConfirmada
+          appointment={appointment}
+          doctor={doctor}
+          onInicio={() => navigate('/inicio')}
+          onMensaje={() => navigate(`/chat/${appointmentId}`)}
+          onCola={() => navigate(`/sala-espera/${appointmentId}`)}
+        />
+        {mostrarModalExito && (
+          <ModalPagoExitoso
+            onIrSalaEspera={() => {
+              setMostrarModalExito(false)
+              navigate(`/sala-espera/${appointmentId}`)
+            }}
+          />
+        )}
+      </>
     )
   }
 
@@ -862,11 +944,21 @@ export default function Payment() {
           scriptReady={izipayScriptReady}
           loadingForm={izipayLoadingForm}
           error={izipayError}
+          estadoPago={izipayEstado}
           precio={precioPaciente}
         />
 
         <div style={{ height: 28 }} />
       </div>
+
+      {mostrarModalExito && (
+        <ModalPagoExitoso
+          onIrSalaEspera={() => {
+            setMostrarModalExito(false)
+            navigate(`/sala-espera/${appointmentId}`)
+          }}
+        />
+      )}
     </>
   )
 }

@@ -6,6 +6,13 @@
 // IZIPAY_PASSWORD nunca debe exponerse al navegador — solo vive acá.
 // Deploy: supabase functions deploy crear-formulario-izipay
 // Secreto: supabase secrets set IZIPAY_PASSWORD=...
+//
+// ⚠️ TEMPORAL: el secreto IZIPAY_PASSWORD está puesto con la contraseña de
+// PRUEBA de Izipay (para probar con tarjetas de prueba) — junto con
+// VITE_IZIPAY_PUBLIC_KEY en .env, que también apunta a la clave pública de
+// prueba. Antes de salir a producción, volver a correr:
+//   supabase secrets set IZIPAY_PASSWORD=<contraseña de producción>
+// y cambiar VITE_IZIPAY_PUBLIC_KEY en el .env del entorno de producción.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 

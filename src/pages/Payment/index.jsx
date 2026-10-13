@@ -214,6 +214,12 @@ function EstadoPagoIzipay({ estado }) {
 function MetodoIzipay({ scriptReady, loadingForm, error, estadoPago, precio }) {
   return (
     <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* El botón "Pagar" nativo de Krypton queda oculto — el botón flotante
+          de abajo dispara el mismo submit vía KR.submit(). */}
+      <style>{`
+        @keyframes izp-spin { to { transform:rotate(360deg) } }
+        .kr-payment-button { display: none !important; }
+      `}</style>
       {error ? (
         <div style={{
           background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 12,
@@ -226,7 +232,6 @@ function MetodoIzipay({ scriptReady, loadingForm, error, estadoPago, precio }) {
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
           padding: '28px 0', color: C.gray500, fontSize: 13, fontWeight: 600,
         }}>
-          <style>{`@keyframes izp-spin { to { transform:rotate(360deg) } }`}</style>
           <div style={{
             width: 28, height: 28, borderRadius: '50%',
             border: `3px solid ${C.gray200}`, borderTopColor: '#0B4F9C',
@@ -975,15 +980,14 @@ export default function Payment() {
         onClick={handlePagarIzipayClick}
         disabled={!formIzipayListo}
         style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0,
-          background: '#065F46', borderTop: '3px solid #34D399',
-          borderLeft: 'none', borderRight: 'none', borderBottom: 'none',
-          color: C.white, padding: '18px 20px',
-          fontSize: 18, fontWeight: 900, textAlign: 'center',
+          position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+          width: 'auto', background: '#065F46', border: 'none',
+          color: C.white, padding: '12px 32px', borderRadius: 25,
+          fontSize: 16, fontWeight: 900, textAlign: 'center', whiteSpace: 'nowrap',
           cursor: formIzipayListo ? 'pointer' : 'not-allowed',
           opacity: formIzipayListo ? 1 : 0.6,
           fontFamily: 'inherit', zIndex: 500,
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.25)',
+          boxShadow: '0 6px 20px rgba(6,95,70,0.45)',
         }}
       >
         💳 PAGAR S/. {precioPaciente}.00

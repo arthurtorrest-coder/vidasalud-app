@@ -821,6 +821,24 @@ export default function Payment() {
       ? precioTotalPaciente({ especialidad: doctor.especialidad, precioMedico: doctor.precio })
       : 0
 
+  // El formulario de Krypton está listo para recibir KR.submit() recién
+  // cuando ya cargamos el formToken y no hay error — antes de eso el botón
+  // queda deshabilitado en vez de oculto, para que el paciente siempre vea
+  // el precio aunque el formulario todavía esté cargando.
+  const formIzipayListo = izipayScriptReady && !izipayLoadingForm && !izipayError && !!izipayFormToken
+
+  function handlePagarIzipayClick() {
+    if (!window.KR?.submit) {
+      console.error('[Payment][Izipay] KR.submit no disponible — formulario no está listo')
+      toast.error('El formulario de pago aún está cargando. Intenta de nuevo en unos segundos.')
+      return
+    }
+    console.log('[Payment][Izipay] KR.submit() disparado desde el botón flotante')
+    window.KR.submit().catch((err) => {
+      console.error('[Payment][Izipay] KR.submit() falló:', err)
+    })
+  }
+
   return (
     <>
       {/* Cabecera */}
@@ -948,8 +966,28 @@ export default function Payment() {
           precio={precioPaciente}
         />
 
-        <div style={{ height: 28 }} />
+        <div style={{ height: 100 }} />
       </div>
+
+      {/* Botón flotante — más visible que el botón "Pagar" nativo del
+          formulario de Krypton; dispara el mismo submit programáticamente. */}
+      <button
+        onClick={handlePagarIzipayClick}
+        disabled={!formIzipayListo}
+        style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0,
+          background: '#065F46', borderTop: '3px solid #34D399',
+          borderLeft: 'none', borderRight: 'none', borderBottom: 'none',
+          color: C.white, padding: '18px 20px',
+          fontSize: 18, fontWeight: 900, textAlign: 'center',
+          cursor: formIzipayListo ? 'pointer' : 'not-allowed',
+          opacity: formIzipayListo ? 1 : 0.6,
+          fontFamily: 'inherit', zIndex: 500,
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.25)',
+        }}
+      >
+        💳 PAGAR S/. {precioPaciente}.00
+      </button>
 
       {mostrarModalExito && (
         <ModalPagoExitoso

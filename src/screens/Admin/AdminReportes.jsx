@@ -192,17 +192,18 @@ export default function AdminReportes() {
         .eq('status', 'done')
         .gte('scheduled_at', start)
         .lte('scheduled_at', end)),
-      // Un pago real = tiene culqi_charge_id (Culqi confirmó el cobro) O
-      // (precio_total > 0 Y status IN done/paid) — para 'cancelled' esa
-      // segunda rama no aplica, así que una cita cancelada solo entra acá
-      // si de verdad llegó a cobrarse (culqi_charge_id no nulo). Sin esto,
-      // una cita cancelada ANTES de pagar (precio_total ya fijado pero sin
-      // cargo real) aparecía como si hubiera habido un cobro.
+      // Criterio de "pago real" — dos ramas independientes, sin mezclar
+      // precio_total y culqi_charge_id como alternativas entre sí:
+      //   - done/paid:    requieren precio_total > 0.
+      //   - cancelled:    requiere culqi_charge_id no nulo (confirmación de
+      //                   que Culqi sí procesó el cobro antes de cancelarse;
+      //                   una cancelada ANTES de pagar, con precio_total ya
+      //                   fijado pero sin cargo real, no debe aparecer acá).
       safe(supabase
         .from('appointments')
         .select('id, precio_total, status, scheduled_at, culqi_charge_id, patient:profiles!patient_id(full_name), doctor:doctors!doctor_id(nombres, apellidos)')
         .in('status', ['done', 'paid', 'cancelled'])
-        .or('culqi_charge_id.not.is.null,and(precio_total.gt.0,status.in.(done,paid))')
+        .or('and(status.in.(done,paid),precio_total.gt.0),and(status.eq.cancelled,culqi_charge_id.not.is.null)')
         .gte('scheduled_at', selStart)
         .lte('scheduled_at', selEnd)
         .order('scheduled_at', { ascending: false })),

@@ -98,11 +98,34 @@ function skeletonBar(w = '60%', h = 12) {
   return <div style={{ height: h, width: w, background: C.gray200, borderRadius: 6 }} />
 }
 
+function EstadoPagoBadge({ status }) {
+  const cfg = {
+    done:      { bg: C.green50, color: C.green700, text: '✅ Completada' },
+    paid:      { bg: C.amberBg, color: C.amberText, text: '⏳ Pendiente' },
+    cancelled: { bg: '#FEE2E2', color: '#991B1B',   text: '↩️ Cancelada' },
+  }[status] ?? { bg: C.gray100, color: C.gray500, text: status ?? '—' }
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 700, color: cfg.color, background: cfg.bg,
+      padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap',
+    }}>
+      {cfg.text}
+    </span>
+  )
+}
+
+function fmtFechaCorta(iso) {
+  return new Date(iso).toLocaleDateString('es-PE', {
+    timeZone: 'America/Lima', day: '2-digit', month: '2-digit', year: 'numeric',
+  })
+}
+
 const TH = ({ label, w, right }) => (
   <th style={{
     padding: '10px 14px', width: w, textAlign: right ? 'right' : 'left',
     fontSize: 11, fontWeight: 700, color: C.gray500,
     background: C.gray50, borderBottom: `1.5px solid ${C.gray200}`, whiteSpace: 'nowrap',
+    position: 'sticky', top: 0, zIndex: 1,
   }}>{label}</th>
 )
 
@@ -115,7 +138,8 @@ export default function AdminReportes() {
   const [loadingMonths,     setLoadingMonths]      = useState(true)
   const [monthSel,          setMonthSel]           = useState(currentLimaMonthKey())
   const [monthAplicado,     setMonthAplicado]      = useState(currentLimaMonthKey())
-  const [appts,             setAppts]              = useState([])   // rango de 6 meses (trend + mes seleccionado)
+  const [appts,             setAppts]              = useState([])   // rango de 6 meses, solo status='done' (comisiones/pagos a médicos)
+  const [pagos,             setPagos]              = useState([])   // mes seleccionado, done+paid+cancelled con cobro (registro de pagos)
   const [farmacias,         setFarmacias]          = useState([])
   const [loading,           setLoading]            = useState(true)
 
@@ -143,14 +167,25 @@ export default function AdminReportes() {
 
   // Cargar datos: 6 meses terminando en monthAplicado (para la tendencia),
   // de donde también se extrae el detalle del mes seleccionado.
+  //
+  // `appts` sigue limitado a status='done' — es la base de los cálculos de
+  // comisión/pago a médico (repartoAppt), que NO deben incluir citas que
+  // el paciente pagó pero aún no se atendió ('paid') ni canceladas: pagarle
+  // a un médico por una consulta que no ocurrió sería un error financiero.
+  //
+  // `pagos` es un dataset aparte, solo del mes seleccionado, para el
+  // registro de pagos (Sección 7) y sus cards de resumen: ahí sí interesan
+  // 'paid' y 'cancelled' con cobro, porque la pregunta que responden es
+  // "¿qué dinero entró?", no "¿qué le debemos a cada médico?".
   const fetchAll = useCallback(async () => {
     setLoading(true)
     const safe = q => Promise.resolve(q).catch(err => ({ data: null, error: err }))
 
     const { start } = monthRangeISO(addMonthsToKey(monthAplicado, -5))
     const { end }   = monthRangeISO(monthAplicado)
+    const { start: selStart, end: selEnd } = monthRangeISO(monthAplicado)
 
-    const [apptsRes, farmRes] = await Promise.all([
+    const [apptsRes, pagosRes, farmRes] = await Promise.all([
       safe(supabase
         .from('appointments')
         .select('id, precio_total, scheduled_at, farmacia_referente_id, doctor:doctors!doctor_id(id, nombres, apellidos, especialidad, precio, foto_url)')
@@ -158,15 +193,25 @@ export default function AdminReportes() {
         .gte('scheduled_at', start)
         .lte('scheduled_at', end)),
       safe(supabase
+        .from('appointments')
+        .select('id, precio_total, status, scheduled_at, culqi_charge_id, patient:profiles!patient_id(full_name), doctor:doctors!doctor_id(nombres, apellidos)')
+        .in('status', ['done', 'paid', 'cancelled'])
+        .gt('precio_total', 0)
+        .gte('scheduled_at', selStart)
+        .lte('scheduled_at', selEnd)
+        .order('scheduled_at', { ascending: false })),
+      safe(supabase
         .from('farmacias')
         .select('id, nombre, ciudad, coordinador_id')
         .eq('aprobado', true)),
     ])
 
     if (apptsRes.error) { console.error('[AdminReportes] appts:', apptsRes.error.message); toast.error('No se pudieron cargar las consultas') }
+    if (pagosRes.error) { console.error('[AdminReportes] pagos:', pagosRes.error.message); toast.error('No se pudo cargar el registro de pagos') }
     if (farmRes.error)  { console.warn('[AdminReportes] farmacias:', farmRes.error.message) }
 
     setAppts(apptsRes.data ?? [])
+    setPagos(pagosRes.data ?? [])
     setFarmacias(farmRes.data ?? [])
     setLoading(false)
   }, [monthAplicado])
@@ -207,6 +252,20 @@ export default function AdminReportes() {
       gananciaNeta: repartos.reduce((s, r) => s + r.clinica,     0),
     }
   }, [monthAppts, repartoAppt])
+
+  // ── Sección 2b: registro de pagos del mes (done + paid + cancelled) ──
+  const resumenPagos = useMemo(() => {
+    const completadas = pagos.filter(p => p.status === 'done')
+    const pendientes  = pagos.filter(p => p.status === 'paid')
+    const canceladas  = pagos.filter(p => p.status === 'cancelled')
+    return {
+      totalCobrado:    pagos.reduce((s, p) => s + (Number(p.precio_total) || 0), 0),
+      completadas:     completadas.length,
+      pendientes:      pendientes.length,
+      canceladas:      canceladas.length,
+      montoCanceladas: canceladas.reduce((s, p) => s + (Number(p.precio_total) || 0), 0),
+    }
+  }, [pagos])
 
   // ── Sección 3: tendencia últimos 6 meses (terminan en monthAplicado) ──
   const trendData = useMemo(() => {
@@ -348,7 +407,13 @@ export default function AdminReportes() {
           </button>
         </div>
 
-        {/* ── Sección 2: resumen mensual ── */}
+        {/* ── Sección 2: resumen mensual — comisiones y pagos a médicos ──
+             Basado solo en consultas con status='done': pagarle a un
+             médico, botica o coordinador por una cita que no se atendió
+             (paid/cancelled) sería un error financiero. */}
+        <h2 style={{ fontSize: 13, fontWeight: 800, color: C.gray500, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+          Comisiones y pagos — consultas completadas
+        </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
           {loading ? [1,2,3,4,5,6].map(i => (
             <div key={i} style={{ background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -356,11 +421,33 @@ export default function AdminReportes() {
             </div>
           )) : <>
             <StatCard icon="📋" value={resumen.consultas}            label="Total consultas"            sub={monthLabelSel} />
-            <StatCard icon="💵" value={fmtSoles(resumen.ingresos)}    label="Ingresos totales"           sub="Suma de precio_total" accent={C.green700} bg={C.green50} />
+            <StatCard icon="💵" value={fmtSoles(resumen.ingresos)}    label="Ingresos totales"           sub="Solo consultas completadas" accent={C.green700} bg={C.green50} />
             <StatCard icon="👨‍⚕️" value={fmtSoles(resumen.pagoMedicos)} label="Pagado a médicos"            sub="A liquidar"           accent={C.blueText} bg={C.blueBg} />
             <StatCard icon="🏪" value={fmtSoles(resumen.comBoticas)}  label="Comisiones boticas"          sub="Por referidos"        accent={C.amberText} bg={C.amberBg} />
             <StatCard icon="🧭" value={fmtSoles(resumen.comCoord)}    label="Comisiones coordinadores"    sub="Por referidos con coordinador" accent="#6D28D9" bg="#F5F3FF" />
             <StatCard icon="🏥" value={fmtSoles(resumen.gananciaNeta)} label="Ganancia neta clínica"      sub="Ingresos − comisiones − pago médico" accent={C.green800} bg={C.green50} />
+          </>}
+        </div>
+
+        {/* ── Sección 2b: registro de pagos — todo el dinero cobrado ──
+             A diferencia del grupo de arriba, acá SÍ se incluyen 'paid'
+             (pagó pero no se atendió aún) y 'cancelled' con cobro — esto
+             responde "¿qué dinero entró?", no "¿qué le debemos a cada
+             médico?". Base para declaraciones SUNAT y reclamos (ver
+             Sección 7, tabla de registro de pagos). */}
+        <h2 style={{ fontSize: 13, fontWeight: 800, color: C.gray500, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+          Registro de pagos — todo el dinero cobrado
+        </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+          {loading ? [1,2,3,4].map(i => (
+            <div key={i} style={{ background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {skeletonBar('40%', 22)} {skeletonBar('55%', 12)}
+            </div>
+          )) : <>
+            <StatCard icon="💰" value={fmtSoles(resumenPagos.totalCobrado)} label="Total cobrado" sub="Completadas + pendientes + canceladas" accent={C.green800} bg={C.green50} />
+            <StatCard icon="✅" value={resumenPagos.completadas} label="Consultas completadas" sub="status = done" accent={C.green700} bg={C.green50} />
+            <StatCard icon="⏳" value={resumenPagos.pendientes} label="Pagos pendientes de atención" sub="Pagaron, no se atendieron aún" accent={C.amberText} bg={C.amberBg} />
+            <StatCard icon="↩️" value={resumenPagos.canceladas} label="Canceladas con pago" sub={`${fmtSoles(resumenPagos.montoCanceladas)} — candidatos a devolución`} accent="#991B1B" bg="#FEE2E2" />
           </>}
         </div>
 
@@ -516,6 +603,65 @@ export default function AdminReportes() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* ── Sección 7: registro de pagos (transacción por transacción) ──
+             Base para declaraciones SUNAT y resolución de reclamos — por
+             eso lista cada cita individual (no agrupada) con su
+             culqi_charge_id para cruzar contra el dashboard de Culqi. */}
+        <div style={{
+          background: C.white, borderRadius: 16, border: `1.5px solid ${C.gray200}`,
+          padding: 20, marginTop: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900 }}>🧾 Registro de pagos — {monthLabelSel}</h2>
+              <div style={{ fontSize: 11, color: C.gray400, marginTop: 2 }}>
+                Una fila por transacción — base para declaraciones SUNAT y reclamos
+              </div>
+            </div>
+            {!loading && (
+              <span style={{ fontSize: 12, fontWeight: 700, color: C.green700, background: C.green50, padding: '3px 10px', borderRadius: 20, flexShrink: 0 }}>
+                {pagos.length} pago{pagos.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <div style={{ maxHeight: 480, overflowY: 'auto', overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <TH label="Fecha" w={100} />
+                  <TH label="Paciente" />
+                  <TH label="Médico" />
+                  <TH label="Monto" w={110} right />
+                  <TH label="Estado" w={130} />
+                  <TH label="Culqi charge ID" w={180} />
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? [1,2,3,4].map(i => (
+                  <tr key={i}>{[1,2,3,4,5,6].map(j => (
+                    <td key={j} style={{ padding: '12px 14px', borderBottom: `1px solid ${C.gray100}` }}>{skeletonBar(j > 3 ? '60px' : '70%', 12)}</td>
+                  ))}</tr>
+                )) : pagos.length === 0 ? (
+                  <tr><td colSpan={6} style={{ padding: '40px 16px', textAlign: 'center', color: C.gray400, fontSize: 13 }}>Sin pagos registrados en {monthLabelSel.toLowerCase()}</td></tr>
+                ) : pagos.map(p => {
+                  const nombrePaciente = p.patient?.full_name || '—'
+                  const nombreMedico   = [p.doctor?.nombres, p.doctor?.apellidos].filter(Boolean).join(' ') || '—'
+                  return (
+                    <tr key={p.id}>
+                      <td style={{ padding: '11px 14px', fontSize: 12, color: C.gray500, borderBottom: `1px solid ${C.gray100}`, whiteSpace: 'nowrap' }}>{fmtFechaCorta(p.scheduled_at)}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: C.gray900, borderBottom: `1px solid ${C.gray100}` }}>{nombrePaciente}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 13, color: C.gray500, borderBottom: `1px solid ${C.gray100}` }}>{nombreMedico}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 800, color: C.gray900, borderBottom: `1px solid ${C.gray100}`, textAlign: 'right' }}>{fmtSoles(p.precio_total)}</td>
+                      <td style={{ padding: '11px 14px', borderBottom: `1px solid ${C.gray100}` }}><EstadoPagoBadge status={p.status} /></td>
+                      <td style={{ padding: '11px 14px', fontSize: 11, color: C.gray400, borderBottom: `1px solid ${C.gray100}`, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{p.culqi_charge_id || '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
       </main>

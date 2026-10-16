@@ -17,6 +17,14 @@ const ESTADO_CFG = {
   rechazado:  { label: 'Rechazado',  bg: C.redBg,   color: C.red600,    border: '#FECACA' },
 }
 
+const APPT_STATUS_CFG = {
+  pending:   { label: 'Pend. de pago', bg: C.amberBg, color: C.amberText },
+  paid:      { label: 'Pagada',        bg: C.green50, color: C.green700 },
+  active:    { label: 'En curso',      bg: C.blueBg,  color: C.blueText },
+  done:      { label: 'Completada',    bg: C.gray100, color: C.gray500 },
+  cancelled: { label: 'Cancelada',     bg: C.redBg,   color: C.red600 },
+}
+
 const TABS = [
   { key: 'pendiente',  label: 'Pendientes'  },
   { key: 'en_proceso', label: 'En proceso'  },
@@ -44,10 +52,131 @@ function EstadoBadge({ estado }) {
   )
 }
 
-function SolicitudRow({ s, onUpdate }) {
+function AppointmentStatusBadge({ status }) {
+  const e = APPT_STATUS_CFG[status] ?? APPT_STATUS_CFG.done
+  return (
+    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: e.bg, color: e.color, whiteSpace: 'nowrap' }}>
+      {e.label}
+    </span>
+  )
+}
+
+function CopiarBtn({ text }) {
+  const [copiado, setCopiado] = useState(false)
+  if (!text) return null
+  return (
+    <button
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text)
+          setCopiado(true)
+          setTimeout(() => setCopiado(false), 1500)
+        } catch {
+          toast.error('No se pudo copiar')
+        }
+      }}
+      style={{
+        background: 'none', border: `1px solid ${C.gray300}`, borderRadius: 6,
+        padding: '2px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+        color: copiado ? C.green700 : C.gray500, fontFamily: 'inherit', flexShrink: 0,
+      }}
+    >
+      {copiado ? '✓ Copiado' : '📋 Copiar'}
+    </button>
+  )
+}
+
+function TimelineItem({ ok, label }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 14 }}>{ok ? '✅' : '❌'}</span>
+      <span style={{ fontSize: 12.5, color: ok ? C.gray900 : C.gray500, fontWeight: ok ? 600 : 500 }}>{label}</span>
+    </div>
+  )
+}
+
+function DetalleFila({ label, children }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, fontSize: 12.5 }}>
+      <span style={{ color: C.gray500 }}>{label}</span>
+      <span style={{ color: C.gray900, fontWeight: 600, textAlign: 'right', display: 'flex', alignItems: 'center', gap: 6 }}>{children}</span>
+    </div>
+  )
+}
+
+/* Panel de detalle de la cita vinculada a una solicitud — pensado para que
+   el admin pueda validar un reclamo (¿de verdad pagó? ¿el médico atendió?
+   ¿hay receta?) sin salir de esta pantalla. */
+function DetalleCita({ appointment, tieneReceta }) {
+  if (!appointment) {
+    return (
+      <div style={{ fontSize: 12.5, color: C.gray500, fontStyle: 'italic', padding: '4px 2px' }}>
+        Esta solicitud no está vinculada a ninguna cita.
+      </div>
+    )
+  }
+
+  const pagado        = !!appointment.culqi_charge_id
+  const medicoInicio   = !!appointment.video_url || ['active', 'done'].includes(appointment.status)
+  const completada     = appointment.status === 'done'
+  const nombreMedico   = appointment.doctor
+    ? [appointment.doctor.nombres, appointment.doctor.apellidos].filter(Boolean).join(' ') || '—'
+    : '—'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* ── Pago ── */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 6 }}>
+          💳 Información del pago
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <DetalleFila label="Culqi charge ID">
+            <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{appointment.culqi_charge_id || '—'}</span>
+            <CopiarBtn text={appointment.culqi_charge_id} />
+          </DetalleFila>
+          <DetalleFila label="Monto pagado">{fmtSoles(appointment.precio_total)}</DetalleFila>
+          <DetalleFila label="Fecha del pago">
+            {appointment.updated_at ? fmtFecha(appointment.updated_at) : '—'}
+          </DetalleFila>
+        </div>
+      </div>
+
+      {/* ── Cita ── */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 6 }}>
+          🩺 Información de la cita
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <DetalleFila label="Médico asignado">{nombreMedico}</DetalleFila>
+          <DetalleFila label="Especialidad">{appointment.doctor?.especialidad || '—'}</DetalleFila>
+          <DetalleFila label="Fecha y hora programada">{appointment.scheduled_at ? fmtFecha(appointment.scheduled_at) : '—'}</DetalleFila>
+          <DetalleFila label="Status de la cita"><AppointmentStatusBadge status={appointment.status} /></DetalleFila>
+          <DetalleFila label="¿Tuvo videollamada?">{appointment.video_url ? '✅ Sí' : '❌ No'}</DetalleFila>
+        </div>
+      </div>
+
+      {/* ── Timeline ── */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 6 }}>
+          📍 Timeline de la cita
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <TimelineItem ok={pagado}       label="¿Pagó?" />
+          <TimelineItem ok={medicoInicio} label="¿Médico inició la consulta?" />
+          <TimelineItem ok={completada}   label="¿Consulta completada?" />
+          <TimelineItem ok={tieneReceta}  label="¿Receta generada?" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SolicitudRow({ s, onUpdate, tieneReceta }) {
   const [respondiendo, setRespondiendo] = useState(false)
   const [respuesta,    setRespuesta]    = useState(s.respuesta_admin ?? '')
   const [saving,        setSaving]       = useState(false)
+  const [verDetalle,    setVerDetalle]   = useState(false)
 
   const tipo       = TIPO_CFG[s.tipo] ?? TIPO_CFG.reclamo
   const estadoCfg  = ESTADO_CFG[s.estado] ?? ESTADO_CFG.pendiente
@@ -156,6 +285,16 @@ function SolicitudRow({ s, onUpdate }) {
               style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`, color: C.white, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
             >💬 Responder y resolver/rechazar</button>
           )}
+          <button
+            onClick={() => setVerDetalle(v => !v)}
+            style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.gray300}`, background: C.white, color: C.gray700, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+          >{verDetalle ? '▲ Ocultar detalle de la cita' : '▼ Ver detalle de la cita'}</button>
+        </div>
+      )}
+
+      {verDetalle && (
+        <div style={{ background: C.white, border: `1px solid ${C.gray200}`, borderRadius: 10, padding: '12px 14px' }}>
+          <DetalleCita appointment={s.appointment} tieneReceta={tieneReceta} />
         </div>
       )}
     </div>
@@ -167,16 +306,33 @@ export default function AdminSoporte() {
   const [solicitudes, setSolicitudes] = useState([])
   const [loading,     setLoading]     = useState(true)
   const [tab,          setTab]         = useState('pendiente')
+  const [recetasSet,   setRecetasSet]  = useState(new Set())   // appointment_id con receta generada
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
     const { data, error } = await supabase
       .from('solicitudes_soporte')
-      .select('*, patient:profiles!patient_id(full_name), appointment:appointments(precio_total, scheduled_at, doctor:doctors(nombres, apellidos))')
+      .select(`*, patient:profiles!patient_id(full_name),
+        appointment:appointments(precio_total, scheduled_at, status, video_url, updated_at, culqi_charge_id,
+          doctor:doctors(nombres, apellidos, especialidad))`)
       .order('created_at', { ascending: false })
     if (error) { console.error('[AdminSoporte] fetch:', error.message); toast.error('No se pudieron cargar las solicitudes') }
     setSolicitudes(data ?? [])
     setLoading(false)
+
+    // Batch: ¿cuáles de las citas involucradas ya tienen una receta? — una
+    // sola query en vez de una por tarjeta (mismo patrón que PanelFarmacia).
+    const apptIds = [...new Set((data ?? []).map(s => s.appointment_id).filter(Boolean))]
+    if (apptIds.length > 0) {
+      const { data: prescs, error: prescsErr } = await supabase
+        .from('prescriptions')
+        .select('appointment_id')
+        .in('appointment_id', apptIds)
+      if (prescsErr) console.warn('[AdminSoporte] prescriptions:', prescsErr.message)
+      setRecetasSet(new Set((prescs ?? []).map(p => p.appointment_id)))
+    } else {
+      setRecetasSet(new Set())
+    }
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
@@ -282,7 +438,7 @@ export default function AdminSoporte() {
               🎧 Sin solicitudes en esta categoría
             </div>
           ) : shown.map(s => (
-            <SolicitudRow key={s.id} s={s} onUpdate={handleUpdateLocal} />
+            <SolicitudRow key={s.id} s={s} onUpdate={handleUpdateLocal} tieneReceta={recetasSet.has(s.appointment_id)} />
           ))}
         </div>
 

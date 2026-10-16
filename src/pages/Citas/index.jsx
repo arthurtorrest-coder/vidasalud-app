@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import VideoRoom     from '../../components/VideoRoom'
 import PreCallModal  from '../../components/PreCallModal'
+import SolicitudSoporteModal from '../../components/SolicitudSoporteModal'
 
 const C = {
   green800: '#065F46',
@@ -16,6 +17,7 @@ const C = {
   amber:    '#F59E0B',
   amberBg:  '#FFFBEB',
   amberText:'#B45309',
+  amber200: '#FDE68A',
   blue700:  '#1D4ED8',
   blue600:  '#2563EB',
   blue50:   '#EFF6FF',
@@ -30,6 +32,9 @@ const C = {
   gray100:  '#F3F4F6',
   white:    '#FFFFFF',
 }
+
+// 2 horas en ms — umbral para habilitar "Reprogramar"
+const DOS_HORAS_MS = 2 * 60 * 60 * 1000
 
 const STATUS_MAP = {
   pending:   { label: 'Pend. de pago', bg: C.amberBg,  color: C.amberText },
@@ -252,12 +257,18 @@ function StatusBadge({ status }) {
   )
 }
 
-function AppointmentCard({ appt, onCancel, onJoin, onCalificar, onChat }) {
+function AppointmentCard({ appt, onCancel, onJoin, onCalificar, onChat, onSolicitar }) {
   const doc        = appt.doctor
   const canCancel  = ['pending','paid'].includes(appt.status) && isFuture(appt.scheduled_at)
   const canJoin    = appt.status === 'active' && !!appt.video_url
   const isDone     = appt.status === 'done'
   const canChat    = ['paid','active','done'].includes(appt.status)
+  // Reembolso: la cita ya pasó (ya no tiene sentido "cancelar", pero el
+  // paciente puede reclamar su dinero — ej. el médico no se presentó).
+  const canReembolso    = appt.status === 'paid' && !isFuture(appt.scheduled_at)
+  // Reprogramar: todavía falta tiempo de sobra (+2h) para la cita.
+  const canReprogramar  = appt.status === 'paid' && isFuture(appt.scheduled_at)
+    && (new Date(appt.scheduled_at).getTime() - Date.now()) > DOS_HORAS_MS
   const [showHowTo,   setShowHowTo]   = useState(false)
   const [showPreCall, setShowPreCall] = useState(false)
 
@@ -307,6 +318,42 @@ function AppointmentCard({ appt, onCancel, onJoin, onCalificar, onChat }) {
           </button>
         )}
       </div>
+
+      {/* Reembolso / reprogramación — solo citas pagadas */}
+      {(canReembolso || canReprogramar) && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          {canReembolso && (
+            <button
+              onClick={() => onSolicitar('reembolso', appt.id)}
+              style={{
+                flex: 1, padding: '10px 0',
+                background: C.amberBg, border: `1.5px solid ${C.amber200}`,
+                borderRadius: 12, color: C.amberText,
+                fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                fontFamily: 'inherit',
+              }}
+            >
+              ↩️ Solicitar reembolso
+            </button>
+          )}
+          {canReprogramar && (
+            <button
+              onClick={() => onSolicitar('reprogramacion', appt.id)}
+              style={{
+                flex: 1, padding: '10px 0',
+                background: C.blue50, border: `1.5px solid ${C.blue100}`,
+                borderRadius: 12, color: C.blue700,
+                fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                fontFamily: 'inherit',
+              }}
+            >
+              📅 Reprogramar
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Botones de acción — visibles cuando el médico ya inició */}
       {showPreCall && (
@@ -496,6 +543,7 @@ export default function Citas() {
   const [toCancel,   setToCancel]   = useState(null)
   const [cancelling, setCancelling] = useState(false)
   const [videoUrl,   setVideoUrl]   = useState(null)   // URL de sala abierta
+  const [solicitud,  setSolicitud]  = useState(null)   // { tipo, appointmentId } | null
 
   const fetchAppts = useCallback(async () => {
     if (!user) return
@@ -636,6 +684,7 @@ export default function Citas() {
             onJoin={setVideoUrl}
             onCalificar={id => navigate(`/calificar/${id}`)}
             onChat={id => navigate(`/chat/${id}`)}
+            onSolicitar={(tipo, appointmentId) => setSolicitud({ tipo, appointmentId })}
           />
         ))}
       </div>
@@ -646,6 +695,14 @@ export default function Citas() {
         onConfirm={handleCancelConfirm}
         onClose={() => !cancelling && setToCancel(null)}
       />
+
+      {solicitud && (
+        <SolicitudSoporteModal
+          tipo={solicitud.tipo}
+          appointmentId={solicitud.appointmentId}
+          onClose={() => setSolicitud(null)}
+        />
+      )}
     </div>
   )
 }

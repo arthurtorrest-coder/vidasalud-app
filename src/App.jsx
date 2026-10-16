@@ -33,6 +33,8 @@ import AdminConsultas      from './screens/Admin/AdminConsultas'
 import AdminFinanzas       from './screens/Admin/AdminFinanzas'
 import AdminPrecios        from './screens/Admin/AdminPrecios'
 import AdminReportes       from './screens/Admin/AdminReportes'
+import AdminSoporte        from './screens/Admin/AdminSoporte'
+import MisReclamos         from './screens/Paciente/MisReclamos'
 import HistoriaClinica  from './screens/HistoriaClinica'
 import Landing         from './screens/Landing'
 import Home            from './pages/Home'
@@ -167,6 +169,7 @@ export default function App() {
             <Route path="/admin/finanzas"                  element={<AdminFinanzas />}       />
             <Route path="/admin/precios"                   element={<AdminPrecios />}        />
             <Route path="/admin/reportes"                  element={<AdminReportes />}       />
+            <Route path="/admin/soporte"                   element={<AdminSoporte />}        />
           </Route>
 
           {/* Solo farmacias aprobadas */}
@@ -185,6 +188,7 @@ export default function App() {
             <Route path="/booking/:doctorId"   element={<Booking />}  />
             <Route path="/pago/:appointmentId" element={<Payment />}  />
             <Route path="/citas"               element={<Citas />}    />
+            <Route path="/mis-reclamos"        element={<MisReclamos />} />
             <Route path="/historial"           element={<Historial />}      />
             <Route path="/perfil"              element={<Perfil />}         />
             <Route path="/especialidades"      element={<Especialidades />} />

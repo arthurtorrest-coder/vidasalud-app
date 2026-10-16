@@ -80,7 +80,7 @@ function StatusBadge({ status }) {
   )
 }
 
-function NavCard({ icon, label, sub, accent = C.green700, bg = C.green50, onClick }) {
+function NavCard({ icon, label, sub, accent = C.green700, bg = C.green50, onClick, badge }) {
   const [hov, setHov] = useState(false)
   return (
     <div
@@ -88,6 +88,7 @@ function NavCard({ icon, label, sub, accent = C.green700, bg = C.green50, onClic
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
+        position: 'relative',
         background: hov ? bg : C.white,
         border: `1.5px solid ${hov ? accent : C.gray200}`,
         borderRadius: 16, padding: '22px 20px', cursor: 'pointer',
@@ -97,6 +98,17 @@ function NavCard({ icon, label, sub, accent = C.green700, bg = C.green50, onClic
         display: 'flex', flexDirection: 'column', gap: 8,
       }}
     >
+      {badge > 0 && (
+        <span style={{
+          position: 'absolute', top: -8, right: -8,
+          background: C.red600, color: C.white,
+          fontSize: 11, fontWeight: 800, minWidth: 22, height: 22,
+          borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 5px', border: `2px solid ${C.white}`, boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+        }}>
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
       <span style={{ fontSize: 32 }}>{icon}</span>
       <div style={{ fontSize: 15, fontWeight: 800, color: hov ? accent : C.gray900 }}>{label}</div>
       {sub && <div style={{ fontSize: 12, color: C.gray500 }}>{sub}</div>}
@@ -127,6 +139,7 @@ export default function PanelAdmin() {
   const [pendingBoticas, setPendingBoticas] = useState([])
   const [thirtyDayAppts, setThirtyDayAppts] = useState([])
   const [sessionLogs,    setSessionLogs]    = useState([])
+  const [pendingSoporte, setPendingSoporte] = useState(0)
   const [loading,        setLoading]        = useState(true)
   const [lastRefresh,    setLastRefresh]    = useState(null)
   const [sendingReminders, setSendingReminders] = useState(false)
@@ -166,7 +179,7 @@ export default function PanelAdmin() {
       const { last30Start }  = getMonthRange()
       const safe = q => Promise.resolve(q).catch(err => ({ data: null, error: err }))
 
-      const [apptRes, payRes, pendingRes, boticasRes, thirtyRes, sessionRes] = await Promise.all([
+      const [apptRes, payRes, pendingRes, boticasRes, thirtyRes, sessionRes, soporteRes] = await Promise.all([
         safe(supabase
           .from('appointments')
           .select(`id, scheduled_at, status, duration_minutes,
@@ -207,6 +220,11 @@ export default function PanelAdmin() {
             patient:profiles!patient_id ( full_name, dni )`)
           .order('inicio_sesion', { ascending: false })
           .limit(20)),
+
+        safe(supabase
+          .from('solicitudes_soporte')
+          .select('id', { count: 'exact', head: true })
+          .eq('estado', 'pendiente')),
       ])
 
       if (apptRes.error)    console.warn('[PanelAdmin] appointments:', apptRes.error.message)
@@ -215,8 +233,10 @@ export default function PanelAdmin() {
       if (boticasRes.error) console.warn('[PanelAdmin] boticas:',      boticasRes.error.message)
       if (thirtyRes.error)  console.warn('[PanelAdmin] thirtyDays:',   thirtyRes.error.message)
       if (sessionRes.error) console.warn('[PanelAdmin] sessions:',     sessionRes.error.message)
+      if (soporteRes.error) console.warn('[PanelAdmin] soporte:',      soporteRes.error.message)
 
       setTodayAppts(apptRes.data ?? [])
+      if (!soporteRes.error) setPendingSoporte(soporteRes.count ?? 0)
       setPendingDoctors((pendingRes.data ?? []).map(d => ({
         ...d, full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
       })))
@@ -243,6 +263,25 @@ export default function PanelAdmin() {
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
+
+  // Badge de solicitudes de soporte pendientes — se mantiene al día en vivo
+  // (requiere ALTER PUBLICATION supabase_realtime ADD TABLE solicitudes_soporte,
+  // ya incluido en la migración 20261015_solicitudes_soporte.sql).
+  useEffect(() => {
+    const channel = supabase
+      .channel('panel-admin-soporte-badge')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_soporte' }, () => {
+        supabase
+          .from('solicitudes_soporte')
+          .select('id', { count: 'exact', head: true })
+          .eq('estado', 'pendiente')
+          .then(({ count, error }) => {
+            if (!error) setPendingSoporte(count ?? 0)
+          })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   async function handleSendReminders() {
     setSendingReminders(true)
@@ -414,7 +453,7 @@ export default function PanelAdmin() {
         {/* ── Menú de navegación ── */}
         <div style={{ marginBottom: 28 }}>
           <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, marginBottom: 14 }}>Gestión</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 16 }}>
             <NavCard icon="🩺" label="Médicos"       sub="Lista, filtros y tarifas"  onClick={() => navigate('/admin/medicos')}       accent={C.green700}  bg={C.green50} />
             <NavCard icon="🏪" label="Boticas"       sub="Lista y detalles"          onClick={() => navigate('/admin/boticas')}       accent='#6D28D9'     bg='#F5F3FF'  />
             <NavCard icon="🧭" label="Coordinadores" sub="Zonas y comisiones"        onClick={() => navigate('/admin/coordinadores')} accent='#6D28D9'     bg='#F5F3FF'  />
@@ -424,6 +463,7 @@ export default function PanelAdmin() {
             <NavCard icon="💰" label="Finanzas"      sub="Ingresos y comisiones"     onClick={() => navigate('/admin/finanzas')}      accent={C.green700}  bg={C.green50} />
             <NavCard icon="💰" label="Precios"       sub="Tarifas y comisiones"      onClick={() => navigate('/admin/precios')}       accent={C.green700}  bg={C.green50} />
             <NavCard icon="📊" label="Reportes"      sub="Resumen mensual histórico" onClick={() => navigate('/admin/reportes')}      accent={C.green700}  bg={C.green50} />
+            <NavCard icon="🎧" label="Soporte"       sub="Reclamos y reembolsos"     onClick={() => navigate('/admin/soporte')}       accent={C.red600}    bg={C.redBg}  badge={pendingSoporte} />
           </div>
         </div>
 

@@ -62,6 +62,7 @@ const NAV_ITEMS = [
   { to: '/inicio',         icon: ICONS.home,     label: 'Inicio',         roots: ['/inicio', '/booking', '/pago', '/medico'] },
   { to: '/citas',          icon: ICONS.calendar, label: 'Citas',          roots: ['/citas'],                                  isCitas: true },
   { to: '/farmacias',      icon: ICONS.pharmacy, label: 'Farmacias',      roots: ['/farmacias', '/registro-farmacia']         },
+  { to: '/mis-reclamos',   icon: '🎧',           label: 'Mis reclamos',   roots: ['/mis-reclamos']                            },
   { to: '/perfil',         icon: ICONS.user,     label: 'Perfil',         roots: ['/perfil']                                  },
 ]
 

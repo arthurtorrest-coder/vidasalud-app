@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import { C } from '../../lib/tokens'
 import { precioTotalPaciente } from '../../lib/finanzas'
+import { trackEvent } from '../../lib/analytics'
 
 /* Nombres cortos por getDay() — 0=Dom … 6=Sáb */
 const DIAS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
@@ -506,7 +507,9 @@ export default function Booking() {
     : 0
 
   /* cargar datos del médico + días de horario configurados */
+    useEffect(() => { trackEvent('iniciar_booking', { doctor_id: doctorId }) }, [])
   useEffect(() => {
+    
     supabase
       .from('doctors')
       .select('*')

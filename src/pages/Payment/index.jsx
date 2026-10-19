@@ -6,7 +6,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { C } from '../../lib/tokens'
 import { precioTotalPaciente } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
-
+import { trackEvent } from '../../lib/analytics'
 const CULQI_SCRIPT_URL = 'https://checkout.culqi.com/js/v4'
 const YAPE_MAX_MONTO   = 2000   // Culqi solo acepta pagos Yape hasta S/. 2000
 
@@ -633,6 +633,7 @@ export default function Payment() {
   const pagoConfirmadoRef = useRef(false)  // evita duplicar el WhatsApp si dos caminos confirman el mismo pago
 
   /* cargar cita, médico y verificar si viene de turno de guardia */
+   useEffect(() => { trackEvent('llegar_pago', { appointment_id: appointmentId }) }, [])
   useEffect(() => {
     supabase
       .from('appointments')

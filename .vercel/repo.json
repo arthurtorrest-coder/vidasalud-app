@@ -1,0 +1,11 @@
+{
+  "remoteName": "origin",
+  "projects": [
+    {
+      "id": "prj_mUGiwvDOyYYUzpTXpAv3Tpzs5AaX",
+      "name": "vidasalud-app",
+      "directory": ".",
+      "orgId": "team_MjnwoVwS9nsWi58a8VpUYGzI"
+    }
+  ]
+}

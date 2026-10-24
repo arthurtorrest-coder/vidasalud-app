@@ -26,7 +26,7 @@ export let COMISION_COORDINADOR = 2    // coordinador, cuando su botica refiere
 // precio de una consulta de Medicina General agendada (TARIFA_GENERAL +
 // MARGEN_TOTAL = S/. 30). Se usa al crear la cita cuando un médico toma
 // un turno de guardia (ver PanelMedico.jsx → handleTomarTurno).
-export const PRECIO_ATENCION_INMEDIATA = 35
+export const PRECIO_ATENCION_INMEDIATA = 30
 
 function aplicarConfig(row) {
   if (!row) return

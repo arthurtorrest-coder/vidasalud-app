@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Toaster, toast } from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { C } from '../../lib/tokens'
 import { TARIFA_GENERAL, esGeneralista } from '../../lib/finanzas'
@@ -80,16 +81,30 @@ export default function AdminMedicoDetalle() {
   const [loading,   setLoading]   = useState(true)
   const [mes,       setMes]       = useState(() => limaAhora.getUTCMonth())
   const [anio,      setAnio]      = useState(() => limaAhora.getUTCFullYear())
+  const [precioCustom, setPrecioCustom] = useState('')
 
   // Datos del médico
   useEffect(() => {
     supabase
       .from('doctors')
-      .select('id, nombres, apellidos, especialidad, cmp, precio, rating, total_reviews, activo, foto_url')
+      .select('id, nombres, apellidos, especialidad, cmp, precio, precio_consulta, rating, total_reviews, activo, foto_url')
       .eq('id', doctorId)
       .single()
-      .then(({ data }) => setDoctor(data ?? null))
+      .then(({ data }) => {
+        setDoctor(data ?? null)
+        setPrecioCustom(String(data?.precio_consulta ?? ''))
+      })
   }, [doctorId])
+
+  async function handleGuardarPrecio() {
+    const valor = precioCustom === '' ? null : Number(precioCustom)
+    const { error } = await supabase
+      .from('doctors')
+      .update({ precio_consulta: valor })
+      .eq('id', doctorId)
+    if (error) toast.error('No se pudo guardar el precio')
+    else toast.success('Precio actualizado')
+  }
 
   // Consultas del mes seleccionado
   const fetchConsultas = useCallback(async () => {
@@ -169,6 +184,8 @@ export default function AdminMedicoDetalle() {
         tbody tr:hover td { background: ${C.green50} !important; }
       `}</style>
 
+      <Toaster position="bottom-right" toastOptions={{ style: { fontFamily: 'inherit', fontSize: 13 } }} />
+
       {/* ── Header ── */}
       <header style={{
         background: `linear-gradient(160deg, ${C.green900}, ${C.green700})`,
@@ -247,6 +264,39 @@ export default function AdminMedicoDetalle() {
                 <span style={{ fontSize: 12, color: C.gray400 }}>({doctor.total_reviews} reseñas)</span>
               </div>
             )}
+
+            {/* Tarifa personalizada */}
+            <div style={{ marginTop: 14, display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.gray500, marginBottom: 5 }}>
+                  Tarifa personalizada (deja vacío para usar precio de especialidad)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={precioCustom}
+                  onChange={e => setPrecioCustom(e.target.value)}
+                  placeholder="S/."
+                  style={{
+                    width: 120, padding: '8px 12px', borderRadius: 8,
+                    border: `1.5px solid ${C.gray200}`, fontSize: 13,
+                    color: C.gray900, fontFamily: 'inherit', outline: 'none',
+                  }}
+                />
+              </div>
+              <button
+                onClick={handleGuardarPrecio}
+                style={{
+                  padding: '9px 16px', borderRadius: 8, border: 'none',
+                  background: `linear-gradient(135deg, ${C.green700}, ${C.green600})`,
+                  color: C.white, fontSize: 13, fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Guardar precio
+              </button>
+            </div>
           </div>
 
           <span style={{

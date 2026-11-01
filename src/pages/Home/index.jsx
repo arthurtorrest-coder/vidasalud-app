@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import VideoRoom from '../../components/VideoRoom'
 import { C } from '../../lib/tokens'
-import { precioTotalPaciente, PRECIO_ATENCION_INMEDIATA } from '../../lib/finanzas'
+import { getPrecioEspecialidad, PRECIO_ATENCION_INMEDIATA } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
 
 // Las 8 especialidades oficiales de VIDASALUD — mismos nombres y precios
@@ -90,8 +90,9 @@ function formatDoc(row) {
   const apellidos  = row.apellidos ?? ''
   const spec       = row.especialidad ?? row.specialty ?? ''
   const cmp        = row.cmp       ?? row.cmp_code   ?? ''
-  const precioNeto = row.precio    ?? (row.consultation_fee ? Math.round(row.consultation_fee / 100) : 0)
-  const precio     = precioTotalPaciente({ especialidad: spec, precioMedico: precioNeto })
+  const precio     = row.precio_consulta
+    ?? getPrecioEspecialidad(spec)
+    ?? PRECIO_ATENCION_INMEDIATA
   const isCPsP     = cmp.startsWith('CPsP')
   const esFemenino = nombres.trimEnd().endsWith('a')
   const titulo     = isCPsP ? 'Psic.' : esFemenino ? 'Dra.' : 'Dr.'

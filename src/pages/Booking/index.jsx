@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import { C } from '../../lib/tokens'
-import { precioTotalPaciente } from '../../lib/finanzas'
+import { getPrecioEspecialidad, PRECIO_ATENCION_INMEDIATA } from '../../lib/finanzas'
 import { trackEvent } from '../../lib/analytics'
 
 /* Nombres cortos por getDay() — 0=Dom … 6=Sáb */
@@ -503,7 +503,7 @@ export default function Booking() {
   const [submitting,    setSubmitting]    = useState(false)
 
   const precioPaciente = doctor
-    ? precioTotalPaciente({ especialidad: doctor.especialidad, precioMedico: doctor.precio })
+    ? doctor.precio_consulta ?? getPrecioEspecialidad(doctor.especialidad) ?? PRECIO_ATENCION_INMEDIATA
     : 0
 
   /* cargar datos del médico + días de horario configurados */

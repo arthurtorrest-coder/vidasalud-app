@@ -91,15 +91,15 @@ export default function Login() {
     }
   }
 
-  async function onSubmit({ email, password }) {
+   async function onSubmit({ email, password }) {
     setLoading(true)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
-       if (error) {
+    if (error) {
       if (error.message.toLowerCase().includes('email not confirmed')) {
         toast.error('Debes confirmar tu correo antes de ingresar. Revisa tu bandeja de entrada.', { duration: 6000 })
       } else {
-        toast.error('Correo o contraseña incorrectos')
+        toast.error(error.message)
       }
     } else if (plan === 'familia') {
       navigate('/corporativo/registro-plan', {

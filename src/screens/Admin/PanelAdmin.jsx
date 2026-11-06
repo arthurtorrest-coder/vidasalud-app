@@ -198,7 +198,7 @@ export default function PanelAdmin() {
         safe(supabase
           .from('doctors')
           .select('id, nombres, apellidos, especialidad, cmp, anos_experiencia, bio, precio, profile_id, created_at')
-          .eq('aprobado', false)
+          .is('aprobado', null)
           .order('created_at', { ascending: true })),
 
         safe(supabase

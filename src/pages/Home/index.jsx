@@ -1,3 +1,4 @@
+import { trackEvent } from '../../lib/analytics'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -5,9 +6,9 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import VideoRoom from '../../components/VideoRoom'
 import { C } from '../../lib/tokens'
-import { getPrecioEspecialidad, PRECIO_ATENCION_INMEDIATA } from '../../lib/finanzas'
+import { precioTotalPaciente, PRECIO_ATENCION_INMEDIATA } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
-
+import { trackEvent } from '../../lib/analytics'
 // Las 8 especialidades oficiales de VIDASALUD — mismos nombres y precios
 // que la tabla Supabase `especialidades_precios`.
 const SPECIALTIES = [
@@ -90,9 +91,8 @@ function formatDoc(row) {
   const apellidos  = row.apellidos ?? ''
   const spec       = row.especialidad ?? row.specialty ?? ''
   const cmp        = row.cmp       ?? row.cmp_code   ?? ''
-  const precio     = row.precio_consulta
-    ?? getPrecioEspecialidad(spec)
-    ?? PRECIO_ATENCION_INMEDIATA
+  const precioNeto = row.precio    ?? (row.consultation_fee ? Math.round(row.consultation_fee / 100) : 0)
+  const precio     = precioTotalPaciente({ especialidad: spec, precioMedico: precioNeto })
   const isCPsP     = cmp.startsWith('CPsP')
   const esFemenino = nombres.trimEnd().endsWith('a')
   const titulo     = isCPsP ? 'Psic.' : esFemenino ? 'Dra.' : 'Dr.'
@@ -490,6 +490,7 @@ export default function Home() {
   }, [user?.id])
 
   useEffect(() => { checkHistory() }, [checkHistory])
+    useEffect(() => { trackEvent('ver_home') }, [])
 
   useEffect(() => {
     if (!user?.id) return

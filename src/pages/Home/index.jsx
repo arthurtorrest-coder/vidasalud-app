@@ -245,10 +245,7 @@ function ActiveCallBanner({ appt, onEnter }) {
   return (
     <div style={{
       background: 'linear-gradient(135deg, #065F46, #059669)',
-      paddingTop: 'max(40px, env(safe-area-inset-top, 40px))',
-      paddingBottom: 18,
-      paddingLeft: 20,
-      paddingRight: 20,
+      padding: '16px 20px 18px',
       display: 'flex', flexDirection: 'column', gap: 12,
       animation: 'banner-glow 2s ease-in-out infinite', flexShrink: 0,
     }}>
@@ -299,11 +296,7 @@ function PagoPendienteBanner({ status, esDeGuardia, onIr, onCancelar }) {
   return (
     <div style={{
       background: 'linear-gradient(135deg, #065F46, #059669)',
-      paddingTop: 'max(40px, env(safe-area-inset-top, 40px))',
-      paddingBottom: 14,
-      paddingLeft: 20,
-      paddingRight: 20,
-      flexShrink: 0,
+      padding: '14px 20px', flexShrink: 0,
       display: 'flex', flexDirection: 'column', gap: 10,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -365,10 +358,7 @@ function TurnoEsperaBanner({ solicitud, onCancel }) {
   return (
     <div style={{
       background: 'linear-gradient(135deg, #065F46, #059669)',
-      paddingTop: 'max(40px, env(safe-area-inset-top, 40px))',
-      paddingBottom: 18,
-      paddingLeft: 20,
-      paddingRight: 20,
+      padding: '16px 20px 18px',
       display: 'flex', flexDirection: 'column', gap: 12, flexShrink: 0,
       animation: 'banner-glow 2s ease-in-out infinite',
     }}>
@@ -803,11 +793,7 @@ export default function Home() {
       {/* ── Hero compacto ── */}
       <div style={{
         background: `linear-gradient(160deg, ${C.green800} 0%, ${C.green600} 100%)`,
-        paddingTop: 'max(40px, env(safe-area-inset-top, 40px))',
-        paddingBottom: 20,
-        paddingLeft: 20,
-        paddingRight: 20,
-        flexShrink: 0,
+        padding: '16px 20px 20px', flexShrink: 0,
       }}>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>
           {firstName ? `Hola, ${firstName} 👋` : 'Bienvenido 👋'}

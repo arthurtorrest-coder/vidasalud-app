@@ -8,7 +8,6 @@ import VideoRoom from '../../components/VideoRoom'
 import { C } from '../../lib/tokens'
 import { precioTotalPaciente, PRECIO_ATENCION_INMEDIATA } from '../../lib/finanzas'
 import { enviarWhatsapp } from '../../lib/whatsapp'
-import { trackEvent } from '../../lib/analytics'
 // Las 8 especialidades oficiales de VIDASALUD — mismos nombres y precios
 // que la tabla Supabase `especialidades_precios`.
 const SPECIALTIES = [

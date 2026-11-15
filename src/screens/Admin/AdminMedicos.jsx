@@ -50,6 +50,7 @@ export default function AdminMedicos() {
 
   const [doctors,        setDoctors]        = useState([])
   const [pendingTarifas, setPendingTarifas] = useState([])
+  const [pendingDoctors, setPendingDoctors] = useState([])
   const [finMes,         setFinMes]         = useState({})
   const [loading,        setLoading]        = useState(true)
   const [filterSpec,     setFilterSpec]     = useState('')
@@ -60,7 +61,7 @@ export default function AdminMedicos() {
     const safe = q => Promise.resolve(q).catch(err => ({ data: null, error: err }))
     const { inicio, fin } = getMesRango()
 
-    const [docRes, tarifasRes, apptRes] = await Promise.all([
+    const [docRes, tarifasRes, apptRes, pendientesRes] = await Promise.all([
       safe(supabase
         .from('doctors')
         .select('id, nombres, apellidos, especialidad, cmp, precio, rating, total_reviews, activo, aprobado, foto_url')
@@ -77,11 +78,17 @@ export default function AdminMedicos() {
         .eq('status', 'done')
         .gte('scheduled_at', inicio)
         .lte('scheduled_at', fin)),
+      safe(supabase
+        .from('doctors')
+        .select('id, nombres, apellidos, especialidad, cmp, precio, bio, anos_experiencia, profile_id, created_at')
+        .eq('aprobado', false)
+        .order('created_at', { ascending: false })),
     ])
 
-    if (docRes.error)     console.warn('[AdminMedicos] doctors:', docRes.error.message)
-    if (tarifasRes.error) console.warn('[AdminMedicos] tarifas:', tarifasRes.error.message)
-    if (apptRes.error)    console.warn('[AdminMedicos] appointments:', apptRes.error.message)
+    if (docRes.error)        console.warn('[AdminMedicos] doctors:', docRes.error.message)
+    if (tarifasRes.error)    console.warn('[AdminMedicos] tarifas:', tarifasRes.error.message)
+    if (apptRes.error)       console.warn('[AdminMedicos] appointments:', apptRes.error.message)
+    if (pendientesRes.error) console.warn('[AdminMedicos] pendientes:', pendientesRes.error.message)
 
     const docsData = docRes.data ?? []
 
@@ -104,6 +111,10 @@ export default function AdminMedicos() {
       ...d,
       full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
     })))
+    setPendingDoctors((pendientesRes.data ?? []).map(d => ({
+      ...d,
+      full_name: [d.nombres, d.apellidos].filter(Boolean).join(' ') || 'Médico',
+    })))
     setFinMes(finData)
     setLoading(false)
   }, [])
@@ -123,6 +134,34 @@ export default function AdminMedicos() {
     setPendingTarifas(prev => prev.filter(d => d.id !== doc.id))
     setDoctors(prev => prev.map(d => d.id === doc.id ? { ...d, precio: doc.precio_propuesto } : d))
     toast.success(`Tarifa de ${doc.full_name} actualizada a S/. ${doc.precio_propuesto}`)
+  }
+
+  async function handleApproveDoctor(doc) {
+    const { data: updated, error } = await supabase
+      .from('doctors')
+      .update({ aprobado: true, activo: true })
+      .eq('id', doc.id)
+      .select('id')
+    if (error || !updated?.length) {
+      toast.error('Error al aprobar médico — verifica las políticas RLS en el Dashboard')
+      return
+    }
+    setPendingDoctors(prev => prev.filter(d => d.id !== doc.id))
+    toast.success(`Dr(a). ${doc.full_name} aprobado/a correctamente`)
+    fetchAll()
+  }
+
+  async function handleRejectDoctor(doc) {
+    const { error } = await supabase
+      .from('doctors')
+      .delete()
+      .eq('id', doc.id)
+    if (error) {
+      toast.error('Error al rechazar médico — verifica las políticas RLS en el Dashboard')
+      return
+    }
+    setPendingDoctors(prev => prev.filter(d => d.id !== doc.id))
+    toast.success(`Solicitud de ${doc.full_name} rechazada`)
   }
 
   async function handleRejectTarifa(doc) {
@@ -205,6 +244,95 @@ export default function AdminMedicos() {
       </header>
 
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px 48px' }}>
+
+        {/* Médicos pendientes de aprobación */}
+        {(loading || pendingDoctors.length > 0) && (
+          <div style={{
+            background: C.white, borderRadius: 16, border: `1.5px solid ${C.amber}`,
+            padding: 20, marginBottom: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <span style={{ fontSize: 18 }}>🩺</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: C.gray900 }}>
+                Médicos pendientes de aprobación
+              </span>
+              {!loading && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                  background: '#FEF3C7', color: '#92400E',
+                }}>
+                  {pendingDoctors.length}
+                </span>
+              )}
+            </div>
+
+            {loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[1, 2].map(i => (
+                  <div key={i} style={{
+                    border: `1px solid ${C.gray200}`, borderRadius: 12, padding: 16,
+                    display: 'flex', alignItems: 'center', gap: 16,
+                  }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {skeletonBar('40%', 13)} {skeletonBar('60%', 11)}
+                    </div>
+                    <div style={{ width: 90, height: 32, background: C.gray200, borderRadius: 8 }} />
+                    <div style={{ width: 90, height: 32, background: C.gray200, borderRadius: 8 }} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {pendingDoctors.map(doc => (
+                  <div key={doc.id} style={{
+                    border: `1px solid ${C.gray200}`, borderRadius: 12, padding: '14px 16px',
+                    display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap',
+                  }}>
+                    <div style={{
+                      width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
+                      background: `linear-gradient(135deg, #F59E0B, #D97706)`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: C.white, fontWeight: 800, fontSize: 15,
+                    }}>
+                      {(doc.full_name ?? '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: C.gray900, marginBottom: 2 }}>
+                        {doc.full_name}
+                      </div>
+                      <div style={{ fontSize: 12, color: C.gray500, marginBottom: 4 }}>
+                        {doc.especialidad ?? 'Especialidad no indicada'} · CMP: {doc.cmp ?? '—'} · S/. {doc.precio ?? '—'} · {doc.anos_experiencia ?? '?'} años exp.
+                      </div>
+                      {doc.bio && (
+                        <div style={{ fontSize: 12, color: C.gray600, fontStyle: 'italic', maxWidth: 480 }}>
+                          "{doc.bio.slice(0, 160)}{doc.bio.length > 160 ? '…' : ''}"
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                      <button
+                        onClick={() => handleApproveDoctor(doc)}
+                        style={{
+                          padding: '7px 16px', borderRadius: 8, border: 'none',
+                          background: `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
+                          color: C.white, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >✓ Aprobar</button>
+                      <button
+                        onClick={() => handleRejectDoctor(doc)}
+                        style={{
+                          padding: '7px 16px', borderRadius: 8, border: `1px solid ${C.red600}`,
+                          background: C.white, color: C.red600, fontSize: 12, fontWeight: 700,
+                          cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >✗ Rechazar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Tarifas pendientes */}
         {(loading || pendingTarifas.length > 0) && (
@@ -501,3 +629,4 @@ export default function AdminMedicos() {
     </div>
   )
 }
+

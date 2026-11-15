@@ -80,7 +80,20 @@ function StatusBadge({ status }) {
   )
 }
 
-function NavCard({ icon, label, sub, accent = C.green700, bg = C.green50, onClick, badge }) {
+const NAV_ITEMS = [
+  { icon: '🩺', label: 'Médicos',       path: '/admin/medicos' },
+  { icon: '🏪', label: 'Boticas',       path: '/admin/boticas' },
+  { icon: '🧭', label: 'Coordinadores', path: '/admin/coordinadores' },
+  { icon: '🏢', label: 'Empresas',      path: '/admin/empresas' },
+  { icon: '📊', label: 'Cobertura',     path: '/admin/cobertura' },
+  { icon: '📅', label: 'Consultas',     path: '/admin/consultas' },
+  { icon: '💰', label: 'Finanzas',      path: '/admin/finanzas' },
+  { icon: '💰', label: 'Precios',       path: '/admin/precios' },
+  { icon: '📊', label: 'Reportes',      path: '/admin/reportes' },
+  { icon: '🎧', label: 'Soporte',       path: '/admin/soporte', badgeKey: 'pendingSoporte' },
+]
+
+function SidebarItem({ icon, label, badge, onClick }) {
   const [hov, setHov] = useState(false)
   return (
     <div
@@ -88,30 +101,25 @@ function NavCard({ icon, label, sub, accent = C.green700, bg = C.green50, onClic
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        position: 'relative',
-        background: hov ? bg : C.white,
-        border: `1.5px solid ${hov ? accent : C.gray200}`,
-        borderRadius: 16, padding: '22px 20px', cursor: 'pointer',
-        boxShadow: hov ? `0 4px 16px rgba(0,0,0,0.08)` : '0 1px 4px rgba(0,0,0,0.06)',
-        transform: hov ? 'translateY(-2px)' : 'none',
-        transition: 'all 0.15s',
-        display: 'flex', flexDirection: 'column', gap: 8,
+        display: 'flex', alignItems: 'center', gap: 12,
+        margin: '2px 12px', padding: '11px 16px', borderRadius: 10,
+        cursor: 'pointer',
+        background: hov ? 'rgba(255,255,255,0.14)' : 'transparent',
+        transition: 'background 0.15s',
       }}
     >
+      <span style={{ fontSize: 18, width: 22, textAlign: 'center', flexShrink: 0 }}>{icon}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: C.white, flex: 1 }}>{label}</span>
       {badge > 0 && (
         <span style={{
-          position: 'absolute', top: -8, right: -8,
           background: C.red600, color: C.white,
-          fontSize: 11, fontWeight: 800, minWidth: 22, height: 22,
-          borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '0 5px', border: `2px solid ${C.white}`, boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+          fontSize: 11, fontWeight: 800, minWidth: 20, height: 20,
+          borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 5px', flexShrink: 0,
         }}>
           {badge > 9 ? '9+' : badge}
         </span>
       )}
-      <span style={{ fontSize: 32 }}>{icon}</span>
-      <div style={{ fontSize: 15, fontWeight: 800, color: hov ? accent : C.gray900 }}>{label}</div>
-      {sub && <div style={{ fontSize: 12, color: C.gray500 }}>{sub}</div>}
     </div>
   )
 }
@@ -434,7 +442,27 @@ export default function PanelAdmin() {
         </div>
       </header>
 
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px 48px' }}>
+      <div style={{ display: 'flex' }}>
+        <aside style={{
+          width: 230, flexShrink: 0,
+          background: `linear-gradient(160deg, ${C.green900}, ${C.green700})`,
+          minHeight: 'calc(100vh - 64px)',
+          position: 'sticky', top: 64, alignSelf: 'flex-start',
+          padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 2,
+        }}>
+          {NAV_ITEMS.map(item => (
+            <SidebarItem
+              key={item.path}
+              icon={item.icon}
+              label={item.label}
+              badge={item.badgeKey === 'pendingSoporte' ? pendingSoporte : undefined}
+              onClick={() => navigate(item.path)}
+            />
+          ))}
+        </aside>
+
+        <main style={{ flex: 1, minWidth: 0, padding: '28px 24px 48px' }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto' }}>
 
         {/* ── Stats hoy ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24, animation: 'pa-fade 0.3s ease' }}>
@@ -448,23 +476,6 @@ export default function PanelAdmin() {
             <StatCard icon="💰" label="Ingresos del día"     value={fmtSoles(stats.ingresos)} sub="Pagos procesados hoy" />
             <StatCard icon="🩺" label="En consulta ahora"    value={stats.activas}    sub="Salas activas" accent={C.blueText} />
           </>}
-        </div>
-
-        {/* ── Menú de navegación ── */}
-        <div style={{ marginBottom: 28 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 800, color: C.gray900, marginBottom: 14 }}>Gestión</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 16 }}>
-            <NavCard icon="🩺" label="Médicos"       sub="Lista, filtros y tarifas"  onClick={() => navigate('/admin/medicos')}       accent={C.green700}  bg={C.green50} />
-            <NavCard icon="🏪" label="Boticas"       sub="Lista y detalles"          onClick={() => navigate('/admin/boticas')}       accent='#6D28D9'     bg='#F5F3FF'  />
-            <NavCard icon="🧭" label="Coordinadores" sub="Zonas y comisiones"        onClick={() => navigate('/admin/coordinadores')} accent='#6D28D9'     bg='#F5F3FF'  />
-            <NavCard icon="🏢" label="Empresas"      sub="Planes empresa y minería"  onClick={() => navigate('/admin/empresas')}      accent={C.blueText}  bg={C.blueBg} />
-            <NavCard icon="📊" label="Cobertura"     sub="Disponibilidad por hora"   onClick={() => navigate('/admin/cobertura')}     accent={C.blueText}  bg={C.blueBg} />
-            <NavCard icon="📅" label="Consultas"     sub="Historial de citas"        onClick={() => navigate('/admin/consultas')}     accent={C.amberText} bg={C.amberBg} />
-            <NavCard icon="💰" label="Finanzas"      sub="Ingresos y comisiones"     onClick={() => navigate('/admin/finanzas')}      accent={C.green700}  bg={C.green50} />
-            <NavCard icon="💰" label="Precios"       sub="Tarifas y comisiones"      onClick={() => navigate('/admin/precios')}       accent={C.green700}  bg={C.green50} />
-            <NavCard icon="📊" label="Reportes"      sub="Resumen mensual histórico" onClick={() => navigate('/admin/reportes')}      accent={C.green700}  bg={C.green50} />
-            <NavCard icon="🎧" label="Soporte"       sub="Reclamos y reembolsos"     onClick={() => navigate('/admin/soporte')}       accent={C.red600}    bg={C.redBg}  badge={pendingSoporte} />
-          </div>
         </div>
 
         {/* ── Citas de hoy ── */}
@@ -771,7 +782,9 @@ export default function PanelAdmin() {
           <div style={{ fontSize: 11, color: C.gray300, marginTop: 4 }}>RENIPRESS registrado · Ley 30421 · Colegio Médico del Perú</div>
         </div>
 
-      </main>
+          </div>
+        </main>
+      </div>
     </div>
   )
 }

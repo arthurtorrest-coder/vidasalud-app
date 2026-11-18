@@ -51,7 +51,7 @@ export default function AdminUsuarios() {
     let q = supabase
       .from('profiles')
       .select(`id, full_name, email, phone, created_at`, { count: 'exact' })
-      .eq('role', 'patient')
+      .neq('role', 'doctor')
 
     if (debouncedSearch.trim()) {
       q = q.or(`full_name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%`)

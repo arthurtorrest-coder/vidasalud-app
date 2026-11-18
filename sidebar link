@@ -1,0 +1,8 @@
+[33mcommit 8e7087ecdc5fd26d07a5e1c6e9950617f89ab549[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: arthurtorrest-coder <arthurtorrest@gmail.com>
+Date:   Sat Nov 14 22:58:57 2026 -0500
+
+    Update PanelAdmin.jsx
+
+ src/screens/Admin/PanelAdmin.jsx | 83 [32m+++++++++++++++++++++++[m[31m-----------------[m
+ 1 file changed, 48 insertions(+), 35 deletions(-)

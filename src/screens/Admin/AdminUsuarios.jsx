@@ -50,7 +50,7 @@ export default function AdminUsuarios() {
 
     let q = supabase
       .from('profiles')
-      .select(`id, full_name, email, phone, created_at, appointments!appointments_patient_id_fkey(id, status)`, { count: 'exact' })
+      .select(`id, full_name, email, phone, created_at`, { count: 'exact' })
       .eq('role', 'patient')
 
     if (debouncedSearch.trim()) {

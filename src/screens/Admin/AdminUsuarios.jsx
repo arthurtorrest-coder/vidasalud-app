@@ -50,7 +50,7 @@ export default function AdminUsuarios() {
 
     let q = supabase
       .from('profiles')
-      .select(`id, full_name, email, phone, created_at`, { count: 'exact' })
+      .select(`id, full_name, phone, created_at`, { count: 'exact' })
       .neq('role', 'doctor')
 
     if (debouncedSearch.trim()) {
@@ -199,7 +199,7 @@ export default function AdminUsuarios() {
                           </span>
                         </div>
                       </td>
-                      <td style={{ padding: '12px 16px', color: C.gray600 }}>{u.email ?? '—'}</td>
+                      <td style={{ padding: '12px 16px', color: C.gray500, fontStyle: 'italic', fontSize: 12 }}>—</td>
                       <td style={{ padding: '12px 16px', color: C.gray600 }}>{u.phone ?? <span style={{ color: C.gray300 }}>—</span>}</td>
                       <td style={{ padding: '12px 16px', color: C.gray500, whiteSpace: 'nowrap' }}>{fmtDate(u.created_at)}</td>
                       <td style={{ padding: '12px 16px' }}>

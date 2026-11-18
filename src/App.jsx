@@ -35,6 +35,7 @@ import AdminPrecios        from './screens/Admin/AdminPrecios'
 import AdminReportes       from './screens/Admin/AdminReportes'
 import AdminSoporte        from './screens/Admin/AdminSoporte'
 import AdminAnalytics      from './screens/Admin/AdminAnalytics'
+import AdminUsuarios       from './screens/Admin/AdminUsuarios'
 import MisReclamos         from './screens/Paciente/MisReclamos'
 import HistoriaClinica  from './screens/HistoriaClinica'
 import Landing         from './screens/Landing'
@@ -172,6 +173,7 @@ export default function App() {
             <Route path="/admin/reportes"                  element={<AdminReportes />}       />
             <Route path="/admin/soporte"                   element={<AdminSoporte />}        />
             <Route path="/admin/analytics"                 element={<AdminAnalytics />}      />
+            <Route path="/admin/usuarios"                  element={<AdminUsuarios />}       />
           </Route>
 
           {/* Solo farmacias aprobadas */}

@@ -92,6 +92,7 @@ const NAV_ITEMS = [
   { icon: '📊', label: 'Reportes',      path: '/admin/reportes' },
   { icon: '🎧', label: 'Soporte',       path: '/admin/soporte', badgeKey: 'pendingSoporte' },
   { icon: '📈', label: 'Analytics',     path: '/admin/analytics' },
+  { icon: '👥', label: 'Usuarios',      path: '/admin/usuarios' },
 ]
 
 function SidebarItem({ icon, label, badge, onClick }) {

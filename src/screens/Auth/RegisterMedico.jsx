@@ -123,26 +123,26 @@ export default function RegisterMedico() {
       return
     }
 
-    if (data.session) {
-      const userId = data.user.id
-      await supabase.from('profiles').upsert({ id: userId, role: 'doctor', full_name: fullName })
-      await supabase.from('doctors').insert({
-        nombres, apellidos, especialidad, cmp, precio,
-        anos_experiencia: anosExperiencia,
-        bio: bioVal || null,
-        profile_id: userId,
-        aprobado: false,
-        activo: false,
-        rating: 0,
-        total_reviews: 0,
-      })
-      toast.success('¡Solicitud enviada! El equipo VIDASALUD revisará tu perfil pronto.')
-      navigate('/login')
-    } else {
+    const userId = data.user?.id
+    if (!userId) {
       setLoading(false)
-      toast.success('Revisa tu correo para confirmar tu cuenta.', { duration: 6000 })
-      navigate('/login')
+      toast.error('Error al crear la cuenta. Inténtalo de nuevo.')
+      return
     }
+
+    await supabase.from('profiles').upsert({ id: userId, role: 'doctor', full_name: fullName })
+    await supabase.from('doctors').insert({
+      nombres, apellidos, especialidad, cmp, precio,
+      anos_experiencia: anosExperiencia,
+      bio: bioVal || null,
+      profile_id: userId,
+      aprobado: false,
+      activo: false,
+      rating: 0,
+      total_reviews: 0,
+    })
+    toast.success('¡Solicitud enviada! El equipo VIDASALUD revisará tu perfil pronto.')
+    navigate('/login')
   }
 
   const pwToggle = (show, setShow) => (

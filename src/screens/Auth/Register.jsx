@@ -74,15 +74,23 @@ export default function Register() {
       return
     }
 
+    const userId = data.user?.id
+    if (!userId) {
+      setLoading(false)
+      toast.error('Error al crear la cuenta. Inténtalo de nuevo.')
+      return
+    }
+
+    await supabase.from('profiles').upsert({
+      id:                   userId,
+      role:                 'patient',
+      full_name:            fullName,
+      dni:                  dniTrim,
+      phone:                telTrim,
+      onboarding_completado: true,
+    })
+
     if (data.session) {
-      await supabase.from('profiles').upsert({
-        id:                   data.user.id,
-        role:                 'patient',
-        full_name:            fullName,
-        dni:                  dniTrim,
-        phone:                telTrim,
-        onboarding_completado: true,   // el tour del Home se encarga de la bienvenida
-      })
       toast.success(`¡Bienvenido/a, ${firstName}! 🎉`)
       if (plan === 'familia') {
         navigate('/corporativo/registro-plan', {
@@ -94,7 +102,7 @@ export default function Register() {
       }
     } else {
       setLoading(false)
-      toast.success('Revisa tu correo para confirmar tu cuenta', { duration: 6000 })
+      toast.success('¡Cuenta creada! Revisa tu correo para confirmar y luego inicia sesión.', { duration: 6000 })
       navigate(plan === 'familia' ? `/login?plan=familia&personas=${personas}&consultas=${consultas}` : '/login')
     }
   }

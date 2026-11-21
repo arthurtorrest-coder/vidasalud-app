@@ -1,15 +1,29 @@
+import { useState, useEffect } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
+import { supabase } from '../../lib/supabase'
 
 const C = { red50: '#FEF2F2', red600: '#DC2626', gray900: '#111827', gray500: '#6B7280' }
 
 export default function DoctorRoute() {
-  const { profile, loading } = useAuthStore()
+  const { profile, loading, user } = useAuthStore()
+  const [aprobado, setAprobado] = useState(null)
+  const [checking, setChecking] = useState(true)
 
-  // ProtectedRoute maneja el spinner inicial (loading && !user).
-  // Aquí solo bloqueamos si aún no hay profile (primera carga).
-  // Si profile ya existe, un refresh de sesión no debe desmontar PanelMedico.
-  if (loading && !profile) return null
+  useEffect(() => {
+    if (!user?.id) { setChecking(false); return }
+    supabase
+      .from('doctors')
+      .select('aprobado')
+      .eq('profile_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setAprobado(data?.aprobado ?? false)
+        setChecking(false)
+      })
+  }, [user?.id])
+
+  if ((loading && !profile) || checking) return null
 
   if (profile?.role !== 'doctor') {
     return (
@@ -28,6 +42,11 @@ export default function DoctorRoute() {
         <Navigate to="/inicio" replace />
       </div>
     )
+  }
+
+  // Médico registrado pero aún no aprobado por el admin
+  if (aprobado === false) {
+    return <Navigate to="/espera-aprobacion" replace />
   }
 
   return <Outlet />

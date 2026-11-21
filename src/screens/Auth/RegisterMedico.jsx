@@ -93,6 +93,7 @@ export default function RegisterMedico() {
   const [loading, setLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [aceptaCondiciones, setAceptaCondiciones] = useState(false)
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
@@ -101,6 +102,8 @@ export default function RegisterMedico() {
 
   const tipoCertificado = watch('tipoCertificado')
   const bio = watch('bio') ?? ''
+  const precioMedico = Number(watch('precio')) || 0
+  const precioTotalPaciente = precioMedico > 0 ? precioMedico + 15 : null
 
   async function onSubmit({ nombres, apellidos, email, password, especialidad, tipoCertificado: tipo, numeroCertificado, anosExperiencia, bio: bioVal, precio }) {
     setLoading(true)
@@ -141,7 +144,9 @@ export default function RegisterMedico() {
       rating: 0,
       total_reviews: 0,
     })
-    toast.success('¡Solicitud enviada! El equipo VIDASALUD revisará tu perfil pronto.')
+
+    toast.success('¡Solicitud enviada! El equipo VIDASALUD revisará tu perfil pronto.', { duration: 6000 })
+    setLoading(false)
     navigate('/login')
   }
 
@@ -209,6 +214,42 @@ export default function RegisterMedico() {
             <span style={{ fontSize: 18, flexShrink: 0 }}>⏳</span>
             <div style={{ fontSize: 12, color: C.amberText, lineHeight: 1.55 }}>
               <strong>Proceso de verificación:</strong> revisamos tu número CMP/CPsP con el Colegio Médico del Perú antes de activar tu cuenta. Plazo estimado: 1–2 días hábiles.
+            </div>
+          </div>
+
+          {/* Panel de condiciones económicas */}
+          <div style={{
+            margin: '12px 24px 0',
+            background: '#F0FDF4', border: '1.5px solid #86EFAC',
+            borderRadius: 12, padding: '14px 16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <span style={{ fontSize: 18 }}>💰</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: C.green800 }}>
+                Condiciones económicas — léelo antes de registrarte
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 12, color: C.green800, lineHeight: 1.55 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span style={{ flexShrink: 0 }}>✅</span>
+                <span>La clínica retiene una <strong>comisión fija de S/. 15</strong> por consulta para cubrir Culqi, mantenimiento del aplicativo y operaciones.</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span style={{ flexShrink: 0 }}>✅</span>
+                <span>Tú defines tu tarifa neta. El paciente paga <strong>tu tarifa + S/. 15</strong>.</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span style={{ flexShrink: 0 }}>💡</span>
+                <span><strong>Medicina General (recomendado):</strong> coloca S/. 15 → el paciente paga S/. 30 en total.</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span style={{ flexShrink: 0 }}>💡</span>
+                <span><strong>Especialistas:</strong> tú defines tu precio y se suma S/. 15 de comisión.</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span style={{ flexShrink: 0 }}>📅</span>
+                <span>Los pagos a médicos se realizan <strong>mensualmente</strong>, sin descuentos adicionales.</span>
+              </div>
             </div>
           </div>
 
@@ -316,19 +357,42 @@ export default function RegisterMedico() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.gray700, marginBottom: 6 }}>
-                    Tarifa (S/.)
+                    Tu tarifa neta (S/.)
                   </label>
                   <input
                     {...register('precio')}
                     type="number"
                     min={10}
                     max={500}
-                    placeholder="Ej: 50"
+                    placeholder="Ej: 15"
                     style={inputStyle(!!errors.precio)}
                   />
                   <FieldError msg={errors.precio?.message} />
                 </div>
               </div>
+
+              {precioTotalPaciente !== null && (
+                <div style={{
+                  marginBottom: 14,
+                  background: precioMedico >= 10 ? '#ECFDF5' : C.amberBg,
+                  border: `1.5px solid ${precioMedico >= 10 ? '#6EE7B7' : '#FDE68A'}`,
+                  borderRadius: 10, padding: '10px 14px',
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.gray500, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Simulador de precio
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, color: C.gray700 }}>Tu tarifa:</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: C.green700 }}>S/. {precioMedico}</span>
+                    <span style={{ fontSize: 13, color: C.gray500 }}>+</span>
+                    <span style={{ fontSize: 13, color: C.gray700 }}>Comisión clínica:</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: C.gray700 }}>S/. 15</span>
+                    <span style={{ fontSize: 13, color: C.gray500 }}>=</span>
+                    <span style={{ fontSize: 13, color: C.gray700 }}>Paciente paga:</span>
+                    <span style={{ fontSize: 17, fontWeight: 900, color: C.green800 }}>S/. {precioTotalPaciente}</span>
+                  </div>
+                </div>
+              )}
 
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.gray700, marginBottom: 6 }}>
@@ -400,28 +464,37 @@ export default function RegisterMedico() {
                 <FieldError msg={errors.confirm?.message} />
               </div>
 
-              <div style={{
-                background: C.green50, border: `1px solid ${C.green100}`,
-                borderRadius: 10, padding: '10px 14px',
-                fontSize: 11, color: C.green700, lineHeight: 1.6,
-                marginBottom: 20,
+              <label style={{
+                display: 'flex', gap: 10, alignItems: 'flex-start',
+                background: C.green50, border: `1.5px solid ${aceptaCondiciones ? C.green600 : C.green100}`,
+                borderRadius: 10, padding: '12px 14px',
+                fontSize: 12, color: C.green700, lineHeight: 1.6,
+                marginBottom: 20, cursor: 'pointer',
               }}>
-                Al registrarte aceptas que tus credenciales sean verificadas con el CMP/CPsP y tus datos tratados conforme a la Ley 29733.
-              </div>
+                <input
+                  type="checkbox"
+                  checked={aceptaCondiciones}
+                  onChange={e => setAceptaCondiciones(e.target.checked)}
+                  style={{ marginTop: 2, flexShrink: 0, accentColor: C.green600, width: 16, height: 16 }}
+                />
+                <span>
+                  <strong>Acepto las condiciones económicas:</strong> entiendo que la clínica retiene S/. 15 por consulta como comisión, que el paciente pagará mi tarifa + S/. 15, y que los pagos a mi cuenta se realizarán mensualmente. También acepto que mis credenciales sean verificadas con el CMP/CPsP y mis datos tratados conforme a la Ley 29733.
+                </span>
+              </label>
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !aceptaCondiciones}
                 style={{
                   width: '100%', padding: '15px 0',
-                  background: loading
+                  background: (loading || !aceptaCondiciones)
                     ? C.green100
                     : `linear-gradient(135deg, ${C.green800}, ${C.green600})`,
-                  color: loading ? C.green700 : C.white,
+                  color: (loading || !aceptaCondiciones) ? C.green700 : C.white,
                   border: 'none', borderRadius: 12,
                   fontSize: 15, fontWeight: 800,
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  boxShadow: loading ? 'none' : '0 4px 14px rgba(5,150,105,0.35)',
+                  cursor: (loading || !aceptaCondiciones) ? 'not-allowed' : 'pointer',
+                  boxShadow: (loading || !aceptaCondiciones) ? 'none' : '0 4px 14px rgba(5,150,105,0.35)',
                   transition: 'all 0.15s',
                   fontFamily: 'inherit',
                 }}

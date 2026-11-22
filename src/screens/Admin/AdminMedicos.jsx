@@ -164,6 +164,23 @@ export default function AdminMedicos() {
     toast.success(`Solicitud de ${doc.full_name} rechazada`)
   }
 
+  async function handleToggleActivo(doc, e) {
+    e.stopPropagation()
+    e.preventDefault()
+    const nuevoEstado = !doc.activo
+    const { data: updated, error } = await supabase
+      .from('doctors')
+      .update({ activo: nuevoEstado })
+      .eq('id', doc.id)
+      .select('id')
+    if (error || !updated?.length) {
+      toast.error('Error al cambiar estado — verifica las políticas RLS')
+      return
+    }
+    setDoctors(prev => prev.map(d => d.id === doc.id ? { ...d, activo: nuevoEstado } : d))
+    toast.success(`Dr(a). ${doc.full_name} ${nuevoEstado ? 'activado/a' : 'desactivado/a'}`)
+  }
+
   async function handleRejectTarifa(doc) {
     const { data: updated, error } = await supabase
       .from('doctors')
@@ -530,7 +547,7 @@ export default function AdminMedicos() {
                 return (
                   <tr
                     key={doc.id ?? i}
-                    onClick={() => navigate(`/admin/medicos/${doc.id}`)}
+                    onClick={(e) => { if (!e.defaultPrevented) navigate(`/admin/medicos/${doc.id}`) }}
                     style={{ cursor: 'pointer' }}
                   >
                     <TD>
@@ -581,13 +598,18 @@ export default function AdminMedicos() {
                       )}
                     </TD>
                     <TD>
-                      <span style={{
-                        fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                        background: isActive ? C.green50 : C.gray100,
-                        color:      isActive ? C.green700 : C.gray500,
-                      }}>
+                      <button
+                        onClick={(e) => handleToggleActivo(doc, e)}
+                        style={{
+                          fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 20,
+                          background: isActive ? C.green50 : C.gray100,
+                          color:      isActive ? C.green700 : C.gray500,
+                          border: `1.5px solid ${isActive ? C.green200 : C.gray300}`,
+                          cursor: 'pointer', whiteSpace: 'nowrap',
+                        }}
+                      >
                         {isActive ? '● Activo' : '○ Inactivo'}
-                      </span>
+                      </button>
                     </TD>
                   </tr>
                 )

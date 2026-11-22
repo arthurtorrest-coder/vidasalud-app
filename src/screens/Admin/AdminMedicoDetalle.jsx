@@ -96,6 +96,20 @@ export default function AdminMedicoDetalle() {
       })
   }, [doctorId])
 
+  async function handleToggleActivo() {
+    const nuevoEstado = !(doctor?.activo !== false)
+    const { error } = await supabase
+      .from('doctors')
+      .update({ activo: nuevoEstado })
+      .eq('id', doctorId)
+    if (error) {
+      toast.error('Error al cambiar estado del médico')
+      return
+    }
+    setDoctor(prev => ({ ...prev, activo: nuevoEstado }))
+    toast.success(`Médico ${nuevoEstado ? 'habilitado' : 'deshabilitado'}`)
+  }
+
   async function handleGuardarPrecio() {
     const valor = precioCustom === '' ? null : Number(precioCustom)
     const { error } = await supabase
@@ -299,14 +313,18 @@ export default function AdminMedicoDetalle() {
             </div>
           </div>
 
-          <span style={{
-            fontSize: 11, fontWeight: 700, padding: '5px 14px', borderRadius: 20, flexShrink: 0,
-            background: doctor?.activo !== false ? C.green50  : C.gray100,
-            color:      doctor?.activo !== false ? C.green700 : C.gray500,
-            border: `1px solid ${doctor?.activo !== false ? C.green200 : C.gray200}`,
-          }}>
-            {doctor?.activo !== false ? '● Activo' : '○ Inactivo'}
-          </span>
+          <button
+            onClick={handleToggleActivo}
+            style={{
+              fontSize: 11, fontWeight: 700, padding: '5px 14px', borderRadius: 20, flexShrink: 0,
+              background: doctor?.activo !== false ? C.green50  : C.red50 ?? '#fff5f5',
+              color:      doctor?.activo !== false ? C.green700 : C.red600 ?? '#c0392b',
+              border: `1px solid ${doctor?.activo !== false ? C.green300 ?? C.green200 : C.red300 ?? '#e74c3c'}`,
+              cursor: 'pointer',
+            }}
+          >
+            {doctor?.activo !== false ? '● Activo — clic para deshabilitar' : '○ Inactivo — clic para habilitar'}
+          </button>
         </div>
 
         {/* ── Selector de período + KPIs ── */}

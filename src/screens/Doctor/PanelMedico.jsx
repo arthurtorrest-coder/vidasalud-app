@@ -757,7 +757,24 @@ export default function PanelMedico() {
           console.log('[Realtime appointments] UPDATE', previo, '→', nuevo)
           if (nuevo === 'paid' && previo !== 'paid') {
             // Paciente acaba de pagar → recargar para obtener datos con joins
-            toast('💳 Un paciente confirmó su pago', { icon: '✅', duration: 4000 })
+            try {
+              const ctx = new AudioContext()
+              const o = ctx.createOscillator()
+              const g = ctx.createGain()
+              o.connect(g); g.connect(ctx.destination)
+              o.frequency.setValueAtTime(880, ctx.currentTime)
+              o.frequency.setValueAtTime(1100, ctx.currentTime + 0.15)
+              g.gain.setValueAtTime(0.3, ctx.currentTime)
+              g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6)
+              o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.6)
+            } catch {}
+            toast('🔔 ¡Paciente en sala de espera! Revisa tus citas.', {
+              duration: 10000,
+              style: {
+                background: '#065f46', color: '#fff',
+                fontWeight: 700, fontSize: 15, padding: '14px 20px',
+              },
+            })
             fetchData()
           } else {
             // Otro cambio de estado (active, done, cancelled) → parche local

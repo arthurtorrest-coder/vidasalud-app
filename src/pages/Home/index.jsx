@@ -661,7 +661,7 @@ export default function Home() {
 
   async function fetchDoctors() {
     const [{ data: docs, error }, { data: scheds }] = await Promise.all([
-      supabase.from('doctors').select('*').order('rating', { ascending: false }),
+      supabase.from('doctors').select('*').eq('aprobado', true).eq('activo', true).order('rating', { ascending: false }),
       supabase.from('doctor_schedules').select('doctor_id, dia_semana, hora_inicio, hora_fin, activo'),
     ])
     if (error) {

@@ -583,7 +583,7 @@ export default function Especialidades() {
   useEffect(() => {
     async function loadData() {
       const [{ data: docs }, { data: scheds }] = await Promise.all([
-        supabase.from('doctors').select('*'),
+        supabase.from('doctors').select('*').eq('aprobado', true).eq('activo', true),
         supabase.from('doctor_schedules')
           .select('doctor_id, dia_semana, hora_inicio, hora_fin, activo'),
       ])

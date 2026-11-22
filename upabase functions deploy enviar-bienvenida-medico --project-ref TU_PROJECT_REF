@@ -1,0 +1,10 @@
+[33m7ca4767[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m fix: RegisterMedico inserta perfil sin esperar sesion activa
+[33m204f7b6[m fix: AdminUsuarios sin columna email
+[33m6509083[m fix: usuarios query temporal neq doctor
+[33m8e5b5f7[m fix: AdminUsuarios sin FK appointments
+[33m6610bcc[m feat: AdminUsuarios lista de pacientes
+[33m82df09c[m feat: AdminAnalytics completo con métricas
+[33m8e7087e[m Update PanelAdmin.jsx
+[33m810a805[m Update PanelAdmin.jsx
+[33m249f36d[m Update AdminMedicos.jsx
+[33m9faed22[m revert: headers de Home vuelven al padding original

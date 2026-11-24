@@ -242,7 +242,7 @@ function DoctorCardWithSlots({ doc, slots, isAvailableNow, nextAvailability, onB
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 11, color: C.gray500, fontWeight: 600 }}>Consulta virtual</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: C.green700 }}>S/. {doc.price || '—'}</div>
           <button
             type="button"
             onClick={() => onBook(doc.id)}

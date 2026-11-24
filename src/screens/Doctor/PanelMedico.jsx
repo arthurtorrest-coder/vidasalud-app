@@ -906,36 +906,9 @@ export default function PanelMedico() {
     })
   }, [schedules, selectedDate, appointments, slotsReservados])
 
-  // Auto-desactivar disponibilidad cuando el horario de atención ya
-  // terminó. Se revisa al cargar los horarios y luego cada 5 minutos: si
-  // el switch sigue en "disponible" pero ningún bloque de doctor_schedules
-  // cubre ya la hora actual, se apaga solo (UPDATE doctors SET activo=false).
-  useEffect(() => {
-    if (!doctorInfo?.id || loadingScheds) return
-
-    async function verificarHorario() {
-      if (!disponible) return                    // ya está desactivado, nada que hacer
-      if (schedules.length === 0) return          // sin horario configurado — no aplica la regla
-      if (estaDentroDeHorarioAhora(schedules)) return   // sigue dentro de su horario
-
-      console.log('[verificarHorario] horario terminado — desactivando disponibilidad automáticamente, doctorId:', doctorInfo.id)
-      const { error } = await supabase
-        .from('doctors')
-        .update({ activo: false })
-        .eq('id', doctorInfo.id)
-
-      if (error) {
-        console.error('[verificarHorario] no se pudo desactivar automáticamente:', error.message)
-        return
-      }
-      setDisponible(false)
-      toast('Tu horario de atención terminó. Te marcamos como no disponible.', { icon: '🕐', duration: 6000 })
-    }
-
-    verificarHorario()
-    const interval = setInterval(verificarHorario, 5 * 60_000)
-    return () => clearInterval(interval)
-  }, [doctorInfo?.id, loadingScheds, disponible, schedules])
+  // El campo `activo` lo gestiona solo el admin (habilitar/deshabilitar médico).
+  // El médico controla su disponibilidad inmediata desde el switch del panel,
+  // pero eso no afecta su visibilidad en la lista ni su capacidad de recibir citas agendadas.
 
   // Cargar estadísticas del mes cuando tengamos el doctors.id real
   useEffect(() => {

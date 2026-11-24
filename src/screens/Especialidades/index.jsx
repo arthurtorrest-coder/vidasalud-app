@@ -183,7 +183,7 @@ function SpecialtyCard({ esp, onClick }) {
       <span style={{ fontSize: 10, fontWeight: 800, color: C.gray700, textAlign: 'center', lineHeight: 1.3 }}>
         {esp.label}
       </span>
-      <span style={{ fontSize: 10, color: esp.accent, fontWeight: 700 }}>S/. {esp.precioBase}+</span>
+      <span style={{ fontSize: 10, color: esp.accent, fontWeight: 700 }}>Médicos colegiados</span>
     </div>
   )
 }
@@ -243,7 +243,7 @@ function DoctorCardWithSlots({ doc, slots, isAvailableNow, nextAvailability, onB
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: C.green700 }}>S/. {doc.price || '—'}</div>
+          <div style={{ fontSize: 11, color: C.gray500, fontWeight: 600 }}>Consulta virtual</div>
           <button
             type="button"
             onClick={() => onBook(doc.id)}
@@ -746,7 +746,7 @@ export default function Especialidades() {
             {[
               { n: String(ESPECIALIDADES.length), label: 'Especialidades' },
               { n: loading ? '…' : String(doctors.length), label: 'Médicos disponibles' },
-              { n: 'S/. 35+', label: 'Desde' },
+              { n: '✓', label: 'CMP/CPsP' },
             ].map((s, i) => (
               <div key={i} style={{
                 flex: 1, background: 'rgba(255,255,255,0.14)',
@@ -788,7 +788,7 @@ export default function Especialidades() {
                   {selectedSpec.label}
                 </div>
                 <div style={{ fontSize: 10, color: selectedSpec.accent, opacity: 0.8, marginTop: 1 }}>
-                  Consulta desde S/. {selectedSpec.precioBase} · Médicos colegiados CMP
+                  Médicos colegiados CMP · Consulta virtual
                 </div>
               </div>
             </div>

@@ -183,7 +183,6 @@ function SpecialtyCard({ esp, onClick }) {
       <span style={{ fontSize: 10, fontWeight: 800, color: C.gray700, textAlign: 'center', lineHeight: 1.3 }}>
         {esp.label}
       </span>
-      <span style={{ fontSize: 10, color: esp.accent, fontWeight: 700 }}>Médicos colegiados</span>
     </div>
   )
 }
